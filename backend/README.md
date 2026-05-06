@@ -1,168 +1,93 @@
-# 🚀 Backend - SICPR
 
-API REST construída com **Spring Boot**, utilizando **PostgreSQL** e autenticação via **JWT**.
+# Backend - SICPR
 
----
+API REST com Spring Boot, PostgreSQL e autenticação JWT.
 
-## 📌 Tecnologias
+## 🚀 Como rodar
 
-* Java 17
-* Spring Boot
-* Spring Security
-* Spring Data JPA
-* PostgreSQL
-* JWT (jjwt)
-* Maven
+### 1. Criar o banco de dados
 
----
-
-## 📂 Estrutura do Projeto
-
-```id="y9q3bn"
-backend/src/main/java/com/sicpr/backend
-│
-├── auth
-│   ├── controller
-│   │   └── AuthController.java
-│   ├── dto
-│   │   ├── AuthResponse.java
-│   │   └── LoginRequest.java
-│   └── service
-│       └── AuthService.java
-│
-├── config
-│   └── CorsConfig.java
-│
-├── security
-│   ├── JwtService.java
-│   └── SecurityConfig.java
-│
-├── user
-│   ├── controller
-│   │   └── UserController.java
-│   ├── model
-│   │   └── User.java
-│   ├── repository
-│   │   └── UserRepository.java
-│   └── service
-│       └── UserService.java
-│
-└── BackendApplication.java
-```
-
----
-
-## ⚙️ Configuração
-
-Arquivo: `src/main/resources/application.properties`
-
-```properties id="n3g3c3"
-spring.application.name=backend
-
-spring.datasource.url=jdbc:postgresql://localhost:5432/sistemacpp
-spring.datasource.username=postgres
-spring.datasource.password=123456
-
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.format_sql=true
-```
-
----
-
-## 🛠️ Banco de Dados
-
-Crie o banco no PostgreSQL:
-
-```sql id="f7y5u2"
+```sql
 CREATE DATABASE sistemacpp;
 ```
 
----
+### 2. Configurar o acesso
 
-## ▶️ Executar o Projeto
+Edite `src/main/resources/application.properties`:
 
-```bash id="q7jx0k"
-cd backend
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/sistemacpp
+spring.datasource.username=postgres
+spring.datasource.password=123456
+```
+
+### 3. Executar
+
+```bash
 mvn spring-boot:run
 ```
 
----
+## 📁 Estrutura
 
-## ⚠️ Ignorar testes (se necessário)
-
-```bash id="c5h9pg"
-mvn spring-boot:run -DskipTests
 ```
-
----
+backend/
+├── auth/           # Login e autenticação
+├── user/           # Usuários (CRUD)
+├── config/         # Configurações (CORS)
+└── security/       # JWT
+```
 
 ## 🌐 Endpoints
 
-### 🔐 Login
+| Método | Endpoint | O que faz |
+|--------|----------|-----------|
+| POST | `/api/auth/login` | Faz login e retorna token JWT |
+| GET | `/api/users` | Lista todos os usuários |
 
-**POST** `/api/auth/login`
+### Login - Exemplo
 
-#### Body:
-
-```json id="3e0jru"
+**Requisição:**
+```json
 {
   "email": "teste@email.com"
 }
 ```
 
-#### Resposta:
-
-```json id="6s3o2g"
+**Resposta:**
+```json
 {
-  "token": "jwt_token"
+  "token": "jwt_token_aqui"
 }
 ```
 
----
-
-### 👤 Usuários
-
-**GET** `/api/users`
-
-Retorna todos os usuários cadastrados.
-
----
-
 ## 🔐 Autenticação
 
-* Utiliza JWT
-* Token válido por 24 horas
-* Gerado com base no email
+- Token JWT válido por 24 horas
+- Para acessar rotas protegidas, envie o token no header:
+```
+Authorization: Bearer jwt_token_aqui
+```
 
----
+## 🛠️ Tecnologias
 
-## 📦 Build
+- Java 17
+- Spring Boot
+- Spring Security
+- PostgreSQL
+- JWT
+- Maven
 
-```bash id="2jvt8b"
+## 📦 Build para produção
+
+```bash
 mvn clean install
 ```
 
----
+## ⚠️ Observação
 
-## 🧠 Observações
-
-* Login simplificado (não valida senha)
-* Estrutura pronta para autenticação completa
-* JWT já implementado e funcional
-* Projeto organizado em camadas (Controller, Service, Repository)
+O login atual é simplificado (não valida senha). Apenas o email é necessário.
 
 ---
 
-## 🚀 Próximos Passos
-
-* Implementar senha e autenticação real
-* Proteger rotas com filtro JWT
-* CRUD completo de usuários
-* Integração com frontend (Next.js)
-
----
-
-## 👨‍💻 Autor
-
-Luiz
+**Autor:** Luiz
+```

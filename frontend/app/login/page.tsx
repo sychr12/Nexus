@@ -1,22 +1,30 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError("");
 
     try {
-      const res = await fetch("http://localhost:8080/auth/login", {
+      console.log("Tentando login com:", username);
+      
+      const res = await fetch("http://localhost:8080/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -24,104 +32,245 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
 
+      console.log("Status da resposta:", res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log("Token recebido:", data.token);
         localStorage.setItem("token", data.token);
+        alert("Login realizado com sucesso!");
         router.push("/dashboard");
       } else {
-        alert("Credenciais inválidas");
+        const errorText = await res.text();
+        console.error("Erro do servidor:", errorText);
+        setError(errorText || "Credenciais inválidas");
       }
     } catch (err) {
-      alert("Erro no servidor");
+      console.error("Erro de conexão:", err);
+      setError("Erro ao conectar com o servidor. Verifique se o backend está rodando.");
     } finally {
       setLoading(false);
     }
   }
 
+  const features = [
+    { label: "Relatorios", color: "bg-emerald-500/20" },
+    { label: "Lancamentos", color: "bg-blue-500/20" },
+    { label: "Analises", color: "bg-purple-500/20" },
+    { label: "Seguranca", color: "bg-amber-500/20" },
+  ];
+
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0F2A1D] via-[#375534] to-[#6B9071] relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a1f16] via-[#1a3a2a] to-[#2d5a3f] relative overflow-hidden">
+      
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute w-[800px] h-[800px] bg-emerald-400/10 rounded-full animate-pulse" 
+             style={{ top: '-400px', left: '-400px', animationDuration: '8s' }} />
+        <div className="absolute w-[600px] h-[600px] bg-teal-400/10 rounded-full animate-pulse"
+             style={{ bottom: '-300px', right: '-300px', animationDuration: '6s', animationDelay: '2s' }} />
+        <div className="absolute w-[400px] h-[400px] bg-green-400/10 rounded-full animate-pulse"
+             style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', animationDuration: '10s', animationDelay: '4s' }} />
+      </div>
 
-      {/* brilho de fundo */}
-      <div className="absolute w-[500px] h-[500px] bg-green-400/20 blur-[120px] top-[-100px] left-[-100px]" />
-      <div className="absolute w-[400px] h-[400px] bg-green-300/20 blur-[120px] bottom-[-100px] right-[-100px]" />
-
-      <div className="w-full max-w-md p-10 rounded-3xl bg-white/10 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] border border-white/20 z-10">
-
-        {/* LOGO */}
-        <div className="flex justify-center mb-6">
-          <Image
-            src="/logosicprtp.png"
-            alt="SICPR"
-            width={200}
-            height={90}
-            className="object-contain drop-shadow-lg"
-          />
-        </div>
-
-        <div className="text-center mb-8">
-          <h2 className="text-white text-2xl font-semibold">
-            Bem-vindo de volta
-          </h2>
-          <p className="text-green-200 text-sm mt-1">
-            Acesse o sistema com suas credenciais
-          </p>
-        </div>
-
-        <form onSubmit={handleLogin} className="flex flex-col gap-5">
-
-          {/* INPUT USUÁRIO */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder=" "
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="peer w-full p-4 rounded-xl bg-white/20 text-white placeholder-transparent outline-none focus:ring-2 focus:ring-green-400"
-            />
-            <label className="absolute left-4 top-4 text-gray-300 text-sm transition-all 
-              peer-placeholder-shown:top-4 
-              peer-placeholder-shown:text-gray-400 
-              peer-focus:top-1 
-              peer-focus:text-green-300 
-              peer-focus:text-xs">
-              Usuário
-            </label>
+      <div className={`w-full max-w-6xl mx-4 transition-all duration-700 ${
+        mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+      }`}>
+        
+        {/* Main Card */}
+        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+          
+          {/* Header */}
+          <div className="bg-black/30 px-6 py-4 border-b border-white/10">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white text-xl font-bold">S</span>
+                </div>
+                <div>
+                  <h1 className="text-white font-bold text-xl">SICPR</h1>
+                  <p className="text-emerald-300 text-xs">Sistema Integrado de Controle</p>
+                </div>
+              </div>
+              
+              {/* System tabs preview */}
+              <div className="flex gap-1 bg-white/5 rounded-full p-1">
+                {['Dashboard', 'Relatorios', 'Lancamentos', 'Analises'].map((tab, idx) => (
+                  <button
+                    key={idx}
+                    disabled
+                    className="px-4 py-1.5 text-sm text-white/60 hover:text-white/80 transition-colors cursor-default"
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* INPUT SENHA */}
-          <div className="relative">
-            <input
-              type="password"
-              placeholder=" "
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="peer w-full p-4 rounded-xl bg-white/20 text-white placeholder-transparent outline-none focus:ring-2 focus:ring-green-400"
-            />
-            <label className="absolute left-4 top-4 text-gray-300 text-sm transition-all 
-              peer-placeholder-shown:top-4 
-              peer-placeholder-shown:text-gray-400 
-              peer-focus:top-1 
-              peer-focus:text-green-300 
-              peer-focus:text-xs">
-              Senha
-            </label>
+          <div className="grid lg:grid-cols-2 gap-0">
+            
+            {/* Left Side - Login Form */}
+            <div className="p-8 lg:p-12">
+              <div className="max-w-md mx-auto">
+                <div className="mb-8">
+                  <div className="flex justify-center mb-6 lg:hidden">
+                    <Image
+                      src="/logosicprtp.png"
+                      alt="SICPR"
+                      width={180}
+                      height={80}
+                      className="object-contain drop-shadow-lg"
+                    />
+                  </div>
+                  <h2 className="text-white text-3xl font-bold mb-2">
+                    Bem-vindo
+                  </h2>
+                  <p className="text-emerald-200/80 text-sm">
+                    Acesse o sistema com suas credenciais de acesso
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-sm text-center">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleLogin} className="flex flex-col gap-6">
+                  {/* Username Field */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full p-4 rounded-xl bg-white/10 text-white outline-none focus:ring-2 focus:ring-emerald-400/60 border border-white/20 focus:border-emerald-400 transition-all"
+                      placeholder="Usuário"
+                      required
+                    />
+                  </div>
+
+                  {/* Password Field */}
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full p-4 rounded-xl bg-white/10 text-white outline-none focus:ring-2 focus:ring-emerald-400/60 border border-white/20 focus:border-emerald-400 transition-all"
+                      placeholder="Senha"
+                      required
+                    />
+                  </div>
+
+                  {/* Forgot Password */}
+                  <div className="text-right">
+                    <button type="button" className="text-xs text-emerald-300 hover:text-emerald-200 transition-colors">
+                      Esqueceu a senha?
+                    </button>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full p-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all duration-300 font-semibold text-white shadow-lg disabled:opacity-60"
+                  >
+                    {loading ? "Entrando..." : "Acessar Sistema"}
+                  </button>
+                </form>
+
+                {/* Footer */}
+                <div className="mt-8 pt-6 border-t border-white/10">
+                  <div className="text-center text-xs text-emerald-200/60">
+                    SICPR v2.0 • Sistema de Controle de Acesso
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side - Features & Info */}
+            <div className="relative bg-black/30 p-8 lg:p-12">
+              <div className="h-full flex flex-col justify-between">
+                {/* Logo on desktop */}
+                <div className="hidden lg:flex justify-center mb-8">
+                  <Image
+                    src="/logosicprtp.png"
+                    alt="SICPR"
+                    width={200}
+                    height={90}
+                    className="object-contain drop-shadow-lg"
+                  />
+                </div>
+
+                {/* Features grid */}
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-6">
+                    Módulos do Sistema
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {features.map((feature, idx) => (
+                      <div
+                        key={idx}
+                        className={`${feature.color} rounded-xl p-4 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:border-emerald-400/50 cursor-default`}
+                        style={{
+                          animationDelay: `${idx * 100}ms`,
+                          animation: mounted ? 'fadeInUp 0.5s ease-out forwards' : 'none',
+                          opacity: 0,
+                        }}
+                      >
+                        <p className="text-white font-medium text-sm">{feature.label}</p>
+                        <p className="text-emerald-200/50 text-xs mt-1">Módulo ativo</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* System info */}
+                <div className="mt-8 space-y-3">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-emerald-200/70">Sistema online</span>
+                  </div>
+                </div>
+
+                {/* Version badge */}
+                <div className="mt-6 pt-4 text-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full">
+                    <span className="text-[10px] text-emerald-200/60">Criptografia SSL • Ambiente Seguro</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
 
-          {/* BOTÃO */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-2 p-4 rounded-xl bg-gradient-to-r from-[#0F2A1D] to-[#2D452F] hover:scale-[1.02] active:scale-[0.98] transition text-white font-semibold shadow-lg disabled:opacity-60"
-          >
-            {loading ? "Entrando..." : "Entrar"}
-          </button>
-        </form>
-
-        {/* FOOTER */}
-        <div className="mt-8 text-center text-xs text-green-200 opacity-80">
-          SICPR • Sistema de Controle de Acesso
+        {/* Bottom navigation preview */}
+        <div className="mt-6 flex justify-center lg:hidden">
+          <div className="bg-black/40 backdrop-blur-lg rounded-full px-6 py-2 border border-white/10 inline-flex gap-6">
+            {['Home', 'Dashboard', 'Lançamentos', 'Análises', 'Mais'].map((item, idx) => (
+              <button key={idx} disabled className="text-white/50 text-xs py-2 cursor-default">
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }
