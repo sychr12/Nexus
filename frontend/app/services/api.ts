@@ -1,33 +1,69 @@
 const API_URL = "http://localhost:8080";
 
-export async function login(username: string, password: string) {
-  try {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
-    });
+interface LoginResponse {
+  token: string;
+}
 
-    if (!res.ok) {
-      // Tenta pegar a mensagem de erro do corpo da resposta
-      let errorMessage = "Login inválido";
-      try {
-        const errorData = await res.json();
-        errorMessage = errorData.message || errorData.error || errorMessage;
-      } catch {
-        // Se não for JSON, pega o texto
-        const errorText = await res.text();
-        if (errorText) errorMessage = errorText;
+export async function login(
+  username: string,
+  password: string
+): Promise<LoginResponse> {
+
+  try {
+
+    const response = await fetch(
+      `${API_URL}/api/auth/login`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
       }
+    );
+
+    // erro da API
+    if (!response.ok) {
+
+      let errorMessage = "Usuário ou senha inválidos";
+
+      try {
+
+        const errorData = await response.json();
+
+        errorMessage =
+          errorData.message ||
+          errorData.error ||
+          errorMessage;
+
+      } catch {
+
+        const textError = await response.text();
+
+        if (textError) {
+          errorMessage = textError;
+        }
+      }
+
       throw new Error(errorMessage);
     }
 
-    const data = await res.json();
+    // sucesso
+    const data: LoginResponse = await response.json();
+
     return data;
+
   } catch (error) {
-    console.error("Erro no login:", error);
-    throw error;
+
+    console.error("Erro ao fazer login:", error);
+
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    }
+
+    throw new Error("Erro inesperado no login");
   }
 }

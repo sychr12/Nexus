@@ -1,27 +1,17 @@
-// app/dashboard/components/RecentActivities.tsx
-'use client';
+"use client";
 
-import { FileText, BookOpen, RotateCcw, UserPlus, Clock, User, Calendar } from 'lucide-react';
-import { AtividadeRecente } from '../lib/types';
+import { FileText, Clock, User, Calendar } from 'lucide-react';
+
+interface AtividadeRecente {
+  tipo: string;
+  usuario: string;
+  descricao: string;
+  dataHora: string;
+}
 
 interface RecentActivitiesProps {
   activities: AtividadeRecente[];
 }
-
-const getIconeConfig = (tipo: string) => {
-  switch (tipo) {
-    case 'RELATORIO':
-      return { icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50' };
-    case 'INSCRICAO':
-      return { icon: BookOpen, color: 'text-amber-500', bg: 'bg-amber-50' };
-    case 'DEVOLUCAO':
-      return { icon: RotateCcw, color: 'text-red-500', bg: 'bg-red-50' };
-    case 'CADASTRO':
-      return { icon: UserPlus, color: 'text-emerald-500', bg: 'bg-emerald-50' };
-    default:
-      return { icon: FileText, color: 'text-gray-500', bg: 'bg-gray-50' };
-  }
-};
 
 export default function RecentActivities({ activities }: RecentActivitiesProps) {
   const formatDate = (dateStr: string) => {
@@ -50,31 +40,28 @@ export default function RecentActivities({ activities }: RecentActivitiesProps) 
             <p className="text-sm">Nenhuma atividade recente</p>
           </div>
         ) : (
-          activities.map((activity, index) => {
-            const { icon: Icon, color, bg } = getIconeConfig(activity.tipo);
-            return (
-              <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bg}`}>
-                    <Icon size={16} className={color} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-800">{activity.descricao}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
-                        <User size={10} />
-                        <span>{activity.usuario}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
-                        <Calendar size={10} />
-                        <span>{formatDate(activity.dataHora)}</span>
-                      </div>
+          activities.map((activity, index) => (
+            <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                  <FileText size={16} className="text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-800">{activity.descricao}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <User size={10} />
+                      <span>{activity.usuario}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <Calendar size={10} />
+                      <span>{formatDate(activity.dataHora)}</span>
                     </div>
                   </div>
                 </div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
     </div>

@@ -1,8 +1,13 @@
-// app/dashboard/components/UsersOnline.tsx
-'use client';
+"use client";
 
-import { Users, UserCheck, Clock, User, Circle } from 'lucide-react';
-import { UsuarioAtivo } from '../lib/types';
+import { Users, Clock, User, Circle } from 'lucide-react';
+
+interface UsuarioAtivo {
+  username: string;
+  nome: string;
+  perfil: string;
+  tempoOnline: string;
+}
 
 interface UsersOnlineProps {
   users: UsuarioAtivo[];

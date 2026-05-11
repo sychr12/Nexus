@@ -1,8 +1,13 @@
-// app/dashboard/components/StatsCards.tsx
-'use client';
+"use client";
 
 import { DollarSign, FileText, CreditCard, Mail } from 'lucide-react';
-import { DashboardStats } from '../lib/types';
+
+interface DashboardStats {
+  totalLancamentos: number;
+  totalMemorandos: number;
+  totalCartoes: number;
+  totalEmails: number;
+}
 
 interface StatsCardsProps {
   stats: DashboardStats;
@@ -17,7 +22,6 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       color: 'text-blue-600',
       bg: 'bg-blue-50',
       icon: DollarSign,
-      border: 'border-blue-100',
     },
     {
       title: 'Memorandos',
@@ -26,7 +30,6 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       color: 'text-purple-600',
       bg: 'bg-purple-50',
       icon: FileText,
-      border: 'border-purple-100',
     },
     {
       title: 'Cartões Emitidos',
@@ -35,7 +38,6 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       color: 'text-emerald-600',
       bg: 'bg-emerald-50',
       icon: CreditCard,
-      border: 'border-emerald-100',
     },
     {
       title: 'E-mails Emitidos',
@@ -44,7 +46,6 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       color: 'text-amber-600',
       bg: 'bg-amber-50',
       icon: Mail,
-      border: 'border-amber-100',
     },
   ];
 
@@ -55,10 +56,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
         return (
           <div
             key={index}
-            className={`
-              bg-white rounded-xl shadow-sm border ${card.border} p-6 
-              hover:shadow-md transition-all duration-300 hover:-translate-y-1
-            `}
+            className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-all"
           >
             <div className="flex items-center justify-between mb-4">
               <div className={`w-12 h-12 ${card.bg} rounded-xl flex items-center justify-center`}>

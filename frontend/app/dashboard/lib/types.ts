@@ -1,4 +1,3 @@
-// app/dashboard/lib/types.ts
 export interface DashboardStats {
   usuariosOnline: number;
   usuariosOffline: number;
@@ -24,11 +23,6 @@ export interface AtividadeRecente {
   descricao: string;
   dataHora: string;
   icone: string;
-}
-
-export interface ChartData {
-  dias: string[];
-  valores: number[];
 }
 
 export interface TopCategoria {

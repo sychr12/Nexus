@@ -21,37 +21,64 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
+    ) throws Exception {
+
         http
             .csrf(csrf -> csrf.disable())
-            // Delega o CORS para o CorsFilter do CorsConfig (evita conflito)
+
             .cors(cors -> {})
+
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS
+                )
+            )
+
             .authorizeHttpRequests(auth -> auth
-                // Endpoints públicos
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/auth/**").permitAll()
-                
-                // Dashboard - requer autenticação
-                .requestMatchers(HttpMethod.GET, "/api/dashboard/**").authenticated()
-                
-                // Necessário para o Spring exibir mensagens de erro corretamente
-                .requestMatchers("/error").permitAll()
-                
-                // Swagger liberado
+
+                // OPTIONS
                 .requestMatchers(
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/v3/api-docs/**"
+                        HttpMethod.OPTIONS,
+                        "/**"
                 ).permitAll()
-                
-                // Tudo mais exige autenticação
+
+                // AUTH
+                .requestMatchers(
+                        "/api/auth/**"
+                ).permitAll()
+
+                // INSCRIÇÕES
+                .requestMatchers(
+                        "/api/inscricoes/**"
+                ).permitAll()
+
+                // DASHBOARD
+                .requestMatchers(
+                        "/api/dashboard/**"
+                ).authenticated()
+
+                // ERRO
+                .requestMatchers(
+                        "/error"
+                ).permitAll()
+
+                // SWAGGER
+                .requestMatchers(
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**"
+                ).permitAll()
+
+                // RESTANTE
                 .anyRequest().authenticated()
             )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+            .addFilterBefore(
+                    jwtAuthFilter,
+                    UsernamePasswordAuthenticationFilter.class
+            );
 
         return http.build();
     }

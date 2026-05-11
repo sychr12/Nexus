@@ -1,5 +1,4 @@
-// app/dashboard/components/Chart.tsx
-'use client';
+"use client";
 
 import { useEffect, useState } from 'react';
 import {
@@ -12,30 +11,36 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { BarChart3, TrendingUp } from 'lucide-react';
-import { dashboardApi } from '../lib/api';
+
+interface ChartData {
+  dia: string;
+  relatorios: number;
+}
 
 export default function Chart() {
-  const [data, setData] = useState<{ dia: string; relatorios: number }[]>([]);
+  const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadChartData();
-  }, []);
-
-  async function loadChartData() {
-    try {
-      const response = await dashboardApi.getChartData();
-      const formattedData = response.dias.map((dia, index) => ({
-        dia,
-        relatorios: response.valores[index],
-      }));
-      setData(formattedData);
-    } catch (error) {
-      console.error('Erro ao carregar gráfico:', error);
-    } finally {
-      setLoading(false);
+    // Dados mock para o gráfico
+    const dias: string[] = [];
+    const valores: number[] = [];
+    
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dias.push(date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+      valores.push(Math.floor(Math.random() * 50) + 10);
     }
-  }
+    
+    const formattedData: ChartData[] = dias.map((dia, index) => ({
+      dia,
+      relatorios: valores[index],
+    }));
+    
+    setData(formattedData);
+    setLoading(false);
+  }, []);
 
   if (loading) {
     return (

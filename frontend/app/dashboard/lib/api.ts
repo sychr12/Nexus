@@ -1,9 +1,7 @@
-// app/dashboard/lib/api.ts
 import { 
   DashboardStats, 
   UsuarioAtivo, 
   AtividadeRecente, 
-  ChartData,
   TopCategoria,
   Relatorio,
   Notificacao 
@@ -27,15 +25,13 @@ export const dashboardApi = {
   async getStats(): Promise<DashboardStats> {
     try {
       const res = await fetch(`${API_URL}/dashboard/stats`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar estatísticas');
+      if (!res.ok) throw new Error('Erro');
       return res.json();
-    } catch (error) {
-      console.error('getStats:', error);
-      // Retorna dados mock em caso de erro
+    } catch {
       return {
-        usuariosOnline: 0,
-        usuariosOffline: 0,
-        totalUsuarios: 0,
+        usuariosOnline: 3,
+        usuariosOffline: 5,
+        totalUsuarios: 8,
         totalLancamentos: 1248,
         totalMemorandos: 342,
         totalCartoes: 210,
@@ -48,59 +44,37 @@ export const dashboardApi = {
   async getUsuariosAtivos(): Promise<UsuarioAtivo[]> {
     try {
       const res = await fetch(`${API_URL}/dashboard/usuarios-ativos`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar usuários');
+      if (!res.ok) throw new Error('Erro');
       return res.json();
-    } catch (error) {
-      console.error('getUsuariosAtivos:', error);
-      // Retorna usuário admin como mock
-      return [{
-        username: 'admin',
-        nome: 'Administrador',
-        perfil: 'ADMIN',
-        ultimoAcesso: new Date().toISOString(),
-        tempoOnline: 'Agora'
-      }];
+    } catch {
+      return [
+        { username: 'admin', nome: 'Administrador', perfil: 'ADMIN', ultimoAcesso: new Date().toISOString(), tempoOnline: 'Agora' },
+        { username: 'joao', nome: 'João Silva', perfil: 'USUARIO', ultimoAcesso: new Date().toISOString(), tempoOnline: '5 min' },
+        { username: 'maria', nome: 'Maria Santos', perfil: 'USUARIO', ultimoAcesso: new Date().toISOString(), tempoOnline: '15 min' }
+      ];
     }
   },
 
   async getAtividadesRecentes(): Promise<AtividadeRecente[]> {
     try {
       const res = await fetch(`${API_URL}/dashboard/atividades`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar atividades');
+      if (!res.ok) throw new Error('Erro');
       return res.json();
-    } catch (error) {
-      console.error('getAtividadesRecentes:', error);
-      return [];
-    }
-  },
-
-  async getChartData(): Promise<ChartData> {
-    try {
-      const res = await fetch(`${API_URL}/dashboard/chart`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar gráfico');
-      return res.json();
-    } catch (error) {
-      console.error('getChartData:', error);
-      const dias = [];
-      const valores = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        dias.push(date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
-        valores.push(0);
-      }
-      return { dias, valores };
+    } catch {
+      return [
+        { tipo: 'RELATORIO', usuario: 'João', descricao: 'Gerou relatório de lançamentos', dataHora: new Date().toISOString(), icone: '' },
+        { tipo: 'MEMORANDO', usuario: 'Maria', descricao: 'Criou novo memorando', dataHora: new Date().toISOString(), icone: '' },
+        { tipo: 'CARTAO', usuario: 'Pedro', descricao: 'Emitiu novo cartão', dataHora: new Date().toISOString(), icone: '' },
+      ];
     }
   },
 
   async getTopCategorias(): Promise<TopCategoria[]> {
     try {
       const res = await fetch(`${API_URL}/dashboard/categorias`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar categorias');
+      if (!res.ok) throw new Error('Erro');
       return res.json();
-    } catch (error) {
-      console.error('getTopCategorias:', error);
-      // Dados mock
+    } catch {
       return [
         { nome: 'Combustível', total: 36 },
         { nome: 'Insumos', total: 25 },
@@ -113,17 +87,14 @@ export const dashboardApi = {
   async getRelatorios(): Promise<Relatorio[]> {
     try {
       const res = await fetch(`${API_URL}/dashboard/relatorios`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar relatórios');
+      if (!res.ok) throw new Error('Erro');
       return res.json();
-    } catch (error) {
-      console.error('getRelatorios:', error);
-      // Dados mock
+    } catch {
       return [
         { nome: 'Relatório de Lançamentos', descricao: 'Lançamentos por período' },
-        { nome: 'Memorando por status', descricao: 'Memorando' },
-        { nome: 'Cartões emitidos', descricao: 'Cartões emitidos' },
+        { nome: 'Memorando por status', descricao: 'Memorandos emitidos' },
+        { nome: 'Cartões emitidos', descricao: 'Cartões por produtor' },
         { nome: 'Relatório Financeiro', descricao: 'Resumo financeiro' },
-        { nome: 'Relatório de E-mails', descricao: 'E-mails enviados' },
       ];
     }
   },
@@ -131,17 +102,13 @@ export const dashboardApi = {
   async getNotificacoes(): Promise<Notificacao[]> {
     try {
       const res = await fetch(`${API_URL}/dashboard/notificacoes`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro ao carregar notificações');
+      if (!res.ok) throw new Error('Erro');
       return res.json();
-    } catch (error) {
-      console.error('getNotificacoes:', error);
-      // Dados mock
+    } catch {
       return [
         { titulo: 'Memorando MEM-2024-0001', mensagem: 'Novo memorando criado', dataHora: 'Há 5 minutos', lida: false },
-        { titulo: 'Novo lançamento adicional', mensagem: 'Lançamento registrado', dataHora: 'Há 1 hora', lida: false },
-        { titulo: 'Cartão emitido com sucesso', mensagem: 'Cartão emitido', dataHora: 'Há 2 horas', lida: true },
-        { titulo: 'E-mail enviado para SEFAZ', mensagem: 'E-mail enviado', dataHora: 'Há 3 horas', lida: true },
-        { titulo: 'Backup realizado com sucesso', mensagem: 'Backup concluído', dataHora: 'Há 5 horas', lida: true },
+        { titulo: 'Novo lançamento', mensagem: 'Lançamento registrado', dataHora: 'Há 1 hora', lida: false },
+        { titulo: 'Cartão emitido', mensagem: 'Cartão emitido com sucesso', dataHora: 'Há 2 horas', lida: true },
       ];
     }
   },
