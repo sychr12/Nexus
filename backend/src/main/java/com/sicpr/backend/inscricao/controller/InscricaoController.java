@@ -1,0 +1,40 @@
+package com.sicpr.backend.inscricao.controller;
+
+import com.sicpr.backend.inscricao.dto.InscricaoRequest;
+import com.sicpr.backend.inscricao.dto.InscricaoResponse;
+import com.sicpr.backend.inscricao.service.InscricaoService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/inscricoes")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class InscricaoController {
+
+    private final InscricaoService service;
+
+    @PostMapping
+    public InscricaoResponse salvar(
+            @RequestBody InscricaoRequest request
+    ) {
+
+        return service.salvar(request);
+    }
+
+    // API SEGURA
+    @GetMapping
+    public List<InscricaoResponse> listar() {
+
+        return service.listarPublico();
+    }
+
+    // WEB ADMIN
+    @GetMapping("/web")
+    public List<InscricaoResponse> listarWeb() {
+
+        return service.listarWeb();
+    }
+}
