@@ -123,6 +123,9 @@ public class InscricaoService {
                 .tipo(
                         inscricao.getTipo()
                 )
+                .criadoEm(
+                        inscricao.getCriadoEm()
+                )
                 .build();
     }
 
@@ -154,6 +157,9 @@ public class InscricaoService {
                 )
                 .tipo(
                         inscricao.getTipo()
+                )
+                .criadoEm(
+                        inscricao.getCriadoEm()
                 )
                 .build();
     }

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Bell, 
-  User, 
   Search, 
   ChevronLeft, 
   ChevronRight,
@@ -12,7 +11,10 @@ import {
   Eye,
   FileText,
   Users,
-  Loader2
+  Loader2,
+  CalendarDays,
+  Filter,
+  X
 } from "lucide-react";
 import TopBar from "../sidebar/page";
 
@@ -36,7 +38,16 @@ interface Inscricao {
   municipio: string;
   memorando: string;
   tipo: string;
+  criadoEm?: string | null;
 }
+
+type PeriodFilter = "todos" | "90";
+
+const getInscricaoDate = (item: Inscricao) => {
+  if (!item.criadoEm) return null;
+  const date = new Date(item.criadoEm);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 export default function TabelaPage() {
   const router = useRouter();
@@ -44,6 +55,8 @@ export default function TabelaPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("todos");
+  const [yearFilter, setYearFilter] = useState("todos");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -54,13 +67,13 @@ export default function TabelaPage() {
       return;
     }
     carregarDados();
-  }, []);
+  }, [router]);
 
   function handleLogout() {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
     router.push("/login");
-  }
+  } 
 
   async function carregarDados() {
     try {
@@ -90,13 +103,64 @@ export default function TabelaPage() {
 
   const username = typeof window !== "undefined" ? localStorage.getItem("username") || "Usuário" : "Usuário";
 
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    dados.forEach((item) => {
+      const date = getInscricaoDate(item);
+      if (date) years.add(String(date.getFullYear()));
+    });
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [dados]);
+
   // Filtragem dos dados
-  const filteredDados = dados.filter((item) =>
-    item.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.cpf.includes(searchTerm) ||
-    item.municipio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.memorando.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredDados = useMemo(() => {
+    const termo = searchTerm.trim().toLowerCase();
+    const termoNumerico = searchTerm.replace(/\D/g, "");
+    const noventaDiasAtras = new Date();
+    noventaDiasAtras.setDate(noventaDiasAtras.getDate() - 90);
+
+    return dados.filter((item) => {
+      const dataCriacao = getInscricaoDate(item);
+      const ano = dataCriacao ? String(dataCriacao.getFullYear()) : "";
+      const cpfNumerico = item.cpf?.replace(/\D/g, "") || "";
+
+      const correspondePesquisa =
+        !termo ||
+        item.nome?.toLowerCase().includes(termo) ||
+        item.cpf?.toLowerCase().includes(termo) ||
+        (termoNumerico.length > 0 && cpfNumerico.includes(termoNumerico)) ||
+        ano.includes(termo);
+
+      const correspondePeriodo =
+        periodFilter === "todos" ||
+        (dataCriacao !== null && dataCriacao >= noventaDiasAtras);
+
+      const correspondeAno =
+        yearFilter === "todos" ||
+        ano === yearFilter;
+
+      return correspondePesquisa && correspondePeriodo && correspondeAno;
+    });
+  }, [dados, searchTerm, periodFilter, yearFilter]);
+
+  const hasActiveFilters =
+    searchTerm.trim() !== "" ||
+    periodFilter !== "todos" ||
+    yearFilter !== "todos";
+
+  const limparFiltros = () => {
+    setSearchTerm("");
+    setPeriodFilter("todos");
+    setYearFilter("todos");
+    setCurrentPage(1);
+  };
+
+  const formatarData = (valor?: string | null) => {
+    if (!valor) return "-";
+    const date = new Date(valor);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("pt-BR");
+  };
 
   // Paginação
   const totalPages = Math.ceil(filteredDados.length / itemsPerPage);
@@ -150,28 +214,96 @@ export default function TabelaPage() {
           </div>
 
           {/* Card da Tabela */}
-          <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}>
+          <div className="rounded-lg shadow-sm overflow-hidden" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}>
             {/* Barra de Pesquisa */}
-            <div className="p-4" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-              <div className="relative">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                <input
-                  type="text"
-                  placeholder="Pesquisar por nome, CPF, município ou memorando..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 transition-all"
-                  style={{ 
-                    border: `1px solid ${COLORS.border}`,
-                    color: COLORS.text,
-                    backgroundColor: COLORS.background
-                  }}
-                  onFocus={(e) => e.target.style.outline = `2px solid ${COLORS.accent}`}
-                  onBlur={(e) => e.target.style.outline = "none"}
-                />
+            <div className="px-4 py-3" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold" style={{ color: COLORS.text }}>Lista de inscrições</h2>
+                  <p className="text-xs mt-0.5" style={{ color: COLORS.textLight }}>
+                    {filteredDados.length} de {dados.length} registros
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                  <div className="relative lg:w-96">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                    <input
+                      type="text"
+                      placeholder="Pesquisar por ano, nome ou CPF..."
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full pl-9 pr-3 py-2 rounded-md text-sm focus:outline-none transition-all"
+                      style={{ 
+                        border: `1px solid ${COLORS.border}`,
+                        color: COLORS.text,
+                        backgroundColor: COLORS.background
+                      }}
+                      onFocus={(e) => e.target.style.outline = `2px solid ${COLORS.accent}`}
+                      onBlur={(e) => e.target.style.outline = "none"}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative">
+                      <Filter size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <select
+                        value={periodFilter}
+                        onChange={(e) => {
+                          setPeriodFilter(e.target.value as PeriodFilter);
+                          setCurrentPage(1);
+                        }}
+                        className="pl-9 pr-8 py-2 rounded-md text-xs font-medium focus:outline-none"
+                        style={{
+                          border: `1px solid ${COLORS.border}`,
+                          color: COLORS.text,
+                          backgroundColor: COLORS.card,
+                        }}
+                      >
+                        <option value="todos">Todos os períodos</option>
+                        <option value="90">Últimos 90 dias</option>
+                      </select>
+                    </div>
+
+                    <div className="relative">
+                      <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <select
+                        value={yearFilter}
+                        onChange={(e) => {
+                          setYearFilter(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="pl-9 pr-8 py-2 rounded-md text-xs font-medium focus:outline-none"
+                        style={{
+                          border: `1px solid ${COLORS.border}`,
+                          color: COLORS.text,
+                          backgroundColor: COLORS.card,
+                        }}
+                      >
+                        <option value="todos">Todos os anos</option>
+                        {availableYears.map((year) => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={limparFiltros}
+                        title="Limpar filtros"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-150 hover:bg-gray-50"
+                        style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}` }}
+                      >
+                        <X size={14} />
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -210,31 +342,51 @@ export default function TabelaPage() {
               </div>
             )}
 
+            {!loading && !erro && dados.length > 0 && filteredDados.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: COLORS.light }}>
+                  <FileText size={32} style={{ color: COLORS.primary }} />
+                </div>
+                <p className="text-center" style={{ color: COLORS.textLight }}>Nenhuma inscrição encontrada para os filtros selecionados</p>
+                {hasActiveFilters && (
+                  <button
+                    onClick={limparFiltros}
+                    className="mt-4 px-4 py-2 text-sm rounded-lg"
+                    style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}` }}
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Tabela */}
-            {!loading && !erro && dados.length > 0 && (
+            {!loading && !erro && filteredDados.length > 0 && (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[980px] border-collapse">
                     <thead style={{ backgroundColor: COLORS.background }}>
                       <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                        <th className="p-4 text-left text-sm font-semibold" style={{ color: COLORS.textLight }}>ID</th>
-                        <th className="p-4 text-left text-sm font-semibold" style={{ color: COLORS.textLight }}>Nome</th>
-                        <th className="p-4 text-left text-sm font-semibold" style={{ color: COLORS.textLight }}>CPF</th>
-                        <th className="p-4 text-left text-sm font-semibold" style={{ color: COLORS.textLight }}>Município</th>
-                        <th className="p-4 text-left text-sm font-semibold" style={{ color: COLORS.textLight }}>Memorando</th>
-                        <th className="p-4 text-left text-sm font-semibold" style={{ color: COLORS.textLight }}>Tipo</th>
-                        <th className="p-4 text-center text-sm font-semibold" style={{ color: COLORS.textLight }}>Ações</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Data</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Nome</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>CPF</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Município</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Memorando</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Tipo</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
                       {paginatedDados.map((item) => (
                         <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="p-4 text-sm" style={{ color: COLORS.textLight }}>{item.id}</td>
-                          <td className="p-4 text-sm font-medium" style={{ color: COLORS.text }}>{item.nome}</td>
-                          <td className="p-4 text-sm" style={{ color: COLORS.textLight }}>{item.cpf}</td>
-                          <td className="p-4 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
-                          <td className="p-4 text-sm" style={{ color: COLORS.textLight }}>{item.memorando}</td>
-                          <td className="p-4">
+                          <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
+                          <td className="px-4 py-3 text-sm font-medium" style={{ color: COLORS.text }}>{item.nome}</td>
+                          <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{item.cpf}</td>
+                          <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
+                          <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.memorando}</td>
+                          <td className="px-4 py-3">
                             <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(item.tipo)}`}
                               style={{ 
                                 backgroundColor: `${COLORS.accent}15`, 
@@ -244,8 +396,8 @@ export default function TabelaPage() {
                               {item.tipo}
                             </span>
                           </td>
-                          <td className="p-4 text-center">
-                            <button className="p-1 transition-colors" style={{ color: COLORS.textLight }}>
+                          <td className="px-4 py-3 text-center">
+                            <button className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
                               <Eye size={18} />
                             </button>
                           </td>
@@ -257,7 +409,7 @@ export default function TabelaPage() {
 
                 {/* Paginação */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                  <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderTop: `1px solid ${COLORS.border}` }}>
                     <p className="text-sm" style={{ color: COLORS.textLight }}>
                       Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredDados.length)} de {filteredDados.length} resultados
                     </p>
