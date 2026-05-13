@@ -19,7 +19,6 @@ import {
   Home,
   Search,
   Paperclip,
-  Eye,
   Key,
   RotateCcw,
 } from "lucide-react";
@@ -44,7 +43,6 @@ const TOP_ITEMS = [
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
-  { id: "analise-ap", label: "Análise AP", icon: Eye, href: "/analise-ap" },
   { id: "emails", label: "E-mails", icon: Mail, href: "/emails" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
   { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
@@ -137,8 +135,8 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
 
         {/* Abas - Desktop (sem scroll, fonte menor) */}
         <div className="hidden lg:block px-6 py-1">
-          <div className="flex items-center justify-between">
-            <nav className="flex items-center gap-1 flex-wrap">
+          <div className="flex items-center justify-center">
+            <nav className="flex items-center justify-center gap-1 flex-wrap">
               {TOP_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const isActive = activePath === item.href;
