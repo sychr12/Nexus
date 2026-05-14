@@ -109,16 +109,16 @@ public class InscricaoService {
                         inscricao.getId()
                 )
                 .nome(
-                        "PROTEGIDO"
+                        "*****"
                 )
                 .cpf(
-                        "PROTEGIDO"
+                        "*****"
                 )
                 .municipio(
                         inscricao.getMunicipio()
                 )
                 .memorando(
-                        "PROTEGIDO"
+                        "*****"
                 )
                 .tipo(
                         inscricao.getTipo()

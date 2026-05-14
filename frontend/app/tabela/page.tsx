@@ -9,8 +9,8 @@ import {
   ChevronRight,
   Download,
   Eye,
+  EyeOff,
   FileText,
-  Users,
   Loader2,
   CalendarDays,
   Filter,
@@ -57,6 +57,8 @@ export default function TabelaPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("todos");
   const [yearFilter, setYearFilter] = useState("todos");
+  const [municipioFilter, setMunicipioFilter] = useState("todos");
+  const [visibleRows, setVisibleRows] = useState<Set<number>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -112,6 +114,16 @@ export default function TabelaPage() {
     return Array.from(years).sort((a, b) => Number(b) - Number(a));
   }, [dados]);
 
+  const availableMunicipios = useMemo(() => {
+    const municipios = new Set<string>();
+    dados.forEach((item) => {
+      if (item.municipio?.trim()) {
+        municipios.add(item.municipio.trim());
+      }
+    });
+    return Array.from(municipios).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [dados]);
+
   // Filtragem dos dados
   const filteredDados = useMemo(() => {
     const termo = searchTerm.trim().toLowerCase();
@@ -139,19 +151,25 @@ export default function TabelaPage() {
         yearFilter === "todos" ||
         ano === yearFilter;
 
-      return correspondePesquisa && correspondePeriodo && correspondeAno;
+      const correspondeMunicipio =
+        municipioFilter === "todos" ||
+        item.municipio?.trim() === municipioFilter;
+
+      return correspondePesquisa && correspondePeriodo && correspondeAno && correspondeMunicipio;
     });
-  }, [dados, searchTerm, periodFilter, yearFilter]);
+  }, [dados, searchTerm, periodFilter, yearFilter, municipioFilter]);
 
   const hasActiveFilters =
     searchTerm.trim() !== "" ||
     periodFilter !== "todos" ||
-    yearFilter !== "todos";
+    yearFilter !== "todos" ||
+    municipioFilter !== "todos";
 
   const limparFiltros = () => {
     setSearchTerm("");
     setPeriodFilter("todos");
     setYearFilter("todos");
+    setMunicipioFilter("todos");
     setCurrentPage(1);
   };
 
@@ -160,6 +178,18 @@ export default function TabelaPage() {
     const date = new Date(valor);
     if (Number.isNaN(date.getTime())) return "-";
     return date.toLocaleDateString("pt-BR");
+  };
+
+  const toggleRowVisibility = (id: number) => {
+    setVisibleRows((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   // Paginação
@@ -202,13 +232,6 @@ export default function TabelaPage() {
               >
                 <Download size={16} />
                 Exportar
-              </button>
-              <button 
-                className="flex items-center gap-2 px-4 py-2 text-sm text-white rounded-lg transition-all hover:shadow-md"
-                style={{ backgroundColor: COLORS.accent }}
-              >
-                <Users size={16} />
-                Nova Inscrição
               </button>
             </div>
           </div>
@@ -286,6 +309,28 @@ export default function TabelaPage() {
                         <option value="todos">Todos os anos</option>
                         {availableYears.map((year) => (
                           <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="relative">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <select
+                        value={municipioFilter}
+                        onChange={(e) => {
+                          setMunicipioFilter(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="pl-9 pr-8 py-2 rounded-md text-xs font-medium focus:outline-none"
+                        style={{
+                          border: `1px solid ${COLORS.border}`,
+                          color: COLORS.text,
+                          backgroundColor: COLORS.card,
+                        }}
+                      >
+                        <option value="todos">Todos os municípios</option>
+                        {availableMunicipios.map((municipio) => (
+                          <option key={municipio} value={municipio}>{municipio}</option>
                         ))}
                       </select>
                     </div>
@@ -374,35 +419,44 @@ export default function TabelaPage() {
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Município</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Memorando</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Tipo</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Ações</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Visualizar</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
-                      {paginatedDados.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
-                          <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
-                          <td className="px-4 py-3 text-sm font-medium" style={{ color: COLORS.text }}>{item.nome}</td>
-                          <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{item.cpf}</td>
-                          <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
-                          <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.memorando}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(item.tipo)}`}
-                              style={{ 
-                                backgroundColor: `${COLORS.accent}15`, 
-                                color: COLORS.accent,
-                                borderColor: `${COLORS.accent}30`
-                              }}>
-                              {item.tipo}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <button className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                              <Eye size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {paginatedDados.map((item) => {
+                        const isVisible = visibleRows.has(item.id);
+                        return (
+                          <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
+                            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
+                            <td className="px-4 py-3 text-sm font-medium" style={{ color: COLORS.text }}>{isVisible ? item.nome : "*****"}</td>
+                            <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{isVisible ? item.cpf : "*****"}</td>
+                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
+                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.memorando : "*****"}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(item.tipo)}`}
+                                style={{ 
+                                  backgroundColor: `${COLORS.accent}15`, 
+                                  color: COLORS.accent,
+                                  borderColor: `${COLORS.accent}30`
+                                }}>
+                                {item.tipo}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleRowVisibility(item.id)}
+                                title={isVisible ? "Ocultar dados" : "Visualizar dados"}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
+                                style={{ color: isVisible ? COLORS.primary : COLORS.textLight }}
+                              >
+                                {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
