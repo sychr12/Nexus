@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -17,9 +18,9 @@ import {
   Menu,
   X,
   Home,
+  Plus,
   Search,
   Paperclip,
-  Eye,
   Key,
   RotateCcw,
 } from "lucide-react";
@@ -41,10 +42,10 @@ const TOP_ITEMS = [
   { id: "memorando", label: "Memorando de Saída", icon: FileText, href: "/memorando" },
   { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
   { id: "carteira", label: "Carteira Digital", icon: CreditCard, href: "/carteira" },
+  { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
-  { id: "analise-ap", label: "Análise AP", icon: Eye, href: "/analise-ap" },
   { id: "emails", label: "E-mails", icon: Mail, href: "/emails" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
   { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
@@ -80,9 +81,17 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
         <div className="px-6 py-2 border-b" style={{ borderBottomColor: COLORS.secondary }}>
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: COLORS.accent }}>
-                <span className="text-white font-bold text-lg">S</span>
+            <div className="flex items-center gap-0">
+              <div className="relative h-16 w-20 overflow-hidden rounded-xl lg:h-20 lg:w-30">
+                <Image
+                  src="/sicpr-badge.png"
+                  alt="Logo SICPR"
+                  width={1536}
+                  height={1024}
+                  priority
+                  className="absolute left-1/2 top-1/2 w-[128px] -translate-x-1/2 -translate-y-1/2 object-contain lg:w-[176px]"
+                  style={{ filter: "brightness(0) saturate(100%) invert(54%) sepia(33%) saturate(707%) hue-rotate(50deg) brightness(94%) contrast(88%) drop-shadow(0 4px 8px rgba(0,0,0,0.18))" }}
+                />
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-white">SICPR</h1>
@@ -137,8 +146,8 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
 
         {/* Abas - Desktop (sem scroll, fonte menor) */}
         <div className="hidden lg:block px-6 py-1">
-          <div className="flex items-center justify-between">
-            <nav className="flex items-center gap-1 flex-wrap">
+          <div className="flex items-center justify-center">
+            <nav className="flex items-center justify-center gap-1 flex-wrap">
               {TOP_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const isActive = activePath === item.href;
@@ -169,9 +178,9 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
 
       {/* Menu Mobile Dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-[73px] z-40">
+        <div className="lg:hidden fixed inset-0 top-[81px] z-40">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute top-0 left-0 right-0 max-h-[calc(100vh-73px)] overflow-y-auto" style={{ backgroundColor: COLORS.primary }}>
+          <div className="absolute top-0 left-0 right-0 max-h-[calc(100vh-81px)] overflow-y-auto" style={{ backgroundColor: COLORS.primary }}>
             <div className="p-4 border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: COLORS.accent }}>
@@ -219,7 +228,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
         </div>
       )}
 
-      <div className="h-[85px]" />
+      <div className="h-[104px] lg:h-[152px]" />
     </>
   );
 }

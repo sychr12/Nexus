@@ -109,19 +109,22 @@ public class InscricaoService {
                         inscricao.getId()
                 )
                 .nome(
-                        "PROTEGIDO"
+                        "*****"
                 )
                 .cpf(
-                        "PROTEGIDO"
+                        "*****"
                 )
                 .municipio(
                         inscricao.getMunicipio()
                 )
                 .memorando(
-                        "PROTEGIDO"
+                        "*****"
                 )
                 .tipo(
                         inscricao.getTipo()
+                )
+                .criadoEm(
+                        inscricao.getCriadoEm()
                 )
                 .build();
     }
@@ -154,6 +157,9 @@ public class InscricaoService {
                 )
                 .tipo(
                         inscricao.getTipo()
+                )
+                .criadoEm(
+                        inscricao.getCriadoEm()
                 )
                 .build();
     }

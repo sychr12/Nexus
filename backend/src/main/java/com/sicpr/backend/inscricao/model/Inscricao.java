@@ -2,6 +2,7 @@ package com.sicpr.backend.inscricao.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
 
 
 @Entity
@@ -21,5 +22,13 @@ public class Inscricao {
     private String municipio;
     private String memorando;
     private String tipo;
-    
+    @Column(name = "criado_em", updatable = false)
+    private LocalDateTime criadoEm;
+
+    @PrePersist
+    protected void onCreate() {
+        if (criadoEm == null) {
+            criadoEm = LocalDateTime.now();
+        }
+    }
 }
