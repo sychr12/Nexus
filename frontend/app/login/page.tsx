@@ -56,7 +56,7 @@ export default function LoginPage() {
 
   return (
     <main className="relative min-h-screen flex items-center justify-center bg-[#0b241b] p-4 text-white">
-      <section className="relative w-full max-w-[1240px] overflow-hidden rounded-[40px] border border-white/10 bg-[#0b241b]/75 shadow-2xl shadow-black/40">
+      <section className="relative w-full max-w-[1240px] overflow-hidden rounded-[40px] border-[3px] border-white/10 bg-[#0b241b]/75 shadow-2xl shadow-black/40">
         <Image
           src="/login-farm-bg.png"
           alt=""
@@ -116,7 +116,7 @@ export default function LoginPage() {
           </section>
 
           <section className="flex min-h-[540px] items-center justify-center px-4 py-8 lg:h-full lg:min-h-0 lg:px-6 xl:px-8">
-            <div className="flex w-full max-w-[455px] flex-col rounded-[28px] border border-white/12 bg-[#0f2d22]/78 px-7 py-6 shadow-2xl shadow-black/45 backdrop-blur-xl xl:px-8">
+            <div className="flex w-full max-w-[455px] flex-col rounded-[28px] border-[3px] border-white/12 bg-[#0f2d22]/78 px-7 py-6 shadow-2xl shadow-black/45 backdrop-blur-xl xl:px-8">
               <div className="text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#6B9D4A]/35 bg-[#6B9D4A]/5 text-[#6B9D4A]">
                   <ShieldCheck size={27} strokeWidth={1.9} />
@@ -144,7 +144,7 @@ export default function LoginPage() {
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-14 pr-5 text-base text-white outline-none transition-all placeholder:text-white/35 focus:border-[#6B9D4A]/65 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#6B9D4A]/15"
+                      className="login-autofill h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-14 pr-5 text-base text-white outline-none transition-all placeholder:text-white/35 focus:border-[#6B9D4A]/65 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#6B9D4A]/15"
                       placeholder="Digite seu usuário"
                       required
                     />
@@ -159,7 +159,7 @@ export default function LoginPage() {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-14 pr-12 text-base text-white outline-none transition-all placeholder:text-white/35 focus:border-[#6B9D4A]/65 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#6B9D4A]/15"
+                      className="login-autofill h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-14 pr-12 text-base text-white outline-none transition-all placeholder:text-white/35 focus:border-[#6B9D4A]/65 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#6B9D4A]/15"
                       placeholder="Digite sua senha"
                       required
                     />
