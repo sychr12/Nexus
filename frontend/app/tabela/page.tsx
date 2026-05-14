@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Info,
   Loader2,
   CalendarDays,
   Filter,
@@ -59,6 +60,7 @@ export default function TabelaPage() {
   const [yearFilter, setYearFilter] = useState("todos");
   const [municipioFilter, setMunicipioFilter] = useState("todos");
   const [visibleRows, setVisibleRows] = useState<Set<number>>(new Set());
+  const [selectedDetails, setSelectedDetails] = useState<Inscricao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -409,7 +411,7 @@ export default function TabelaPage() {
             {!loading && !erro && filteredDados.length > 0 && (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px] border-collapse">
+                  <table className="w-full min-w-[1060px] border-collapse">
                     <thead style={{ backgroundColor: COLORS.background }}>
                       <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>ID</th>
@@ -420,16 +422,17 @@ export default function TabelaPage() {
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Memorando</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Tipo</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Visualizar</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Detalhes</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
+                    <tbody>
                       {paginatedDados.map((item) => {
                         const isVisible = visibleRows.has(item.id);
                         return (
-                          <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                          <tr key={item.id} className="hover:bg-gray-50 transition-colors" style={{ borderTop: `1px solid ${COLORS.border}` }}>
                             <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
                             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
-                            <td className="px-4 py-3 text-sm font-medium" style={{ color: COLORS.text }}>{isVisible ? item.nome : "*****"}</td>
+                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.nome : "*****"}</td>
                             <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{isVisible ? item.cpf : "*****"}</td>
                             <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
                             <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.memorando : "*****"}</td>
@@ -449,9 +452,20 @@ export default function TabelaPage() {
                                 onClick={() => toggleRowVisibility(item.id)}
                                 title={isVisible ? "Ocultar dados" : "Visualizar dados"}
                                 className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
-                                style={{ color: isVisible ? COLORS.primary : COLORS.textLight }}
+                                style={{ color: COLORS.textLight }}
                               >
                                 {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDetails(item)}
+                                title="Ver detalhes"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
+                                style={{ color: COLORS.textLight }}
+                              >
+                                <Info size={18} />
                               </button>
                             </td>
                           </tr>
@@ -495,6 +509,67 @@ export default function TabelaPage() {
           </div>
         </div>
       </main>
+
+      {selectedDetails && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedDetails(null)} />
+          <div
+            className="relative w-full max-w-2xl overflow-hidden rounded-lg shadow-xl"
+            style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}
+          >
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: COLORS.primary }}>Detalhes da inscrição</h2>
+                <p className="text-sm" style={{ color: COLORS.textLight }}>Registro #{selectedDetails.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDetails(null)}
+                title="Fechar"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
+                style={{ color: COLORS.textLight }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-y-auto p-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {[
+                  ["Data", formatarData(selectedDetails.criadoEm)],
+                  ["Nome", selectedDetails.nome],
+                  ["CPF", selectedDetails.cpf],
+                  ["Município", selectedDetails.municipio],
+                  ["Memorando", selectedDetails.memorando],
+                  ["Tipo", selectedDetails.tipo],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
+                    <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
+                    <p className="mt-1 text-sm" style={{ color: COLORS.text }}>{value || "-"}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedDetails.tipo?.toUpperCase().includes("DEVOLUCAO") && (
+                <div
+                  className="mt-4 rounded-md border p-4"
+                  style={{ borderColor: COLORS.border, backgroundColor: `${COLORS.light}55` }}
+                >
+                  <div className="flex gap-3">
+                    <Info size={18} style={{ color: COLORS.primary }} />
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: COLORS.primary }}>Motivo da devolução indisponível</p>
+                      <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
+                        O motivo e os detalhes da devolução ainda não estão disponíveis neste registro, porque essa informação ainda não está sendo salva no backend/banco de dados.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
