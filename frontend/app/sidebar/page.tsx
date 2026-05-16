@@ -1,3 +1,4 @@
+// frontend/app/sidebar/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -22,6 +23,7 @@ import {
   Paperclip,
   Key,
   RotateCcw,
+  Upload,
 } from "lucide-react";
 
 // Paleta de cores da sua imagem
@@ -61,9 +63,11 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
   const activePath = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
 
+  // Garantir que o componente só renderize no cliente
   useEffect(() => {
-    const initialTimer = window.setTimeout(() => setCurrentTime(new Date()), 0);
+    setMounted(true);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => {
       window.clearTimeout(initialTimer);
@@ -75,6 +79,35 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
     router.push(href);
     setMobileMenuOpen(false);
   };
+
+  // Se não estiver montado, renderiza um placeholder para evitar hidratação
+  if (!mounted) {
+    return (
+      <header className="fixed top-0 left-0 right-0 z-50 shadow-lg" style={{ backgroundColor: COLORS.primary }}>
+        <div className="px-6 py-2 border-b" style={{ borderBottomColor: COLORS.secondary }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-0">
+              <div className="relative h-16 w-20 overflow-hidden rounded-xl lg:h-20 lg:w-30">
+                <Image
+                  src="/sicpr-badge.png"
+                  alt="Logo SICPR"
+                  width={1536}
+                  height={1024}
+                  priority
+                  className="absolute left-1/2 top-1/2 w-[128px] -translate-x-1/2 -translate-y-1/2 object-contain lg:w-[176px]"
+                  style={{ filter: "brightness(0) saturate(100%) invert(54%) sepia(33%) saturate(707%) hue-rotate(50deg) brightness(94%) contrast(88%) drop-shadow(0 4px 8px rgba(0,0,0,0.18))" }}
+                />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-white">SICPR</h1>
+                <p className="text-xs" style={{ color: COLORS.light }}>Sistema Integrado de Controle</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <>
@@ -146,7 +179,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
           </div>
         </div>
 
-        {/* Abas - Desktop (sem scroll, fonte menor) */}
+        {/* Abas - Desktop */}
         <div className="hidden lg:block px-6 py-1">
           <div className="flex items-center justify-center">
             <nav className="flex items-center justify-center gap-1 flex-wrap">

@@ -1,0 +1,286 @@
+package com.sicpr.backend.carteira.service;
+
+import com.sicpr.backend.carteira.dto.BatchResultDTO;
+import com.sicpr.backend.carteira.dto.BatchStatusDTO;
+import com.sicpr.backend.carteira.model.CarteiraDigital;
+import com.sicpr.backend.carteira.repository.CarteiraRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+// REMOVA estas linhas se existirem:
+// import java.time.LocalDateTime;
+// import java.util.concurrent.CompletableFuture;
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class BatchCarteiraService {
+
+    private final CarteiraRepository carteiraRepository;
+    private final SefazService sefazService;
+    private final PdfGenerationService pdfGenerationService;
+    
+    private static final Pattern CPF_PATTERN = Pattern.compile("\\d{11}");
+    private static final Path TEMP_DIR = Paths.get(System.getProperty("java.io.tmpdir"), "carteira_batch");
+    
+    // Cache para status dos batches em memória
+    private final Map<String, BatchStatusDTO> batchStatusMap = new ConcurrentHashMap<>();
+    
+    /**
+     * Processa múltiplos arquivos PDF em lote
+     */
+    @Transactional
+    public BatchResultDTO processarBatch(List<MultipartFile> files, String usuario) throws IOException {
+        String batchId = UUID.randomUUID().toString();
+        log.info("Iniciando processamento em lote: {} com {} arquivos", batchId, files.size());
+        
+        BatchResultDTO resultado = new BatchResultDTO();
+        resultado.setBatchId(batchId);
+        resultado.setTotalArquivos(files.size());
+        
+        long inicio = System.currentTimeMillis();
+        
+        // Criar diretório temporário
+        Files.createDirectories(TEMP_DIR);
+        
+        for (MultipartFile file : files) {
+            String nomeArquivo = file.getOriginalFilename();
+            if (nomeArquivo == null || !nomeArquivo.toLowerCase().endsWith(".pdf")) {
+                resultado.setIgnorados(resultado.getIgnorados() + 1);
+                addDetalhe(resultado, nomeArquivo, "", false, "Arquivo não é PDF");
+                continue;
+            }
+            
+            // Extrair CPF do nome do arquivo (baseado no código Python)
+            String cpf = extrairCpfDoNome(nomeArquivo);
+            if (cpf == null) {
+                resultado.setIgnorados(resultado.getIgnorados() + 1);
+                addDetalhe(resultado, nomeArquivo, "", false, "CPF não encontrado no nome do arquivo");
+                continue;
+            }
+            
+            try {
+                // Processar o PDF
+                processarPdfArquivo(file, cpf, usuario);
+                resultado.setSucessos(resultado.getSucessos() + 1);
+                addDetalhe(resultado, nomeArquivo, cpf, true, "Processado com sucesso");
+                log.info("Processado: {} - CPF: {}", nomeArquivo, cpf);
+            } catch (Exception e) {
+                resultado.setErros(resultado.getErros() + 1);
+                addDetalhe(resultado, nomeArquivo, cpf, false, "Erro: " + e.getMessage());
+                log.error("Erro ao processar {}: {}", nomeArquivo, e.getMessage());
+            }
+        }
+        
+        resultado.setTempoTotalMs(System.currentTimeMillis() - inicio);
+        log.info("Lote {} finalizado: {} sucessos, {} erros, {} ignorados", 
+            batchId, resultado.getSucessos(), resultado.getErros(), resultado.getIgnorados());
+        
+        return resultado;
+    }
+    
+    /**
+     * Processa um arquivo ZIP contendo múltiplos PDFs
+     */
+    @Transactional
+    public BatchResultDTO processarZip(MultipartFile zipFile, String usuario) throws IOException {
+        String batchId = UUID.randomUUID().toString();
+        log.info("Iniciando processamento de ZIP: {}", batchId);
+        
+        BatchResultDTO resultado = new BatchResultDTO();
+        resultado.setBatchId(batchId);
+        
+        long inicio = System.currentTimeMillis();
+        List<MultipartFile> pdfFiles = new ArrayList<>();
+        
+        // Extrair PDFs do ZIP
+        try (ZipInputStream zis = new ZipInputStream(zipFile.getInputStream())) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".pdf")) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[4096];
+                    int len;
+                    while ((len = zis.read(buffer)) > 0) {
+                        baos.write(buffer, 0, len);
+                    }
+                    
+                    MultipartFile pdfFile = new InMemoryMultipartFile(
+                        entry.getName(),
+                        entry.getName(),
+                        "application/pdf",
+                        baos.toByteArray()
+                    );
+                    pdfFiles.add(pdfFile);
+                }
+                zis.closeEntry();
+            }
+        }
+        
+        resultado.setTotalArquivos(pdfFiles.size());
+        log.info("Extraídos {} PDFs do ZIP", pdfFiles.size());
+        
+        // Processar cada PDF
+        for (MultipartFile file : pdfFiles) {
+            String nomeArquivo = file.getOriginalFilename();
+            String cpf = extrairCpfDoNome(nomeArquivo);
+            
+            if (cpf == null) {
+                resultado.setIgnorados(resultado.getIgnorados() + 1);
+                addDetalhe(resultado, nomeArquivo, "", false, "CPF não encontrado no nome do arquivo");
+                continue;
+            }
+            
+            try {
+                processarPdfArquivo(file, cpf, usuario);
+                resultado.setSucessos(resultado.getSucessos() + 1);
+                addDetalhe(resultado, nomeArquivo, cpf, true, "Processado com sucesso");
+            } catch (Exception e) {
+                resultado.setErros(resultado.getErros() + 1);
+                addDetalhe(resultado, nomeArquivo, cpf, false, "Erro: " + e.getMessage());
+            }
+        }
+        
+        resultado.setTempoTotalMs(System.currentTimeMillis() - inicio);
+        return resultado;
+    }
+    
+    /**
+     * Processa um único arquivo PDF
+     */
+    private void processarPdfArquivo(MultipartFile file, String cpf, String usuario) throws Exception {
+        log.info("Processando PDF para CPF: {}", cpf);
+        
+        // 1. Consultar SEFAZ para obter os dados do produtor
+        var dadosSefaz = sefazService.consultarPorCpf(cpf);
+        
+        if (dadosSefaz == null || dadosSefaz.getNome() == null) {
+            throw new RuntimeException("Produtor não encontrado na SEFAZ para CPF: " + cpf);
+        }
+        
+        // 2. Verificar se já existe uma carteira para este CPF (opcional - atualizar)
+        Optional<CarteiraDigital> existente = carteiraRepository.findByCpf(cpf);
+        
+        CarteiraDigital carteira;
+        if (existente.isPresent()) {
+            carteira = existente.get();
+            log.info("Atualizando carteira existente para CPF: {}", cpf);
+        } else {
+            carteira = new CarteiraDigital();
+            log.info("Criando nova carteira para CPF: {}", cpf);
+        }
+        
+        // 3. Preencher dados da carteira
+        carteira.setRegistro(dadosSefaz.getRp());
+        carteira.setCpf(dadosSefaz.getCpf());
+        carteira.setNome(dadosSefaz.getNome());
+        carteira.setPropriedade(dadosSefaz.getPropriedade());
+        carteira.setUnloc(dadosSefaz.getUnloc());
+        carteira.setInicio(dadosSefaz.getInicioatv());
+        carteira.setValidade(dadosSefaz.getValidade());
+        carteira.setEndereco(dadosSefaz.getEndereco());
+        carteira.setAtividade1(dadosSefaz.getAtv1());
+        carteira.setAtividade2(dadosSefaz.getAtv2());
+        
+        // Construir georef
+        String georef = "";
+        if (dadosSefaz.getLatitude() != null && dadosSefaz.getLongitude() != null) {
+            georef = dadosSefaz.getLatitude() + "  " + dadosSefaz.getLongitude();
+        }
+        carteira.setGeoref(georef);
+        carteira.setUsuario(usuario);
+        
+        // 4. Gerar PDF da carteira (baseado no template)
+        byte[] pdfBytes = pdfGenerationService.gerarPdf(carteira);
+        carteira.setPdfConteudo(pdfBytes);
+        
+        // 5. Salvar no banco
+        carteiraRepository.save(carteira);
+        
+        log.info("Carteira salva com ID: {} para CPF: {}", carteira.getId(), cpf);
+    }
+    
+    /**
+     * Extrai CPF do nome do arquivo (baseado no código Python)
+     * Exemplo: "12345678901.pdf" -> "12345678901"
+     */
+    private String extrairCpfDoNome(String nomeArquivo) {
+        if (nomeArquivo == null) return null;
+        
+        String nomeSemExtensao = nomeArquivo.replaceAll("\\.pdf$", "").replaceAll("\\.PDF$", "");
+        String apenasDigitos = nomeSemExtensao.replaceAll("\\D", "");
+        
+        if (CPF_PATTERN.matcher(apenasDigitos).matches()) {
+            return apenasDigitos;
+        }
+        return null;
+    }
+    
+    private void addDetalhe(BatchResultDTO resultado, String arquivo, String cpf, boolean sucesso, String mensagem) {
+        BatchResultDTO.BatchItemDTO detalhe = new BatchResultDTO.BatchItemDTO();
+        detalhe.setArquivo(arquivo);
+        detalhe.setCpf(cpf);
+        detalhe.setSucesso(sucesso);
+        detalhe.setMensagem(mensagem);
+        resultado.getDetalhes().add(detalhe);
+    }
+    
+    public BatchStatusDTO getStatus(String batchId) {
+        return batchStatusMap.getOrDefault(batchId, new BatchStatusDTO());
+    }
+    
+    /**
+     * Classe auxiliar para MultipartFile em memória
+     */
+    private static class InMemoryMultipartFile implements MultipartFile {
+        private final String name;
+        private final String originalFilename;
+        private final String contentType;
+        private final byte[] content;
+        
+        public InMemoryMultipartFile(String name, String originalFilename, String contentType, byte[] content) {
+            this.name = name;
+            this.originalFilename = originalFilename;
+            this.contentType = contentType;
+            this.content = content;
+        }
+        
+        @Override
+        public String getName() { return name; }
+        
+        @Override
+        public String getOriginalFilename() { return originalFilename; }
+        
+        @Override
+        public String getContentType() { return contentType; }
+        
+        @Override
+        public boolean isEmpty() { return content.length == 0; }
+        
+        @Override
+        public long getSize() { return content.length; }
+        
+        @Override
+        public byte[] getBytes() throws IOException { return content; }
+        
+        @Override
+        public InputStream getInputStream() throws IOException { return new ByteArrayInputStream(content); }
+        
+        @Override
+        public void transferTo(File dest) throws IOException, IllegalStateException {
+            Files.write(dest.toPath(), content);
+        }
+    }
+}
