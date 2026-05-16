@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff, LockKeyhole, LogIn, ShieldCheck, Sprout, UserRound } from "lucide-react";
 
 const API_URL = "http://localhost:8080";
 
@@ -32,11 +33,9 @@ export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -55,168 +54,156 @@ export default function LoginPage() {
     }
   }
 
-  const features = [
-    { label: "Relatórios", color: "bg-emerald-500/20" },
-    { label: "Lançamentos", color: "bg-blue-500/20" },
-    { label: "Análises", color: "bg-purple-500/20" },
-    { label: "Segurança", color: "bg-amber-500/20" },
-  ];
-
-  if (!mounted) return null;
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a1f16] via-[#1a3a2a] to-[#2d5a3f] relative overflow-hidden">
+    <main className="relative min-h-screen flex items-center justify-center bg-[#0b241b] p-4 text-white">
+      <section className="relative w-full max-w-[1240px] overflow-hidden rounded-[40px] border-[3px] border-white/10 bg-[#0b241b]/75 shadow-2xl shadow-black/40">
+        <Image
+          src="/login-farm-bg.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover brightness-90"
+        />
+        <div className="absolute inset-0 bg-[#03110e]/38" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#03110e]/15 via-[#03110e]/72 to-[#03110e]/92" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#020c09]/55 via-transparent to-[#020c09]/35" />
 
-      {/* Background animated blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute w-[800px] h-[800px] bg-emerald-400/10 rounded-full animate-pulse"
-             style={{ top: "-400px", left: "-400px", animationDuration: "8s" }} />
-        <div className="absolute w-[600px] h-[600px] bg-teal-400/10 rounded-full animate-pulse"
-             style={{ bottom: "-300px", right: "-300px", animationDuration: "6s", animationDelay: "2s" }} />
-        <div className="absolute w-[400px] h-[400px] bg-green-400/10 rounded-full animate-pulse"
-             style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)", animationDuration: "10s", animationDelay: "4s" }} />
-      </div>
-
-      <div className={`w-full max-w-6xl mx-4 transition-all duration-700 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-
-        {/* Main Card */}
-        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
-
-          {/* Header */}
-          <div className="bg-black/30 px-6 py-4 border-b border-white/10">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="text-white text-xl font-bold">S</span>
-                </div>
-                <div>
-                  <h1 className="text-white font-bold text-xl">SICPR</h1>
-                  <p className="text-emerald-300 text-xs">Sistema Integrado de Controle</p>
-                </div>
+        <div className="relative z-10 grid h-full lg:grid-cols-[1fr_0.9fr] lg:px-4">
+          <section className="flex min-h-[560px] items-center justify-center px-4 py-8 lg:h-full lg:min-h-0 lg:px-8 xl:px-10">
+            <div className="flex w-full max-w-[455px] flex-col items-center text-center">
+              <div className="relative h-[100px] w-full overflow-hidden">
+                <Image
+                  src="/sicpr-badge.png"
+                  alt="SICPR Badge"
+                  width={1536}
+                  height={1024}
+                  priority
+                  className="absolute left-1/2 top-1/2 w-[198px] -translate-x-1/2 -translate-y-1/2 object-contain drop-shadow-[0_14px_30px_rgba(0,0,0,0.65)]"
+                  style={{ filter: "brightness(0) saturate(100%) invert(55%) sepia(16%) saturate(1146%) hue-rotate(51deg) brightness(92%) contrast(86%)" }}
+                />
               </div>
-              <div className="flex gap-1 bg-white/5 rounded-full p-1">
-                {["Dashboard", "Relatórios", "Lançamentos", "Análises"].map((tab, idx) => (
-                  <button key={idx} disabled
-                    className="px-4 py-1.5 text-sm text-white/60 cursor-default">
-                    {tab}
-                  </button>
-                ))}
+              <div className="relative mt-2 h-[82px] w-full overflow-hidden">
+                <Image
+                  src="/sicpr-word.png"
+                  alt="SICPR"
+                  width={1536}
+                  height={1024}
+                  priority
+                  className="absolute left-1/2 top-1/2 w-[405px] -translate-x-1/2 -translate-y-1/2 object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.55)] grayscale brightness-[3.8] contrast-125"
+                />
+              </div>
+              <p className="mt-2 max-w-[390px] text-center text-xs font-semibold uppercase leading-6 tracking-[0.3em] text-[#6B9D4A]">
+                Sistema de Identificação
+                <br />
+                e Cadastro do Produtor Rural
+              </p>
+
+              <div className="mt-7 flex w-full max-w-[350px] items-center gap-4 rounded-2xl border border-white/12 bg-white/10 px-5 py-4 text-left shadow-xl shadow-black/30 backdrop-blur-md">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center text-[#6B9D4A]">
+                  <ShieldCheck size={32} strokeWidth={1.8} />
+                </div>
+                <p className="text-sm font-medium leading-6 text-white">
+                  Seus dados protegidos com tecnologia e criptografia avançada.
+                </p>
+              </div>
+
+              <div className="mt-10 inline-flex min-w-[265px] items-center justify-center gap-4 rounded-full border border-white/12 bg-[#0c241d]/82 px-7 py-3 text-sm font-medium text-white shadow-xl shadow-black/30 backdrop-blur-md xl:mt-14">
+                <span className="h-3.5 w-3.5 rounded-full bg-[#6B9D4A]" />
+                Sistema online e seguro
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="grid lg:grid-cols-2 gap-0">
-
-            {/* Left — Login Form */}
-            <div className="p-8 lg:p-12">
-              <div className="max-w-md mx-auto">
-                <div className="mb-8">
-                  <div className="flex justify-center mb-6 lg:hidden">
-                    <Image src="/logosicprtp.png" alt="SICPR" width={180} height={80} className="object-contain drop-shadow-lg" />
-                  </div>
-                  <h2 className="text-white text-3xl font-bold mb-2">Bem-vindo</h2>
-                  <p className="text-emerald-200/80 text-sm">Acesse o sistema com suas credenciais de acesso</p>
+          <section className="flex min-h-[540px] items-center justify-center px-4 py-8 lg:h-full lg:min-h-0 lg:px-6 xl:px-8">
+            <div className="flex w-full max-w-[455px] flex-col rounded-[28px] border-[3px] border-white/12 bg-[#0f2d22]/78 px-7 py-6 shadow-2xl shadow-black/45 backdrop-blur-xl xl:px-8">
+              <div className="text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#6B9D4A]/35 bg-[#6B9D4A]/5 text-[#6B9D4A]">
+                  <ShieldCheck size={27} strokeWidth={1.9} />
                 </div>
+                <p className="mt-4 text-sm font-bold uppercase tracking-wide text-[#6B9D4A]">
+                  Acesso ao Sistema
+                </p>
+                <h1 className="mt-2 text-2xl font-bold tracking-tight text-white drop-shadow-[0_3px_5px_rgba(0,0,0,0.55)]">
+                  Faça login para continuar
+                </h1>
+              </div>
 
-                {error && (
-                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-sm text-center">
-                    {error}
+              {error && (
+                <div className="mt-5 rounded-2xl border border-red-300/30 bg-red-500/15 px-4 py-3 text-center text-sm text-red-100">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className="mt-7 space-y-8">
+                <label className="block mb-8">
+                  <span className="mb-2 block text-sm font-bold uppercase text-[#6B9D4A]">Usuário</span>
+                  <div className="relative">
+                    <UserRound size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-[#6B9D4A]" strokeWidth={1.8} />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="login-autofill h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-14 pr-5 text-base text-white outline-none transition-all placeholder:text-white/35 focus:border-[#6B9D4A]/65 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#6B9D4A]/15"
+                      placeholder="Digite seu usuário"
+                      required
+                    />
                   </div>
-                )}
+                </label>
 
-                <form onSubmit={handleLogin} className="flex flex-col gap-6">
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full p-4 rounded-xl bg-white/10 text-white outline-none focus:ring-2 focus:ring-emerald-400/60 border border-white/20 focus:border-emerald-400 transition-all placeholder:text-white/40"
-                    placeholder="Usuário"
-                    required
-                  />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full p-4 rounded-xl bg-white/10 text-white outline-none focus:ring-2 focus:ring-emerald-400/60 border border-white/20 focus:border-emerald-400 transition-all placeholder:text-white/40"
-                    placeholder="Senha"
-                    required
-                  />
-                  <div className="text-right">
-                    <button type="button" className="text-xs text-emerald-300 hover:text-emerald-200 transition-colors">
-                      Esqueceu a senha?
+                <label className="block mb-6">
+                  <span className="mb-2 block text-sm font-bold uppercase text-[#6B9D4A]">Senha</span>
+                  <div className="relative">
+                    <LockKeyhole size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-[#6B9D4A]" strokeWidth={1.8} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="login-autofill h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-14 pr-12 text-base text-white outline-none transition-all placeholder:text-white/35 focus:border-[#6B9D4A]/65 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#6B9D4A]/15"
+                      placeholder="Digite sua senha"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-[#6B9D4A] transition-colors hover:text-[#A8C4A0] focus:outline-none"
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showPassword ? <EyeOff size={24} strokeWidth={1.8} /> : <Eye size={24} strokeWidth={1.8} />}
                     </button>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full p-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all duration-300 font-semibold text-white shadow-lg disabled:opacity-60"
-                  >
-                    {loading ? "Entrando..." : "Acessar Sistema"}
+                </label>
+
+                <div className="flex justify-end pb-3">
+                  <button type="button" className="text-base font-medium text-[#6B9D4A] transition-colors hover:text-[#A8C4A0]">
+                    Esqueceu a senha?
                   </button>
-                </form>
+                </div>
 
-                <div className="mt-8 pt-6 border-t border-white/10 text-center text-xs text-emerald-200/60">
-                  SICPR v2.0 • Sistema de Controle de Acesso
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group flex h-12 w-full items-center justify-center gap-4 rounded-xl bg-gradient-to-r from-[#6B9D4A] via-[#5f8a43] to-[#3f5f3f] text-base font-bold text-white shadow-xl shadow-black/30 transition-all duration-300 hover:-translate-y-0.5 hover:from-[#789f4f] hover:via-[#557d3d] hover:to-[#2f4a34] hover:shadow-[0_18px_36px_rgba(44,69,47,0.45)] focus:outline-none focus:ring-2 focus:ring-[#6B9D4A]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                >
+                  <LogIn size={22} className="transition-transform duration-300 group-hover:translate-x-1" />
+                  {loading ? "Entrando..." : "Entrar no Sistema"}
+                </button>
+              </form>
+
+              <div className="mt-7 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                <div className="flex h-14 items-center justify-center gap-2.5 border-r border-white/10 px-3 text-sm font-medium text-white">
+                  <ShieldCheck size={22} className="text-[#6B9D4A]" strokeWidth={1.8} />
+                  Ambiente seguro
+                </div>
+                <div className="flex h-14 items-center justify-center gap-2.5 px-3 text-sm font-medium text-white">
+                  <Sprout size={24} className="text-[#6B9D4A]" strokeWidth={1.8} />
+                  SICPR v2.0
                 </div>
               </div>
             </div>
-
-            {/* Right — Features */}
-            <div className="relative bg-black/30 p-8 lg:p-12">
-              <div className="h-full flex flex-col justify-between">
-                <div className="hidden lg:flex justify-center mb-8">
-                  <Image src="/logosicprtp.png" alt="SICPR" width={200} height={90} className="object-contain drop-shadow-lg" />
-                </div>
-
-                <div>
-                  <h3 className="text-white font-semibold text-lg mb-6">Módulos do Sistema</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {features.map((feature, idx) => (
-                      <div
-                        key={idx}
-                        className={`${feature.color} rounded-xl p-4 border border-white/10 backdrop-blur-sm hover:scale-105 hover:border-emerald-400/50 transition-all duration-300 cursor-default`}
-                        style={{ animation: "fadeInUp 0.5s ease-out forwards", animationDelay: `${idx * 100}ms`, opacity: 0 }}
-                      >
-                        <p className="text-white font-medium text-sm">{feature.label}</p>
-                        <p className="text-emerald-200/50 text-xs mt-1">Módulo ativo</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-8 space-y-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-emerald-200/70">Sistema online</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-4 text-center">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full">
-                    <span className="text-[10px] text-emerald-200/60">Criptografia SSL • Ambiente Seguro</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
-
-        {/* Bottom nav preview — mobile */}
-        <div className="mt-6 flex justify-center lg:hidden">
-          <div className="bg-black/40 backdrop-blur-lg rounded-full px-6 py-2 border border-white/10 inline-flex gap-6">
-            {["Home", "Dashboard", "Lançamentos", "Análises", "Mais"].map((item, idx) => (
-              <button key={idx} disabled className="text-white/50 text-xs py-2 cursor-default">{item}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
+      </section>
+    </main>
   );
 }
