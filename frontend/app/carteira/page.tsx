@@ -1,0 +1,186 @@
+// app/carteira/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Upload } from "lucide-react";
+import TopBar from "../sidebar/page";
+import FormularioCarteira from "./components/FormularioCarteira";
+import CardPreview from "./components/CardPreview";
+import ModalBatchUpload from "./components/ModalBatchUpload";
+import { CarteiraRequest, CarteiraResponse } from "./types/carteira";
+import { cadastrarCarteira, listarCarteiras } from "./services/carteiraService";
+
+const COLORS = {
+  background: "#EEF2EC",
+  primary: "#1F3A2E",
+  textLight: "#6E786F",
+};
+
+const initialForm: CarteiraRequest = {
+  registro: "",
+  cpf: "",
+  nome: "",
+  propriedade: "",
+  unloc: "",
+  inicio: "",
+  validade: "",
+  endereco: "",
+  atividade1: "",
+  atividade2: "",
+  georef: "",
+  fotos: [],
+};
+
+export default function CarteiraDigitalPage() {
+  const router = useRouter();
+  const [form, setForm] = useState<CarteiraRequest>(initialForm);
+  const [carteiras, setCarteiras] = useState<CarteiraResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+
+  const carregarCarteiras = async () => {
+    try {
+      const data = await listarCarteiras(0, 10);
+      setCarteiras(data.content);
+    } catch (err) {
+      console.error("Erro ao carregar carteiras:", err);
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+    }
+    carregarCarteiras();
+  }, [router]);
+
+  const handleSubmit = async (data: CarteiraRequest) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setSuccess(null);
+      
+      await cadastrarCarteira(data);
+      
+      setSuccess("Carteira digital cadastrada com sucesso!");
+      setForm(initialForm);
+      await carregarCarteiras();
+      
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao cadastrar carteira");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFormChange = (data: CarteiraRequest) => {
+    setForm(data);
+  };
+
+  function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    router.push("/login");
+  }
+
+  const username = typeof window !== "undefined"
+    ? localStorage.getItem("username") || "Usuário"
+    : "Usuário";
+
+  return (
+    <div className="min-h-screen font-sans" style={{ backgroundColor: COLORS.background }}>
+      <TopBar onLogout={handleLogout} username={username} />
+
+      <main className="px-4 sm:px-6 lg:px-10 py-8 max-w-screen-2xl mx-auto">
+        {/* Page Header com botões */}
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1
+              className="text-3xl font-black tracking-tight"
+              style={{ color: COLORS.primary, letterSpacing: "-0.02em" }}
+            >
+              Carteira Digital do Produtor Rural
+            </h1>
+            <p className="text-sm mt-1.5" style={{ color: COLORS.textLight }}>
+              Cadastre e gerencie carteiras digitais dos produtores rurais
+            </p>
+          </div>
+          
+          {/* Apenas o botão Gerar Lote - Botão Nova Carteira REMOVIDO */}
+          <button
+            onClick={() => setIsBatchModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
+            style={{
+              backgroundColor: "#3b82f6",
+              color: "white",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.backgroundColor = "#2563eb";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.backgroundColor = "#3b82f6";
+            }}
+          >
+            <Upload size={16} />
+            Gerar Lote
+          </button>
+        </div>
+
+        {/* Success banner */}
+        {success && (
+          <div
+            className="mb-6 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2"
+            style={{ backgroundColor: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0" }}
+          >
+            <span>✓</span> {success}
+          </div>
+        )}
+
+        {/* Error banner */}
+        {error && (
+          <div
+            className="mb-6 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2"
+            style={{ backgroundColor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}
+          >
+            <span>⚠</span> {error}
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto underline text-xs hover:opacity-70 transition-opacity"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
+
+        {/* Two-column layout */}
+        <div className="flex gap-6 items-start">
+          {/* Coluna Esquerda - Formulário */}
+          <div className="w-1/2 sticky top-6">
+            <FormularioCarteira 
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              onFormChange={handleFormChange}
+            />
+          </div>
+
+          {/* Coluna Direita - Preview do Cartão */}
+          <div className="w-1/2">
+            <CardPreview form={form} />
+          </div>
+        </div>
+      </main>
+
+      {/* Modal de Gerar Lote */}
+      <ModalBatchUpload
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        onSuccess={carregarCarteiras}
+      />
+    </div>
+  );
+}
