@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Bell, 
+  BrushCleaning,
   Search, 
   ChevronLeft, 
   ChevronRight,
@@ -30,6 +31,7 @@ const COLORS = {
   text: "#1A2E1B",
   textLight: "#6B7C6A",
   border: "#E2E8E0",
+  danger: "#B42318",
 };
 
 interface Inscricao {
@@ -62,6 +64,7 @@ export default function TabelaPage() {
   const [visibleRows, setVisibleRows] = useState<Set<number>>(new Set());
   const [selectedDetails, setSelectedDetails] = useState<Inscricao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [username, setUsername] = useState("Usuário");
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -70,7 +73,11 @@ export default function TabelaPage() {
       router.push("/login");
       return;
     }
+    const usernameTimer = window.setTimeout(() => {
+      setUsername(localStorage.getItem("username") || "Usuário");
+    }, 0);
     carregarDados();
+    return () => window.clearTimeout(usernameTimer);
   }, [router]);
 
   function handleLogout() {
@@ -104,8 +111,6 @@ export default function TabelaPage() {
       setLoading(false);
     }
   }
-
-  const username = typeof window !== "undefined" ? localStorage.getItem("username") || "Usuário" : "Usuário";
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
@@ -182,6 +187,19 @@ export default function TabelaPage() {
     return date.toLocaleDateString("pt-BR");
   };
 
+  const formatarDataHora = (valor?: string | null) => {
+    if (!valor) return "-";
+    const date = new Date(valor);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const toggleRowVisibility = (id: number) => {
     setVisibleRows((current) => {
       const next = new Set(current);
@@ -198,15 +216,44 @@ export default function TabelaPage() {
   const totalPages = Math.ceil(filteredDados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedDados = filteredDados.slice(startIndex, startIndex + itemsPerPage);
+  const hasPageRows = paginatedDados.length > 0;
+  const arePageRowsVisible = hasPageRows && paginatedDados.every((item) => visibleRows.has(item.id));
+
+  const togglePageVisibility = () => {
+    setVisibleRows((current) => {
+      const next = new Set(current);
+
+      if (arePageRowsVisible) {
+        paginatedDados.forEach((item) => next.delete(item.id));
+      } else {
+        paginatedDados.forEach((item) => next.add(item.id));
+      }
+
+      return next;
+    });
+  };
 
   const getTipoColor = (tipo: string) => {
+    const tipoNormalizado = tipo?.toUpperCase();
     const cores: Record<string, string> = {
+      "INSCRICAO_RENOVACAO": `bg-[${COLORS.accent}]/10 text-[${COLORS.accent}] border-[${COLORS.accent}]/20`,
+      "DEVOLUCAO": "bg-amber-500/10 text-amber-700 border-amber-500/20",
       "Produtor Rural": `bg-[${COLORS.accent}]/10 text-[${COLORS.accent}] border-[${COLORS.accent}]/20`,
       "Fornecedor": "bg-blue-500/10 text-blue-400 border-blue-500/20",
       "Distribuidor": "bg-purple-500/10 text-purple-400 border-purple-500/20",
       "Cliente": "bg-amber-500/10 text-amber-400 border-amber-500/20",
     };
-    return cores[tipo] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
+    return cores[tipoNormalizado] || cores[tipo] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
+  };
+
+  const formatarTipo = (tipo?: string | null) => {
+    const tipoNormalizado = tipo?.toUpperCase();
+    const labels: Record<string, string> = {
+      INSCRICAO_RENOVACAO: "Inscrição/Renovação",
+      DEVOLUCAO: "Devolução",
+    };
+
+    return tipoNormalizado ? labels[tipoNormalizado] || tipo || "-" : "-";
   };
 
   return (
@@ -250,8 +297,8 @@ export default function TabelaPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                  <div className="relative lg:w-96">
+                <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-center">
+                  <div className="relative 2xl:w-96">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
                     <input
                       type="text"
@@ -330,23 +377,55 @@ export default function TabelaPage() {
                           backgroundColor: COLORS.card,
                         }}
                       >
-                        <option value="todos">Todos os municípios</option>
+                        <option value="todos">Todas as localidades</option>
                         {availableMunicipios.map((municipio) => (
                           <option key={municipio} value={municipio}>{municipio}</option>
                         ))}
                       </select>
                     </div>
 
+                    <button
+                      type="button"
+                      onClick={togglePageVisibility}
+                      disabled={!hasPageRows}
+                      title={arePageRowsVisible ? "Ocultar CPF e memorando" : "Mostrar CPF e memorando"}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        color: arePageRowsVisible ? "#FFFFFF" : COLORS.primary,
+                        backgroundColor: arePageRowsVisible ? COLORS.accent : COLORS.card,
+                        border: `1px solid ${arePageRowsVisible ? COLORS.accent : COLORS.border}`,
+                      }}
+                    >
+                      {arePageRowsVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                      {arePageRowsVisible ? "Ocultar dados" : "Mostrar dados"}
+                    </button>
+
                     {hasActiveFilters && (
                       <button
                         type="button"
                         onClick={limparFiltros}
                         title="Limpar filtros"
-                        className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-150 hover:bg-gray-50"
-                        style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}` }}
+                        className="group relative inline-flex h-9 w-[92px] items-center justify-center overflow-hidden rounded-md text-xs font-medium transition-colors duration-200"
+                        style={{ color: COLORS.danger, border: "1px solid #FECDCA", backgroundColor: "#FEF3F2" }}
+                        onMouseEnter={(event) => {
+                          event.currentTarget.style.color = "#FFFFFF";
+                          event.currentTarget.style.borderColor = COLORS.danger;
+                          event.currentTarget.style.backgroundColor = COLORS.danger;
+                        }}
+                        onMouseLeave={(event) => {
+                          event.currentTarget.style.color = COLORS.danger;
+                          event.currentTarget.style.borderColor = "#FECDCA";
+                          event.currentTarget.style.backgroundColor = "#FEF3F2";
+                        }}
                       >
-                        <X size={14} />
-                        Limpar
+                        <span className="inline-flex items-center gap-1.5 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                          <X size={14} />
+                          Limpar
+                        </span>
+                        <BrushCleaning
+                          size={17}
+                          className="absolute translate-y-4 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
+                        />
                       </button>
                     )}
                   </div>
@@ -418,7 +497,7 @@ export default function TabelaPage() {
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Data</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Nome</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>CPF</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Município</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Localidade</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Memorando</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Tipo</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Visualizar</th>
@@ -432,7 +511,7 @@ export default function TabelaPage() {
                           <tr key={item.id} className="hover:bg-gray-50 transition-colors" style={{ borderTop: `1px solid ${COLORS.border}` }}>
                             <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
                             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
-                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.nome : "*****"}</td>
+                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.nome}</td>
                             <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{isVisible ? item.cpf : "*****"}</td>
                             <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
                             <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.memorando : "*****"}</td>
@@ -443,7 +522,7 @@ export default function TabelaPage() {
                                   color: COLORS.accent,
                                   borderColor: `${COLORS.accent}30`
                                 }}>
-                                {item.tipo}
+                                {formatarTipo(item.tipo)}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -536,12 +615,12 @@ export default function TabelaPage() {
             <div className="max-h-[75vh] overflow-y-auto p-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[
-                  ["Data", formatarData(selectedDetails.criadoEm)],
+                  ["Criado em", formatarDataHora(selectedDetails.criadoEm)],
                   ["Nome", selectedDetails.nome],
                   ["CPF", selectedDetails.cpf],
-                  ["Município", selectedDetails.municipio],
+                  ["Localidade", selectedDetails.municipio],
                   ["Memorando", selectedDetails.memorando],
-                  ["Tipo", selectedDetails.tipo],
+                  ["Tipo", formatarTipo(selectedDetails.tipo)],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
                     <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
