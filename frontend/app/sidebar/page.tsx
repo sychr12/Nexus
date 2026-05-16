@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
@@ -14,7 +14,6 @@ import {
   LogOut,
   Bell,
   User,
-  Settings,
   Menu,
   X,
   Home,
@@ -59,14 +58,17 @@ interface TopBarProps {
 
 export default function TopBar({ onLogout, username }: TopBarProps) {
   const router = useRouter();
+  const activePath = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activePath, setActivePath] = useState("");
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   useEffect(() => {
-    setActivePath(window.location.pathname);
+    const initialTimer = window.setTimeout(() => setCurrentTime(new Date()), 0);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
   }, []);
 
   const handleNavigation = (href: string) => {
@@ -103,11 +105,11 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
             <div className="hidden lg:flex items-center gap-4">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: COLORS.secondary }}>
                 <span className="text-xs text-white">
-                  {currentTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  {currentTime ? currentTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "--/--/----"}
                 </span>
                 <span className="text-xs text-white/50">•</span>
                 <span className="text-xs text-white font-mono">
-                  {currentTime.toLocaleTimeString("pt-BR")}
+                  {currentTime ? currentTime.toLocaleTimeString("pt-BR") : "--:--:--"}
                 </span>
               </div>
 
@@ -117,7 +119,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
 
               <div className="flex items-center gap-3 pl-3 border-l border-white/20">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-white">{username}</p>
+                  <p className="text-sm font-medium text-white" suppressHydrationWarning>{username}</p>
                   <p className="text-xs" style={{ color: COLORS.light }}>Administrador</p>
                 </div>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: COLORS.accent }}>
@@ -187,7 +189,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                   <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold text-white">{username}</p>
+                  <p className="font-semibold text-white" suppressHydrationWarning>{username}</p>
                   <p className="text-xs text-white/60">Administrador</p>
                 </div>
                 <button
