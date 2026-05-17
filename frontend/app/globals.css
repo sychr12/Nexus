@@ -24,3 +24,29 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.login-autofill {
+  color-scheme: dark;
+}
+
+input.login-autofill:-webkit-autofill,
+input.login-autofill:-webkit-autofill:hover,
+input.login-autofill:-webkit-autofill:focus,
+input.login-autofill:-webkit-autofill:active {
+  background-color: #123126 !important;
+  background-image: none !important;
+  -webkit-box-shadow: 0 0 0 1000px #123126 inset !important;
+  box-shadow: 0 0 0 1000px #123126 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  border-color: rgba(107, 157, 74, 0.35) !important;
+  transition: background-color 999999s ease-in-out 0s, color 999999s ease-in-out 0s;
+}
+
+input.login-autofill:autofill {
+  background-color: #123126 !important;
+  background-image: none !important;
+  box-shadow: 0 0 0 1000px #123126 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+}

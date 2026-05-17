@@ -41,7 +41,6 @@ const TOP_ITEMS = [
   { id: "memorando", label: "Memorando de Saída", icon: FileText, href: "/memorando" },
   { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
   { id: "carteira", label: "Carteira Digital", icon: CreditCard, href: "/carteira" },
-  { id: "gerarLote", label: "Gerar Lote", icon: Upload, href: "/carteira/batch" },
   { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
@@ -66,7 +65,10 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
   useEffect(() => {
     const initialTimer = window.setTimeout(() => setCurrentTime(new Date()), 0);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
   }, []);
 
   const handleNavigation = (href: string) => {
