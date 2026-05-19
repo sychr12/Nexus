@@ -1,3 +1,15 @@
+/**
+ * Definições de tipos TypeScript para a área de análises.
+ * Inclui todas as interfaces e tipos para:
+ * - Memorandos (MemorandoAnalise) com status e lista de processos
+ * - Processos por produtor (ProcessoProdutor) com documentos e checklist
+ * - Encaminhamentos (EncaminhamentoAnalise) para lançamento/devolução
+ * - Estados do workflow (MemoStatus, ProducerStatus, ModalScope, etc.)
+ * 
+ * Fornece type safety completo para toda a aplicação de análise.
+ */
+
+
 export type MemoStatus = "recebido"  | "em_analise"  | "lancamento" | "devolucao" | "concluido";
 export type AnalysisViewMode = "memorandos" | "produtores";
 export type ModalScope = "memorando" | "produtor";

@@ -1,5 +1,17 @@
 "use client";
 
+/**
+ * Modal de análise completo com 5 abas principais:
+ * 1. Resumo: dados gerais do memorando (número, tipo, localidade, data)
+ * 2. Memorando: checklist do memorando (assinatura, carimbo, cópia vinculada)
+ * 3. Processos: lista de produtores com checklist, dados GCC e visualização de PDFs
+ * 4. Observações: campo para anotar achados da análise por produtor
+ * 5. Fluxo: ações de workflow (enviar para lançamento/devolução/conclusão)
+ * 
+ * Gerencia toda a interação de análise, validação de documentos e transição de status.
+ */
+
+
 import { AlertTriangle, ArrowDownToLine, CheckCircle2, ClipboardList, Eye, FileText, Inbox, Mail, Send, X } from "lucide-react";
 import {
   COLORS,

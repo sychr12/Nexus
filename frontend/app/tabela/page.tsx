@@ -187,14 +187,11 @@ export default function TabelaPage() {
     return date.toLocaleDateString("pt-BR");
   };
 
-  const formatarDataHora = (valor?: string | null) => {
+  const formatarHora = (valor?: string | null) => {
     if (!valor) return "-";
     const date = new Date(valor);
     if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+    return date.toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -615,7 +612,8 @@ export default function TabelaPage() {
             <div className="max-h-[75vh] overflow-y-auto p-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[
-                  ["Criado em", formatarDataHora(selectedDetails.criadoEm)],
+                  ["Data", formatarData(selectedDetails.criadoEm)],
+                  ["Hora", formatarHora(selectedDetails.criadoEm)],
                   ["Nome", selectedDetails.nome],
                   ["CPF", selectedDetails.cpf],
                   ["Localidade", selectedDetails.municipio],

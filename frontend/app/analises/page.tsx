@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Página principal da seção de Análises do SICPR.
+ * Responsável pela orquestração geral, gerenciamento de estado global, autenticação,
+ * filtros (por status e busca), visualizações (memorandos ou produtores), e integração
+ * com o modal de análise. Implementa persistência em localStorage e workflow de análise
+ * (recebido → em análise → lançamento/devolução → concluído).
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowDownToLine, ClipboardList, FileText, Mail, Search, X } from "lucide-react";

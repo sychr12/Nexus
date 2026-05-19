@@ -1,3 +1,18 @@
+/**
+ * Camada de persistência de dados usando localStorage.
+ * Gerencia:
+ * - ANALISES_STORAGE_KEY: memorandos completos (para edição contínua)
+ * - ANALISES_LANCAMENTOS_KEY: encaminhamentos para lançamento
+ * - ANALISES_DEVOLUCOES_KEY: encaminhamentos para devolução
+ * 
+ * Funções:
+ * - buildEncaminhamento: constrói registro de encaminhamento com dados do processo
+ * - appendEncaminhamentos: adiciona/atualiza encaminhamentos no localStorage
+ * 
+ * ⚠️ Temporário: será substituído por persistência em banco de dados real.
+ */
+
+
 import { GCC_STATUS_LABELS, TIPO_IDENTIFICADO_LABELS } from "./data";
 import { getProcessoGccStatus, getProcessoTipo } from "./rules";
 import type { DispatchTarget, EncaminhamentoAnalise, MemorandoAnalise, ProcessoProdutor } from "./types";

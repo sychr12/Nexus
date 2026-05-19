@@ -1,3 +1,17 @@
+/**
+ * Constantes e dados fixos da área de análises.
+ * Inclui:
+ * - COLORS: paleta de cores padrão da aplicação
+ * - STATUS_LABELS e STATUS_DESCRIPTIONS: textos dos estados do workflow
+ * - MOTIVO_LABELS, PRODUCER_STATUS_LABELS, TIPO_IDENTIFICADO_LABELS: dicionários de rótulos
+ * - HOVER_LIFT, HOVER_SOFT: animações CSS padrão
+ * - ANALYSIS_TODAY: data base para cálculos (será substituída por data dinâmica)
+ * - INITIAL_MEMORANDOS: dados de exemplo/teste (será substituído por dados da API)
+ * 
+ * Centraliza toda a configuração visual e textual da aplicação.
+ */
+
+
 import type {
   ChecklistItem,
   DispatchTarget,
@@ -260,123 +274,6 @@ export const INITIAL_MEMORANDOS: MemorandoAnalise[] = [
         dataDeclaracao: "2026-03-30",
         recebidoEm: "2026-05-14",
         status: "apto",
-        checklist: [
-          { nome: "Declaração", status: "recebido" },
-          { nome: "FAC", status: "recebido" },
-          { nome: "Documento com foto", status: "recebido" },
-          { nome: "Carteira do produtor", status: "recebido" },
-        ],
-        observacao: "",
-      },
-    ],
-  },
-  {
-    id: 3,
-    numero: "MEMO/ITACOATIARA/122/2026",
-    motivo: "RENOVACAO",
-    titulo: "Renovação de 6 carteiras de produtor rural",
-    localidade: "Itacoatiara",
-    emailOrigem: "unloc.itacoatiara@sepror.am.gov.br",
-    recebidoEm: "2026-05-16T10:25:00",
-    prioridade: "normal",
-    status: "recebido",
-    produtoresInformados: 6,
-    memorandoPdf: "memorando-122-2026.pdf",
-    processos: [
-      {
-        id: 301,
-        produtor: "Francisco Alves Pereira",
-        cpf: "321.654.987-00",
-        processoPdf: "processo-francisco-alves.pdf",
-        declaracaoPdf: "declaracao-francisco-alves.pdf",
-        dataDeclaracao: "2026-04-02",
-        recebidoEm: "2026-05-16",
-        status: "pendente",
-        checklist: [
-          { nome: "Declaração", status: "recebido" },
-          { nome: "FAC", status: "recebido" },
-          { nome: "Documento com foto", status: "recebido" },
-          { nome: "Carteira do produtor", status: "nao_obrigatorio" },
-        ],
-        observacao: "",
-      },
-      {
-        id: 302,
-        produtor: "Rosa Maria Nascimento",
-        cpf: "504.219.876-33",
-        processoPdf: "processo-rosa-maria.pdf",
-        declaracaoPdf: "declaracao-rosa-maria.pdf",
-        dataDeclaracao: "2026-03-18",
-        recebidoEm: "2026-05-16",
-        status: "pendente",
-        checklist: [
-          { nome: "Declaração", status: "recebido" },
-          { nome: "FAC", status: "recebido" },
-          { nome: "Documento com foto", status: "recebido" },
-          { nome: "Carteira do produtor", status: "recebido" },
-        ],
-        observacao: "",
-      },
-      {
-        id: 303,
-        produtor: "Antônio Carlos Souza",
-        cpf: "771.430.225-91",
-        processoPdf: "processo-antonio-carlos.pdf",
-        declaracaoPdf: "declaracao-antonio-carlos.pdf",
-        dataDeclaracao: "2026-02-27",
-        recebidoEm: "2026-05-16",
-        status: "pendente",
-        checklist: [
-          { nome: "Declaração", status: "recebido" },
-          { nome: "FAC", status: "recebido" },
-          { nome: "Documento com foto", status: "recebido" },
-          { nome: "Carteira do produtor", status: "nao_obrigatorio" },
-        ],
-        observacao: "",
-      },
-      {
-        id: 304,
-        produtor: "Eliane Ferreira da Silva",
-        cpf: "098.654.321-45",
-        processoPdf: "processo-eliane-ferreira.pdf",
-        declaracaoPdf: "declaracao-eliane-ferreira.pdf",
-        dataDeclaracao: "2026-01-30",
-        recebidoEm: "2026-05-16",
-        status: "pendente",
-        checklist: [
-          { nome: "Declaração", status: "recebido" },
-          { nome: "FAC", status: "recebido" },
-          { nome: "Documento com foto", status: "recebido" },
-          { nome: "Carteira do produtor", status: "recebido" },
-        ],
-        observacao: "",
-      },
-      {
-        id: 305,
-        produtor: "João Batista Lima",
-        cpf: "645.882.103-77",
-        processoPdf: "processo-joao-batista.pdf",
-        declaracaoPdf: "declaracao-joao-batista.pdf",
-        dataDeclaracao: "2026-04-25",
-        recebidoEm: "2026-05-16",
-        status: "pendente",
-        checklist: [
-          { nome: "Declaração", status: "recebido" },
-          { nome: "FAC", status: "recebido" },
-          { nome: "Documento com foto", status: "recebido" },
-          { nome: "Carteira do produtor", status: "nao_obrigatorio" },
-        ],
-        observacao: "",
-      },
-      {
-        id: 306,
-        produtor: "Marina Oliveira Castro",
-        cpf: "219.778.450-12",
-        processoPdf: "processo-marina-oliveira.pdf",
-        declaracaoPdf: "declaracao-marina-oliveira.pdf",
-        dataDeclaracao: "2026-03-05",
-        recebidoEm: "2026-05-16",
-        status: "pendente",
         checklist: [
           { nome: "Declaração", status: "recebido" },
           { nome: "FAC", status: "recebido" },

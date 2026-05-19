@@ -1,3 +1,17 @@
+/**
+ * Lógica de negócio e regras da análise de memorandos.
+ * Implementa:
+ * - Validação de datas: declaração futura, vencida na chegada, vencida por atraso
+ * - Cálculo de status: pendente (aguardando conferência) / apto / devolução / concluído
+ * - Verificação de checklist: documentos faltando, não obrigatórios, etc.
+ * - Lógica GCC: consulta ao sistema de busca (inscrição vs. renovação/alteração)
+ * - Resumos: contadores de produtores por status, encaminhamentos, etc.
+ * - Transições de workflow: próximo status após conclusão de processos
+ * 
+ * Centraliza toda a inteligência do sistema de análise.
+ */
+
+
 import { ANALYSIS_TODAY, COLORS, MEMORANDO_CHECKLIST_PADRAO } from "./data";
 import type { ChecklistStatus, MemorandoAnalise, MemoStatus, ProcessoProdutor, ProducerStatus } from "./types";
 

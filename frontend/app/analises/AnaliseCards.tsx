@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * Componentes de renderização para a área de análises.
+ * Define os cards visuais exibidos na tela:
+ * - EmptyState: mensagem quando não há resultados
+ * - MemorandoCard: card do memorando com resumo de produtores e status
+ * - ProdutorCard: card individual do produtor com tipo identificado e resultado GCC
+ * Todos os cards são interativos e abrem o modal de análise ao clicar.
+ */
+
+
 import { FileText } from "lucide-react";
 import {
   COLORS,
