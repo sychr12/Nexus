@@ -49,6 +49,11 @@ public class SecurityConfig {
                         "/api/auth/**"
                 ).permitAll()
 
+                // MEMORANDOS
+                .requestMatchers(
+                        "/api/memorandos/**"
+                ).permitAll()
+
                 // INSCRIÇÕES
                 .requestMatchers(
                         "/api/inscricoes/**"
