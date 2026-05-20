@@ -44,7 +44,6 @@ public class Carteira {
     private String georeferenciamento;
     
     @Lob
-    @Column(columnDefinition = "LONGBLOB")
     private byte[] pdfConteudo;
     
     @Column(length = 100)

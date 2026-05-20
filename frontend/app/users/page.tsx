@@ -11,6 +11,73 @@ import { Plus } from 'lucide-react';
 import TopBar from "../sidebar/page";
 import { useRouter } from 'next/navigation';
 
+// Animações CSS
+const animations = `
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+`;
+
 const COLORS = {
   primary: "#1F3A2E",
   accent: "#6B9D4A",
@@ -45,6 +112,18 @@ export default function UsersPage() {
   });
 
   const [username, setUsername] = useState('');
+  const [animated, setAnimated] = useState(false);
+
+  useEffect(() => {
+    // Adiciona estilos de animação
+    if (!document.getElementById("users-animations")) {
+      const style = document.createElement("style");
+      style.id = "users-animations";
+      style.textContent = animations;
+      document.head.appendChild(style);
+    }
+    setAnimated(true);
+  }, []);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -166,39 +245,54 @@ export default function UsersPage() {
         <div className="px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-5">
             {/* Cabeçalho */}
-            <div className="flex justify-between items-center">
+            <div 
+              className="flex justify-between items-center"
+              style={{ animation: animated ? "fadeInUp 0.5s ease-out" : "none" }}
+            >
               <div>
-                <h1 className="text-3xl font-bold" style={{ color: COLORS.primary }}>
+                <h1 
+                  className="text-3xl font-bold transition-all duration-300 hover:translate-x-1"
+                  style={{ color: COLORS.primary }}
+                >
                   Gerenciador de Usuários
                 </h1>
-                <p className="mt-0.5 text-sm" style={{ color: COLORS.textLight }}>
+                <p 
+                  className="mt-0.5 text-sm transition-all duration-300 delay-100"
+                  style={{ color: COLORS.textLight }}
+                >
                   Gerencie administradores, chefes e usuários do sistema
                 </p>
               </div>
               <button
                 onClick={() => setShowForm(true)}
-                className="px-5 py-2.5 rounded-xl text-white font-semibold flex items-center gap-2 transition-all hover:scale-105"
+                className="px-5 py-2.5 rounded-xl text-white font-semibold flex items-center gap-2 transition-all duration-300 hover:scale-105 hover:shadow-md"
                 style={{ backgroundColor: COLORS.primary }}
               >
-                <Plus size={20} />
+                <Plus size={20} className="transition-transform duration-300 group-hover:rotate-90" />
                 Novo Usuário
               </button>
             </div>
 
             {/* Cards de estatísticas */}
-            <UserStats stats={stats} />
+            <div style={{ animation: animated ? "fadeInUp 0.5s ease-out 0.1s both" : "none" }}>
+              <UserStats stats={stats} />
+            </div>
 
             {/* Filtros */}
-            <UserFilters filters={filters} setFilters={setFilters} />
+            <div style={{ animation: animated ? "fadeInLeft 0.5s ease-out 0.2s both" : "none" }}>
+              <UserFilters filters={filters} setFilters={setFilters} />
+            </div>
             
             {/* Tabela */}
-            <UserTable
-              users={filteredUsers}
-              isLoading={isLoading}
-              onEdit={setEditingUser}
-              onDelete={handleDeleteUser}
-              onToggleStatus={handleToggleStatus}
-            />
+            <div style={{ animation: animated ? "fadeInRight 0.5s ease-out 0.3s both" : "none" }}>
+              <UserTable
+                users={filteredUsers}
+                isLoading={isLoading}
+                onEdit={setEditingUser}
+                onDelete={handleDeleteUser}
+                onToggleStatus={handleToggleStatus}
+              />
+            </div>
 
             {/* Modal */}
             {(showForm || editingUser) && (
