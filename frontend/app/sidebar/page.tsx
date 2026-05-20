@@ -47,6 +47,7 @@ const TOP_ITEMS = [
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
   { id: "emails", label: "E-mails", icon: Mail, href: "/emails" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
+  { id: "Gerenciamento de Usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
   { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
   { id: "notificacao", label: "Notificação", icon: Bell, href: "/notificacao" },
 ];
@@ -91,7 +92,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                   width={1536}
                   height={1024}
                   priority
-                  className="absolute left-1/2 top-1/2 w-[128px] -translate-x-1/2 -translate-y-1/2 object-contain lg:w-[176px]"
+                  className="absolute left-1/2 top-1/2 w-32 -translate-x-1/2 -translate-y-1/2 object-contain lg:w-44"
                   style={{ filter: "brightness(0) saturate(100%) invert(54%) sepia(33%) saturate(707%) hue-rotate(50deg) brightness(94%) contrast(88%) drop-shadow(0 4px 8px rgba(0,0,0,0.18))" }}
                 />
               </div>
@@ -180,7 +181,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
 
       {/* Menu Mobile Dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-[81px] z-40">
+        <div className="lg:hidden fixed inset-x-0 z-40" style={{ top: '81px' }}>
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
           <div className="absolute top-0 left-0 right-0 max-h-[calc(100vh-81px)] overflow-y-auto" style={{ backgroundColor: COLORS.primary }}>
             <div className="p-4 border-b border-white/10">
@@ -230,7 +231,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
         </div>
       )}
 
-      <div className="h-[104px] lg:h-[152px]" />
+      <div style={{ height: '104px' }} />
     </>
   );
 }
