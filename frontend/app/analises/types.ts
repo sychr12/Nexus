@@ -1,37 +1,48 @@
-/**
- * Definições de tipos TypeScript para a área de análises.
- * Inclui todas as interfaces e tipos para:
- * - Memorandos (MemorandoAnalise) com status e lista de processos
- * - Processos por produtor (ProcessoProdutor) com documentos e checklist
- * - Encaminhamentos (EncaminhamentoAnalise) para lançamento/devolução
- * - Estados do workflow (MemoStatus, ProducerStatus, ModalScope, etc.)
- * 
- * Fornece type safety completo para toda a aplicação de análise.
- */
-
-
-export type MemoStatus = "recebido"  | "em_analise"  | "lancamento" | "devolucao" | "concluido";
+export type MemoStatus = "recebido" | "em_analise" | "finalizado";
 export type AnalysisViewMode = "memorandos" | "produtores";
 export type ModalScope = "memorando" | "produtor";
 export type Priority = "urgente" | "normal";
 export type MotivoMemorando = "RENOVACAO" | "INSCRICAO" | "DEVOLUCAO";
-export type ModalTab = "resumo" | "memorando" | "processos" | "observacoes" | "fluxo";
+export type ModalTab = "resumo" | "memorando" | "processos" | "decisao";
 export type ChecklistStatus = "recebido" | "faltando" | "nao_obrigatorio";
-export type ProducerStatus = "pendente"  | "apto"  | "devolucao" | "concluido";
 export type ViewerKind = "processo" | "declaracao";
 export type DispatchTarget = "lancamento" | "devolucao";
-export type FlowCompletionAction = "lancamento_aptos" | "devolucao_processos" | "lancamento_produtor" | "devolucao_produtor";
+export type ProducerDecision = DispatchTarget | null;
+export type MemorandoDecision = "correto" | "incorreto" | null;
 export type TipoIdentificado = "nao_definido" | "inscricao" | "renovacao_alteracao";
 export type GccStatus = "nao_consultado" | "sem_cadastro" | "cadastro_encontrado" | "divergencia";
 
-export type PendingFlowAction = {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  applyStatus?: MemoStatus;
-  completionAction?: FlowCompletionAction;
-  notice?: string;
-  tone: "warning" | "danger" | "info";
+export type MotivoMemorandoDevolucao =
+  | "Documento ilegivel"
+  | "Documento invalido"
+  | "Assinatura ausente"
+  | "Dados inconsistentes"
+  | "Documento ausente";
+
+export type MotivoProcessoDevolucao =
+  | "Documento ausente"
+  | "Documento ilegivel"
+  | "Documento invalido"
+  | "Data invalida"
+  | "Cadastro divergente"
+  | "CPF divergente";
+
+export type TimelineEvent = {
+  id: string;
+  usuario: string;
+  dataHora: string;
+  acao: string;
+  detalhe?: string;
+  processoId?: number;
+};
+
+export type AnalysisFlags = {
+  memorandoInvalido: boolean;
+  checklistIncompleto: boolean;
+  gccDivergente: boolean;
+  declaracaoVencida: boolean;
+  declaracaoFutura: boolean;
+  cpfDivergente: boolean;
 };
 
 export interface ChecklistItem {
@@ -47,15 +58,20 @@ export interface ProcessoProdutor {
   declaracaoPdf: string;
   dataDeclaracao: string;
   recebidoEm: string;
-  status: ProducerStatus;
+  status?: string;
+  decisao?: ProducerDecision;
   checklist: ChecklistItem[];
   tipoIdentificado?: TipoIdentificado;
   gccStatus?: GccStatus;
   dadosGccConferidos?: boolean;
   observacao: string;
   observacaoAtualizadaEm?: string;
+  motivoDevolucao?: MotivoProcessoDevolucao;
+  decisaoResponsavel?: string;
+  decisaoEm?: string;
   encaminhadoPara?: DispatchTarget;
   encaminhadoEm?: string;
+  flags?: Partial<AnalysisFlags>;
 }
 
 export interface MemorandoAnalise {
@@ -71,6 +87,15 @@ export interface MemorandoAnalise {
   produtoresInformados: number;
   memorandoPdf: string;
   memorandoChecklist?: ChecklistItem[];
+  memorandoDecisao?: MemorandoDecision;
+  motivoDevolucaoMemorando?: MotivoMemorandoDevolucao;
+  observacaoMemorando?: string;
+  memorandoResponsavel?: string;
+  memorandoAnalisadoEm?: string;
+  abertoPor?: string;
+  abertoEm?: string;
+  flags?: Partial<AnalysisFlags>;
+  timeline?: TimelineEvent[];
   processos: ProcessoProdutor[];
 }
 
@@ -92,5 +117,6 @@ export interface EncaminhamentoAnalise {
   recebidoEm: string;
   encaminhadoEm: string;
   destino: DispatchTarget;
+  motivo?: string;
   observacao: string;
 }

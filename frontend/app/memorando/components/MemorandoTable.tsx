@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Memorando } from "../lib/types";
+import { Memorando } from "../types/memorando";
 import DownloadButton from "./DownloadButton";
 import { Loader2, SearchX, FileX } from "lucide-react";
 

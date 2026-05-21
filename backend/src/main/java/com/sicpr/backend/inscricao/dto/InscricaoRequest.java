@@ -9,6 +9,8 @@ public class InscricaoRequest {
     private String cpf;
     private String municipio;
     private String memorando;
+    private String latitude;
+    private String longitude;
     private String tipo;
     
 }

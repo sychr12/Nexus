@@ -1,6 +1,7 @@
 package com.sicpr.backend.dashboard.service;
 
 import com.sicpr.backend.dashboard.dto.*;
+import com.sicpr.backend.analise.repository.EncaminhamentoAnaliseRepository;
 import com.sicpr.backend.user.model.User;
 import com.sicpr.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class DashboardService {
 
     private final UserRepository userRepository;
     private final EntityManager entityManager;
+    private final EncaminhamentoAnaliseRepository encaminhamentoRepository;
 
     public DashboardStatsDTO obterEstatisticas() {
         long totalUsuarios = userRepository.count();
@@ -57,8 +59,7 @@ public class DashboardService {
     
     private int obterTotalLancamentos() {
         try {
-            Query query = entityManager.createNativeQuery("SELECT COUNT(*) FROM lancamentos");
-            return ((Number) query.getSingleResult()).intValue();
+            return (int) encaminhamentoRepository.countByDestino("lancamento");
         } catch (Exception e) {
             return 1248;
         }

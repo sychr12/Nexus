@@ -1,64 +1,139 @@
 "use client";
 
-/**
- * Página principal da seção de Análises do SICPR.
- * Responsável pela orquestração geral, gerenciamento de estado global, autenticação,
- * filtros (por status e busca), visualizações (memorandos ou produtores), e integração
- * com o modal de análise. Implementa persistência em localStorage e workflow de análise
- * (recebido → em análise → lançamento/devolução → concluído).
- */
-
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowDownToLine, ClipboardList, FileText, Mail, Search, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Mail, RotateCcw, Search, X } from "lucide-react";
+import { isAdminUser, resolveStoredAuthUser } from "../lib/auth";
 import TopBar from "../sidebar/page";
 import { EmptyState, MemorandoCard, ProdutorCard } from "./AnaliseCards";
 import AnaliseModal from "./AnaliseModal";
+import { COLORS, HOVER_LIFT, HOVER_SOFT, INITIAL_MEMORANDOS, STATUS_DESCRIPTIONS, STATUS_LABELS } from "./data";
 import {
-  COLORS,
-  HOVER_LIFT,
-  HOVER_SOFT,
-  INITIAL_MEMORANDOS,
-  STATUS_DESCRIPTIONS,
-  STATUS_LABELS,
-} from "./data";
-import {
-  getMemorandoChecklist,
-  getMemorandoSummary,
-  getNextMemoStatusAfterCompletion,
-  getProcessoStatus,
-  hasMemorandoIssue,
+  emptyFlags,
+  getDerivedMemoStatus,
+  getNextMemoStatusAfterDecision,
+  getProcessoFlags,
   isMemorandoConcluido,
 } from "./rules";
 import { ANALISES_STORAGE_KEY, appendEncaminhamentos, buildEncaminhamento } from "./storage";
 import type {
+  AnalysisFlags,
   AnalysisViewMode,
-  ChecklistStatus,
   DispatchTarget,
   MemorandoAnalise,
   MemoStatus,
   ModalScope,
   ModalTab,
-  PendingFlowAction,
+  MotivoMemorandoDevolucao,
+  MotivoProcessoDevolucao,
   ProcessoProdutor,
-  ProducerStatus,
+  TimelineEvent,
   ViewerKind,
 } from "./types";
 
-const STATUS_FILTERS: MemoStatus[] = ["recebido", "em_analise", "lancamento", "devolucao", "concluido"];
+const STATUS_FILTERS: MemoStatus[] = ["recebido", "em_analise", "finalizado"];
 
-const migrateMemorando = (memorando: MemorandoAnalise): MemorandoAnalise => ({
-  ...memorando,
-  status: (memorando.status as string) === "pendencia" ? "em_analise" : memorando.status,
-  processos: memorando.processos.map((processo) => ({
-    ...processo,
-    status: (processo.status as string) === "pendencia" ? "pendente" : processo.status,
-  })),
+const eventId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const timelineEvent = (usuario: string, acao: string, detalhe?: string, processoId?: number): TimelineEvent => ({
+  id: eventId(),
+  usuario,
+  dataHora: new Date().toISOString(),
+  acao,
+  detalhe,
+  processoId,
 });
+
+const normalizeStatus = (status: string | undefined): MemoStatus => {
+  if (status === "finalizado" || status === "concluido" || status === "lancamento" || status === "devolucao") return "finalizado";
+  if (status === "em_analise") return "em_analise";
+  return "recebido";
+};
+
+const migrateDecision = (processo: ProcessoProdutor) => {
+  if (processo.decisao) return processo.decisao;
+  if (processo.encaminhadoPara) return processo.encaminhadoPara;
+  if (processo.status === "concluido" && processo.encaminhadoPara) return processo.encaminhadoPara;
+  return null;
+};
+
+const mergeFlags = (base?: Partial<AnalysisFlags>): AnalysisFlags => ({ ...emptyFlags(), ...base });
+
+const normalizeMotivoText = (motivo?: string) =>
+  motivo
+    ?.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const normalizeProcessoDevolucaoMotivo = (
+  motivo?: string,
+): MotivoProcessoDevolucao | undefined => {
+  if (!motivo) return undefined;
+
+  const normalized = normalizeMotivoText(motivo) || "";
+
+  if (normalized.includes("cpf")) return "CPF divergente";
+  if (normalized.includes("cadastro") || normalized.includes("gcc")) return "Cadastro divergente";
+  if (normalized.includes("data") || normalized.includes("declaracao vencida")) return "Data invalida";
+  if (normalized.includes("ilegivel") || normalized.includes("corrompido")) return "Documento ilegivel";
+  if (normalized.includes("falt") || normalized.includes("checklist") || normalized.includes("ausente")) return "Documento ausente";
+
+  return "Documento invalido";
+};
+
+const normalizeMemorandoDevolucaoMotivo = (
+  motivo?: string,
+): MotivoMemorandoDevolucao | undefined => {
+  if (!motivo) return undefined;
+
+  const normalized = normalizeMotivoText(motivo) || "";
+
+  if (normalized.includes("ilegivel") || normalized.includes("corrompido")) return "Documento ilegivel";
+  if (normalized.includes("assinatura")) return "Assinatura ausente";
+  if (normalized.includes("falt") || normalized.includes("ausente")) return "Documento ausente";
+  if (normalized.includes("inconsistente") || normalized.includes("divergente")) return "Dados inconsistentes";
+
+  return "Documento invalido";
+};
+
+const migrateMemorando = (memorando: MemorandoAnalise): MemorandoAnalise => {
+  const processos = memorando.processos.map((processo) => {
+    const migrated = {
+      ...processo,
+      decisao: migrateDecision(processo),
+      observacao: processo.observacao || "",
+      motivoDevolucao: normalizeProcessoDevolucaoMotivo(processo.motivoDevolucao),
+    };
+    return {
+      ...migrated,
+      flags: { ...getProcessoFlags(migrated), ...processo.flags },
+    };
+  });
+
+  const memorandoDecisao =
+    memorando.memorandoDecisao ||
+    ((memorando.status as string) === "devolucao" ? "incorreto" : null);
+
+  const status = getNextMemoStatusAfterDecision(processos, memorandoDecisao === "incorreto");
+
+  return {
+    ...memorando,
+    status: status === "finalizado" ? "finalizado" : normalizeStatus(memorando.status) === "em_analise" ? "em_analise" : "recebido",
+    memorandoDecisao,
+    motivoDevolucaoMemorando: normalizeMemorandoDevolucaoMotivo(memorando.motivoDevolucaoMemorando),
+    observacaoMemorando: memorando.observacaoMemorando || "",
+    flags: {
+      ...mergeFlags(memorando.flags),
+      memorandoInvalido: memorandoDecisao === "incorreto" || Boolean(memorando.flags?.memorandoInvalido),
+    },
+    timeline: memorando.timeline || [timelineEvent("Sistema", "Memorando recebido", memorando.numero)],
+    processos,
+  };
+};
 
 export default function AnalisesPage() {
   const router = useRouter();
-  const [memorandos, setMemorandos] = useState<MemorandoAnalise[]>(INITIAL_MEMORANDOS);
+  const [memorandos, setMemorandos] = useState<MemorandoAnalise[]>(() => INITIAL_MEMORANDOS.map(migrateMemorando));
   const [analysisView, setAnalysisView] = useState<AnalysisViewMode>("memorandos");
   const [activeStatus, setActiveStatus] = useState<MemoStatus>("recebido");
   const [searchTerm, setSearchTerm] = useState("");
@@ -68,7 +143,6 @@ export default function AnalisesPage() {
   const [activeTab, setActiveTab] = useState<ModalTab>("resumo");
   const [viewerKind, setViewerKind] = useState<ViewerKind>("processo");
   const [flowNotice, setFlowNotice] = useState("");
-  const [pendingFlowAction, setPendingFlowAction] = useState<PendingFlowAction | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [username, setUsername] = useState("Usuario");
   const [userRole, setUserRole] = useState("USUARIO");
@@ -80,12 +154,12 @@ export default function AnalisesPage() {
       return;
     }
 
-    const timer = window.setTimeout(() => {
+    const timer = window.setTimeout(async () => {
       const savedMemorandos = localStorage.getItem(ANALISES_STORAGE_KEY);
       if (savedMemorandos) {
         try {
           const parsedMemorandos = (JSON.parse(savedMemorandos) as MemorandoAnalise[]).map(migrateMemorando);
-          const memorandosNovos = INITIAL_MEMORANDOS.filter(
+          const memorandosNovos = INITIAL_MEMORANDOS.map(migrateMemorando).filter(
             (memorando) => !parsedMemorandos.some((saved) => saved.id === memorando.id),
           );
           setMemorandos([...parsedMemorandos, ...memorandosNovos]);
@@ -94,15 +168,11 @@ export default function AnalisesPage() {
         }
       }
 
-      const savedUsername = localStorage.getItem("username") || "Usuario";
-      const savedRole =
-        localStorage.getItem("role") ||
-        localStorage.getItem("perfil") ||
-        (savedUsername.toLowerCase() === "admin" ? "ADMIN" : "USUARIO");
+      const authUser = await resolveStoredAuthUser("Usuario");
 
       setStorageReady(true);
-      setUsername(savedUsername);
-      setUserRole(savedRole);
+      setUsername(authUser.username);
+      setUserRole(authUser.role);
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -123,30 +193,18 @@ export default function AnalisesPage() {
     [selectedMemorando, selectedProcessId],
   );
 
-  const isAdmin = username.toLowerCase() === "admin" || userRole.toUpperCase() === "ADMIN";
+  const isAdmin = isAdminUser(username, userRole);
   const selectedMemorandoLocked = selectedMemorando ? isMemorandoConcluido(selectedMemorando) : false;
   const selectedMemorandoReadOnly = selectedMemorandoLocked && !isAdmin;
-  const selectedProcessoLockedByConclusion = selectedProcesso ? getProcessoStatus(selectedProcesso) === "concluido" : false;
-  const selectedProcessoLocked = selectedProcessoLockedByConclusion && !isAdmin;
+  const selectedProcessoLocked = Boolean(selectedProcesso?.decisao && !isAdmin);
 
   const filteredMemorandos = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const digits = searchTerm.replace(/\D/g, "");
 
     return memorandos.filter((memorando) => {
-      const summary = getMemorandoSummary(memorando);
-      const isConcludedMemo = isMemorandoConcluido(memorando);
-      const matchesStatus =
-        isConcludedMemo
-          ? activeStatus === "concluido"
-          : activeStatus === "devolucao"
-            ? summary.devolucoes > 0 || memorando.status === "devolucao"
-            : activeStatus === "lancamento"
-              ? memorando.status === "lancamento"
-              : activeStatus === "concluido"
-                ? false
-                : memorando.status === activeStatus;
-
+      const derivedStatus = getDerivedMemoStatus(memorando);
+      const matchesStatus = derivedStatus === activeStatus;
       const matchesSearch =
         !term ||
         memorando.numero.toLowerCase().includes(term) ||
@@ -166,26 +224,15 @@ export default function AnalisesPage() {
     const term = searchTerm.trim().toLowerCase();
     const digits = searchTerm.replace(/\D/g, "");
 
-    return memorandos.flatMap((memorando) => {
-      const isConcludedMemo = isMemorandoConcluido(memorando);
-
-      return memorando.processos
-        .map((processo) => {
-          const producerStatus = getProcessoStatus(processo);
-          return { memorando, processo, producerStatus, isConcludedMemo };
-        })
-        .filter(({ memorando: memo, processo, producerStatus, isConcludedMemo: concluded }) => {
+    return memorandos.flatMap((memorando) =>
+      memorando.processos
+        .map((processo) => ({ memorando, processo }))
+        .filter(({ memorando: memo, processo }) => {
+          const memoStatus = getDerivedMemoStatus(memo);
           const matchesStatus =
-            concluded
-              ? activeStatus === "concluido"
-              : activeStatus === "concluido"
-                ? producerStatus === "concluido"
-                : activeStatus === "lancamento"
-                  ? producerStatus === "apto" || memo.status === "lancamento"
-                  : activeStatus === "devolucao"
-                    ? producerStatus === "devolucao" || memo.status === "devolucao"
-                    : memo.status === activeStatus;
-
+            activeStatus === "finalizado"
+              ? processo.decisao === "lancamento" || processo.decisao === "devolucao"
+              : !processo.decisao && memoStatus === activeStatus;
           const matchesSearch =
             !term ||
             processo.produtor.toLowerCase().includes(term) ||
@@ -195,8 +242,8 @@ export default function AnalisesPage() {
             (digits.length > 0 && processo.cpf.replace(/\D/g, "").includes(digits));
 
           return matchesStatus && matchesSearch;
-        });
-    });
+        }),
+    );
   }, [activeStatus, memorandos, searchTerm]);
 
   const counts = useMemo(() => {
@@ -204,9 +251,9 @@ export default function AnalisesPage() {
     return {
       memorandos: memorandos.length,
       processos: processos.length,
-      aConferir: processos.filter((processo) => getProcessoStatus(processo) === "pendente").length,
-      devolucoes: processos.filter((processo) => getProcessoStatus(processo) === "devolucao").length,
-      observacoes: processos.filter((processo) => processo.observacao.trim()).length,
+      semDecisao: processos.filter((processo) => !processo.decisao).length,
+      lancamentos: processos.filter((processo) => processo.decisao === "lancamento").length,
+      devolucoes: processos.filter((processo) => processo.decisao === "devolucao").length,
     };
   }, [memorandos]);
 
@@ -218,308 +265,116 @@ export default function AnalisesPage() {
     router.push("/login");
   }
 
+  function markMemorandoOpened(memorando: MemorandoAnalise) {
+    const now = new Date().toISOString();
+    setMemorandos((current) =>
+      current.map((item) => {
+        if (item.id !== memorando.id) return item;
+        if (getDerivedMemoStatus(item) !== "recebido") return item;
+
+        return {
+          ...item,
+          status: "em_analise",
+          abertoPor: username,
+          abertoEm: now,
+          timeline: [...(item.timeline || []), timelineEvent(username, "Memorando aberto", "Analise iniciada automaticamente.")],
+        };
+      }),
+    );
+  }
+
   function openMemorando(memorando: MemorandoAnalise) {
+    markMemorandoOpened(memorando);
     setSelectedMemorandoId(memorando.id);
     setSelectedProcessId(memorando.processos[0]?.id || null);
     setModalScope("memorando");
     setActiveTab("resumo");
     setViewerKind("processo");
     setFlowNotice("");
-    setPendingFlowAction(null);
   }
 
   function openProcesso(memorando: MemorandoAnalise, processo: ProcessoProdutor, tab: ModalTab = "processos") {
+    markMemorandoOpened(memorando);
     setSelectedMemorandoId(memorando.id);
     setSelectedProcessId(processo.id);
     setModalScope("produtor");
     setActiveTab(tab);
     setViewerKind("processo");
     setFlowNotice("");
-    setPendingFlowAction(null);
   }
 
-  function applyMemorandoStatus(status: MemoStatus, notice?: string) {
+  function updateSelectedMemorando(updater: (memorando: MemorandoAnalise) => MemorandoAnalise) {
     if (!selectedMemorando) return;
-
-    setMemorandos((current) =>
-      current.map((memorando) =>
-        memorando.id === selectedMemorando.id ? { ...memorando, status } : memorando,
-      ),
-    );
-    setActiveStatus(status);
-    setFlowNotice(notice || `Memorando movido para ${STATUS_LABELS[status].toLowerCase()}.`);
-    setPendingFlowAction(null);
-  }
-
-  function completeProcessos(target: DispatchTarget) {
-    if (!selectedMemorando) return;
-
-    const targetStatus: ProducerStatus = target === "lancamento" ? "apto" : "devolucao";
-    const now = new Date().toISOString();
-    const encaminhamentos = selectedMemorando.processos
-      .filter((processo) => getProcessoStatus(processo) === targetStatus)
-      .map((processo) => buildEncaminhamento(selectedMemorando, processo, target, now));
-    const processos = selectedMemorando.processos.map((processo) =>
-      getProcessoStatus(processo) === targetStatus
-        ? {
-            ...processo,
-            status: "concluido" as ProducerStatus,
-            encaminhadoPara: target,
-            encaminhadoEm: now,
-          }
-        : processo,
-    );
-    const completedCount = processos.filter((processo) => processo.encaminhadoEm === now).length;
-    const nextStatus = getNextMemoStatusAfterCompletion(processos);
-
-    setMemorandos((current) =>
-      current.map((memorando) =>
-        memorando.id === selectedMemorando.id ? { ...memorando, status: nextStatus, processos } : memorando,
-      ),
-    );
-
-    appendEncaminhamentos(target, encaminhamentos);
-    setActiveStatus(completedCount > 0 ? "concluido" : nextStatus);
-    setActiveTab("fluxo");
-    setFlowNotice(
-      target === "lancamento"
-        ? `${completedCount} produtor(es) enviado(s) para a aba Lançamentos do sistema e concluído(s) na análise.`
-        : `${completedCount} produtor(es) enviado(s) para a aba Devolução do sistema e concluído(s) na análise.`,
-    );
-    setPendingFlowAction(null);
-  }
-
-  function completeSelectedProcesso(target: DispatchTarget) {
-    if (!selectedMemorando || !selectedProcesso) return;
-    if (selectedProcessoLocked) {
-      setFlowNotice(`${selectedProcesso.produtor} já está concluído(a) e não pode ser alterado(a).`);
-      setPendingFlowAction(null);
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const encaminhamento = buildEncaminhamento(selectedMemorando, selectedProcesso, target, now);
-    const processos = selectedMemorando.processos.map((processo) =>
-      processo.id === selectedProcesso.id
-        ? {
-            ...processo,
-            status: "concluido" as ProducerStatus,
-            encaminhadoPara: target,
-            encaminhadoEm: now,
-          }
-        : processo,
-    );
-    const nextStatus = getNextMemoStatusAfterCompletion(processos);
-
-    setMemorandos((current) =>
-      current.map((memorando) =>
-        memorando.id === selectedMemorando.id ? { ...memorando, status: nextStatus, processos } : memorando,
-      ),
-    );
-
-    appendEncaminhamentos(target, [encaminhamento]);
-    setActiveStatus("concluido");
-    setActiveTab("fluxo");
-    setFlowNotice(
-      target === "lancamento"
-        ? `${selectedProcesso.produtor} foi enviado(a) para a aba Lançamentos e concluído(a) na análise.`
-        : `${selectedProcesso.produtor} foi enviado(a) para a aba Devolução e concluído(a) na análise.`,
-    );
-    setPendingFlowAction(null);
-  }
-
-  function requestProcessoStatus(status: MemoStatus) {
-    if (!selectedProcesso) return;
-
-    setFlowNotice("");
-    if (selectedProcessoLocked) {
-      setFlowNotice(`${selectedProcesso.produtor} já está concluído(a) e não pode ser alterado(a).`);
-      setPendingFlowAction(null);
-      return;
-    }
-
-    const producerStatus = getProcessoStatus(selectedProcesso);
-
-    if (status === "em_analise") {
-      setFlowNotice(`${selectedProcesso.produtor} permanece em análise.`);
-      setPendingFlowAction(null);
-      return;
-    }
-
-    if (status === "lancamento") {
-      if (producerStatus !== "apto") {
-        setPendingFlowAction({
-          title: "Lançamento bloqueado",
-          message: `${selectedProcesso.produtor} ainda não está apto para lançamento. Revise documentos, declaração e conferência no sistema de consulta antes de encaminhar este produtor.`,
-          confirmLabel: "Entendi",
-          tone: "warning",
-        });
-        return;
-      }
-
-      setPendingFlowAction({
-        title: "Enviar produtor para lançamento?",
-        message: `${selectedProcesso.produtor} está apto. Ao confirmar, somente este produtor será enviado para a aba Lançamentos e concluído na análise.`,
-        confirmLabel: "Enviar produtor",
-        completionAction: "lancamento_produtor",
-        tone: "info",
-      });
-      return;
-    }
-
-    if (status === "devolucao") {
-      if (producerStatus !== "devolucao") {
-        setPendingFlowAction({
-          title: "Devolução não se aplica",
-          message: `${selectedProcesso.produtor} não está classificado para devolução. Só envie para devolução quando a análise indicar documento faltando ou inválido, data inconsistente, declaração vencida na chegada ou divergência que precise retornar à unidade local.`,
-          confirmLabel: "Entendi",
-          tone: "warning",
-        });
-        return;
-      }
-
-      setPendingFlowAction({
-        title: "Enviar produtor para devolução?",
-        message: `${selectedProcesso.produtor} será enviado para a aba Devolução com o memorando vinculado. Os demais produtores do lote não serão alterados.`,
-        confirmLabel: "Enviar para devolução",
-        completionAction: "devolucao_produtor",
-        tone: "danger",
-      });
-    }
-  }
-
-  function requestMemorandoStatus(status: MemoStatus) {
-    if (!selectedMemorando) return;
-
-    if (modalScope === "produtor") {
-      requestProcessoStatus(status);
-      return;
-    }
-
-    if (selectedMemorandoLocked) {
-      setFlowNotice("Este lote já foi concluído e não pode ser alterado.");
-      setPendingFlowAction(null);
-      return;
-    }
-
-    setFlowNotice("");
-    const summary = getMemorandoSummary(selectedMemorando);
-    const divergencia = selectedMemorando.processos.length !== selectedMemorando.produtoresInformados;
-    const memorandoComItemFaltando = hasMemorandoIssue(selectedMemorando);
-    const bloqueiosProcessos = summary.pendentes + summary.devolucoes;
-    const bloqueios = bloqueiosProcessos + (memorandoComItemFaltando ? 1 : 0);
-    const resumoFluxo = `${summary.aptos} apto(s), ${summary.pendentes} a conferir e ${summary.devolucoes} para devolução`;
-
-    if (status === "lancamento" && memorandoComItemFaltando && bloqueiosProcessos === 0 && !divergencia) {
-      setPendingFlowAction({
-        title: "Memorando com item faltando",
-        message: `Os ${summary.aptos} processo(s) estão aptos, mas o memorando ainda tem item pendente no checklist. Revise assinatura, carimbo ou cópia vinculada antes de encaminhar para lançamentos.`,
-        confirmLabel: "Entendi",
-        tone: "warning",
-      });
-      return;
-    }
-
-    if (status === "lancamento" && (divergencia || bloqueios > 0)) {
-      setPendingFlowAction({
-        title: summary.aptos > 0 ? "Enviar somente os aptos?" : "Lançamento bloqueado",
-        message:
-          summary.aptos > 0
-            ? `Este lote não pode ir inteiro para lançamento. Existem ${summary.aptos} produtor(es) apto(s) e ${bloqueiosProcessos} que ainda não podem seguir. Ao confirmar, apenas os aptos serão separados para lançamento e o memorando continuará em análise para concluir os demais.`
-            : "Nenhum produtor está apto para lançamento. Conclua as análises a conferir ou separe as devoluções antes de seguir.",
-        confirmLabel: summary.aptos > 0 ? "Separar aptos e manter em análise" : "Manter em análise",
-        completionAction: "lancamento_aptos",
-        notice:
-          summary.aptos > 0
-            ? `${summary.aptos} produtor(es) apto(s) separado(s) para lançamento. ${bloqueiosProcessos} produtor(es) continuam em análise neste memorando.`
-            : "Memorando mantido em análise porque ainda não há produtor apto para lançamento.",
-        tone: "warning",
-      });
-      return;
-    }
-
-    if (status === "devolucao" && summary.devolucoes === 0) {
-      setPendingFlowAction({
-        title: "Ação não válida",
-        message: `Existem 0 produtores para devolução. Este memorando possui ${resumoFluxo}. A devolução não se aplica porque nenhum processo foi classificado para devolução.`,
-        confirmLabel: "Entendi",
-        tone: "warning",
-      });
-      return;
-    }
-
-    if (status === "devolucao" && summary.devolucoes < summary.total) {
-      setPendingFlowAction({
-        title: "Separar devoluções?",
-        message: `Existe(m) ${summary.devolucoes} produtor(es) para devolução. Os demais não devem ir junto: ${summary.aptos} apto(s) e ${summary.pendentes} a conferir. A ação separa apenas as devoluções e mantém o memorando em análise para acompanhar o restante.`,
-        confirmLabel: "Separar devoluções",
-        completionAction: "devolucao_processos",
-        notice: `${summary.devolucoes} processo(s) separado(s) para devolução. Os demais processos continuam no acompanhamento do memorando.`,
-        tone: "danger",
-      });
-      return;
-    }
-
-    if (status === "lancamento") {
-      completeProcessos("lancamento");
-      return;
-    }
-
-    if (status === "devolucao") {
-      completeProcessos("devolucao");
-      return;
-    }
-
-    applyMemorandoStatus(status);
+    setMemorandos((current) => current.map((memorando) => (memorando.id === selectedMemorando.id ? updater(memorando) : memorando)));
   }
 
   function updateProcesso(updater: (processo: ProcessoProdutor) => ProcessoProdutor) {
     if (!selectedMemorando || !selectedProcesso) return;
     if (selectedProcessoLocked) return;
 
-    setMemorandos((current) =>
-      current.map((memorando) =>
-        memorando.id === selectedMemorando.id
-          ? {
-              ...memorando,
-              processos: memorando.processos.map((processo) =>
-                processo.id === selectedProcesso.id ? updater(processo) : processo,
-              ),
-            }
-          : memorando,
+    updateSelectedMemorando((memorando) => ({
+      ...memorando,
+      processos: memorando.processos.map((processo) =>
+        processo.id === selectedProcesso.id ? updater(processo) : processo,
       ),
-    );
-  }
-
-  function updateChecklist(itemName: string, status: ChecklistStatus) {
-    updateProcesso((processo) => ({
-      ...processo,
-      checklist: processo.checklist.map((item) => (item.nome === itemName ? { ...item, status } : item)),
     }));
   }
 
-  function updateMemorandoChecklist(itemName: string, status: ChecklistStatus) {
-    if (!selectedMemorando) return;
-    if (selectedMemorandoReadOnly) return;
+  function setMemorandoDecision(decision: "correto" | "incorreto") {
+    if (!selectedMemorando || selectedMemorandoReadOnly) return;
+    updateSelectedMemorando((memorando) => ({
+      ...memorando,
+      memorandoDecisao: decision,
+      flags: { ...mergeFlags(memorando.flags), memorandoInvalido: decision === "incorreto" },
+      timeline: [...(memorando.timeline || []), timelineEvent(username, `Memorando marcado como ${decision}`)],
+    }));
+    setFlowNotice(decision === "correto" ? "Memorando liberado para analise individual." : "Memorando incorreto: informe motivo e envie tudo para devolucao.");
+  }
 
-    setMemorandos((current) =>
-      current.map((memorando) =>
-        memorando.id === selectedMemorando.id
-          ? {
-              ...memorando,
-              memorandoChecklist: getMemorandoChecklist(memorando).map((item) =>
-                item.nome === itemName ? { ...item, status } : item,
-              ),
-            }
-          : memorando,
-      ),
-    );
+  function returnWholeMemorando(motivo: MotivoMemorandoDevolucao, observacao: string) {
+    if (!selectedMemorando || selectedMemorandoReadOnly) return;
+    if (!observacao.trim()) {
+      setFlowNotice("Escreva a observacao da devolucao antes de finalizar o memorando.");
+      return;
+    }
+    const now = new Date().toISOString();
+    const processos = selectedMemorando.processos.map((processo) => ({
+      ...processo,
+      decisao: "devolucao" as const,
+      motivoDevolucao: motivo as unknown as MotivoProcessoDevolucao,
+      observacao: observacao || processo.observacao,
+      decisaoResponsavel: username,
+      decisaoEm: now,
+      encaminhadoPara: "devolucao" as const,
+      encaminhadoEm: now,
+    }));
+    const updatedMemo: MemorandoAnalise = {
+      ...selectedMemorando,
+      status: "finalizado",
+      memorandoDecisao: "incorreto",
+      motivoDevolucaoMemorando: motivo,
+      observacaoMemorando: observacao,
+      memorandoResponsavel: username,
+      memorandoAnalisadoEm: now,
+      flags: { ...mergeFlags(selectedMemorando.flags), memorandoInvalido: true },
+      processos,
+      timeline: [
+        ...(selectedMemorando.timeline || []),
+        timelineEvent(username, "Memorando devolvido integralmente", `${motivo}${observacao ? ` - ${observacao}` : ""}`),
+      ],
+    };
+
+    appendEncaminhamentos("devolucao", processos.map((processo) => buildEncaminhamento(updatedMemo, processo, "devolucao", now)));
+    setMemorandos((current) => current.map((memorando) => (memorando.id === selectedMemorando.id ? updatedMemo : memorando)));
+    setActiveStatus("finalizado");
+    setFlowNotice("Memorando finalizado e todos os produtores enviados para Devolucao.");
   }
 
   function updateProcessoField<K extends keyof ProcessoProdutor>(field: K, value: ProcessoProdutor[K]) {
     updateProcesso((processo) => ({
       ...processo,
       [field]: value,
+      flags: getProcessoFlags({ ...processo, [field]: value }),
     }));
   }
 
@@ -529,6 +384,54 @@ export default function AnalisesPage() {
       observacao: value.slice(0, 500),
       observacaoAtualizadaEm: value.trim() ? new Date().toISOString() : undefined,
     }));
+    if (value.trim()) {
+      updateSelectedMemorando((memorando) => ({
+        ...memorando,
+        timeline: [...(memorando.timeline || []), timelineEvent(username, "Observacao adicionada", selectedProcesso?.produtor, selectedProcesso?.id)],
+      }));
+    }
+  }
+
+  function decideProcesso(target: DispatchTarget, motivo?: MotivoProcessoDevolucao, observacao?: string) {
+    if (!selectedMemorando || !selectedProcesso || selectedProcessoLocked) return;
+    if (selectedMemorando.memorandoDecisao === "incorreto" && !isAdmin) return;
+    if (target === "devolucao" && !observacao?.trim()) {
+      setFlowNotice("Escreva o motivo detalhado da devolucao antes de confirmar.");
+      return;
+    }
+    const now = new Date().toISOString();
+    const nextProcesso = {
+      ...selectedProcesso,
+      decisao: target,
+      motivoDevolucao: target === "devolucao" ? motivo : undefined,
+      observacao: observacao ?? selectedProcesso.observacao,
+      decisaoResponsavel: username,
+      decisaoEm: now,
+      encaminhadoPara: target,
+      encaminhadoEm: now,
+    };
+
+    const processos = selectedMemorando.processos.map((processo) => (processo.id === selectedProcesso.id ? nextProcesso : processo));
+    const nextStatus = getNextMemoStatusAfterDecision(processos);
+    const updatedMemo: MemorandoAnalise = {
+      ...selectedMemorando,
+      status: nextStatus,
+      processos,
+      timeline: [
+        ...(selectedMemorando.timeline || []),
+        timelineEvent(
+          username,
+          target === "lancamento" ? "Lancamento realizado" : "Devolucao realizada",
+          target === "lancamento" ? selectedProcesso.produtor : `${selectedProcesso.produtor} - ${motivo || "Sem motivo"}`,
+          selectedProcesso.id,
+        ),
+      ],
+    };
+
+    appendEncaminhamentos(target, [buildEncaminhamento(updatedMemo, nextProcesso, target, now)]);
+    setMemorandos((current) => current.map((memorando) => (memorando.id === selectedMemorando.id ? updatedMemo : memorando)));
+    setActiveStatus("finalizado");
+    setFlowNotice(target === "lancamento" ? "Produtor encaminhado automaticamente para Lancamentos." : "Produtor encaminhado automaticamente para Devolucao.");
   }
 
   return (
@@ -539,9 +442,9 @@ export default function AnalisesPage() {
         <div className="space-y-6">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Análises</h1>
+              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Analises</h1>
               <p className="text-sm" style={{ color: COLORS.textLight }}>
-                Analise memorandos recebidos por e-mail e os processos vinculados a cada produtor.
+                Conferencia rapida, decisao direta e encaminhamento automatico.
               </p>
             </div>
 
@@ -575,9 +478,9 @@ export default function AnalisesPage() {
             {[
               { label: "Memorandos", value: counts.memorandos, icon: Mail, color: COLORS.primary },
               { label: "Processos", value: counts.processos, icon: FileText, color: COLORS.info },
-              { label: "A conferir", value: counts.aConferir, icon: AlertTriangle, color: COLORS.warning },
-              { label: "Devoluções", value: counts.devolucoes, icon: ArrowDownToLine, color: COLORS.danger },
-              { label: "Observações", value: counts.observacoes, icon: ClipboardList, color: COLORS.accent },
+              { label: "Sem decisao", value: counts.semDecisao, icon: AlertTriangle, color: COLORS.warning },
+              { label: "Lancamentos", value: counts.lancamentos, icon: CheckCircle2, color: COLORS.accent },
+              { label: "Devolucoes", value: counts.devolucoes, icon: RotateCcw, color: COLORS.danger },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -652,7 +555,7 @@ export default function AnalisesPage() {
                 <p className="text-xs" style={{ color: COLORS.textLight }}>
                   {analysisView === "memorandos"
                     ? STATUS_DESCRIPTIONS[activeStatus]
-                    : "Pesquisa individual por produtor, CPF ou memorando mantendo o vínculo com o lote recebido por e-mail."}
+                    : "Pesquisa individual por produtor, CPF ou memorando mantendo o vinculo com o lote."}
                 </p>
               </div>
             </div>
@@ -671,12 +574,11 @@ export default function AnalisesPage() {
               <EmptyState message="Nenhum produtor encontrado nesta lista." />
             ) : (
               <div className="flex max-w-full gap-3 overflow-x-auto overscroll-x-contain p-4 pb-5">
-                {filteredProdutores.map(({ memorando, processo, producerStatus }) => (
+                {filteredProdutores.map(({ memorando, processo }) => (
                   <ProdutorCard
                     key={`${memorando.id}-${processo.id}`}
                     memorando={memorando}
                     processo={processo}
-                    producerStatus={producerStatus}
                     onOpen={openProcesso}
                   />
                 ))}
@@ -693,7 +595,6 @@ export default function AnalisesPage() {
           modalScope={modalScope}
           activeTab={activeTab}
           viewerKind={viewerKind}
-          pendingFlowAction={pendingFlowAction}
           flowNotice={flowNotice}
           isAdmin={isAdmin}
           selectedMemorandoReadOnly={selectedMemorandoReadOnly}
@@ -702,16 +603,11 @@ export default function AnalisesPage() {
           onTabChange={setActiveTab}
           onSelectProcesso={setSelectedProcessId}
           onViewerKindChange={setViewerKind}
-          onUpdateMemorandoChecklist={updateMemorandoChecklist}
-          onUpdateChecklist={updateChecklist}
-          onUpdateProcessoField={updateProcessoField}
-          onUpdateDeclarationDate={(value) => updateProcesso((processo) => ({ ...processo, dataDeclaracao: value }))}
+          onSetMemorandoDecision={setMemorandoDecision}
+          onReturnMemorando={returnWholeMemorando}
+          onUpdateDeclarationDate={(value) => updateProcessoField("dataDeclaracao", value)}
           onUpdateObservation={updateObservation}
-          onRequestStatus={requestMemorandoStatus}
-          onApplyMemorandoStatus={applyMemorandoStatus}
-          onCompleteProcessos={completeProcessos}
-          onCompleteSelectedProcesso={completeSelectedProcesso}
-          onCancelPendingFlow={() => setPendingFlowAction(null)}
+          onDecideProcesso={decideProcesso}
         />
       )}
     </div>

@@ -7,7 +7,7 @@ import { Eye, EyeOff, LockKeyhole, LogIn, ShieldCheck, Sprout, UserRound } from 
 
 const API_URL = "http://localhost:8080";
 
-async function login(username: string, password: string): Promise<{ token: string }> {
+async function login(username: string, password: string): Promise<{ token: string; username?: string; perfil?: string; role?: string }> {
   const response = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -45,7 +45,11 @@ export default function LoginPage() {
     try {
       const data = await login(username, password);
       localStorage.setItem("token", data.token);
-      localStorage.setItem("username", username);
+      localStorage.setItem("username", data.username || username);
+      if (data.perfil || data.role) {
+        localStorage.setItem("perfil", data.perfil || data.role || "USUARIO");
+        localStorage.setItem("role", data.role || data.perfil || "USUARIO");
+      }
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao conectar com o servidor.");

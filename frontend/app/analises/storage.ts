@@ -44,6 +44,7 @@ export const buildEncaminhamento = (
   recebidoEm: memorando.recebidoEm,
   encaminhadoEm,
   destino,
+  motivo: processo.motivoDevolucao,
   observacao: processo.observacao,
 });
 
@@ -51,7 +52,10 @@ export const appendEncaminhamentos = (destino: DispatchTarget, encaminhamentos: 
   if (encaminhamentos.length === 0 || typeof window === "undefined") return;
 
   const storageKey = destino === "lancamento" ? ANALISES_LANCAMENTOS_KEY : ANALISES_DEVOLUCOES_KEY;
+  const oppositeStorageKey = destino === "lancamento" ? ANALISES_DEVOLUCOES_KEY : ANALISES_LANCAMENTOS_KEY;
+  const oppositeDestino: DispatchTarget = destino === "lancamento" ? "devolucao" : "lancamento";
   let current: EncaminhamentoAnalise[] = [];
+  let oppositeCurrent: EncaminhamentoAnalise[] = [];
 
   try {
     current = JSON.parse(localStorage.getItem(storageKey) || "[]") as EncaminhamentoAnalise[];
@@ -59,7 +63,19 @@ export const appendEncaminhamentos = (destino: DispatchTarget, encaminhamentos: 
     current = [];
   }
 
+  try {
+    oppositeCurrent = JSON.parse(localStorage.getItem(oppositeStorageKey) || "[]") as EncaminhamentoAnalise[];
+  } catch {
+    oppositeCurrent = [];
+  }
+
   const byId = new Map(current.map((item) => [item.id, item]));
   encaminhamentos.forEach((item) => byId.set(item.id, item));
   localStorage.setItem(storageKey, JSON.stringify(Array.from(byId.values())));
+
+  const oppositeIds = new Set(encaminhamentos.map((item) => item.id.replace(`-${destino}`, `-${oppositeDestino}`)));
+  localStorage.setItem(
+    oppositeStorageKey,
+    JSON.stringify(oppositeCurrent.filter((item) => !oppositeIds.has(item.id))),
+  );
 };

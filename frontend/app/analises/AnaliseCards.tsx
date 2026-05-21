@@ -1,16 +1,7 @@
 "use client";
 
-/**
- * Componentes de renderização para a área de análises.
- * Define os cards visuais exibidos na tela:
- * - EmptyState: mensagem quando não há resultados
- * - MemorandoCard: card do memorando com resumo de produtores e status
- * - ProdutorCard: card individual do produtor com tipo identificado e resultado GCC
- * Todos os cards são interativos e abrem o modal de análise ao clicar.
- */
-
-
-import { FileText } from "lucide-react";
+import { CheckCircle2, FileText, RotateCcw } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   COLORS,
   DISPATCH_TARGET_LABELS,
@@ -23,12 +14,14 @@ import {
 import {
   formatDate,
   formatTime,
+  getDerivedMemoStatus,
   getMemorandoSummary,
   getProcessoGccStatus,
+  getProcessoStatus,
   getProcessoTipo,
   getStatusTone,
 } from "./rules";
-import type { MemorandoAnalise, ProcessoProdutor, ProducerStatus } from "./types";
+import type { MemorandoAnalise, ProcessoProdutor } from "./types";
 
 export function EmptyState({ message }: { message: string }) {
   return (
@@ -46,73 +39,43 @@ export function MemorandoCard({
   memorando: MemorandoAnalise;
   onOpen: (memorando: MemorandoAnalise) => void;
 }) {
-  const statusTone = getStatusTone(memorando.status);
+  const derivedStatus = getDerivedMemoStatus(memorando);
+  const statusTone = getStatusTone(derivedStatus);
   const summary = getMemorandoSummary(memorando);
   const identificados = memorando.processos.length;
   const divergencia = identificados !== memorando.produtoresInformados;
 
   return (
-    <article className={`w-[620px] shrink-0 rounded-lg border p-4 ${HOVER_LIFT}`} style={{ borderColor: COLORS.border }}>
+    <article className={`w-[620px] shrink-0 rounded-lg border p-4 ${HOVER_LIFT}`} style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold" style={{ color: COLORS.text }}>{memorando.numero}</p>
           <h3 className="mt-1 text-base font-bold" style={{ color: COLORS.primary }}>{memorando.titulo}</h3>
-          <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>{memorando.localidade} · Tipo definido por análise no sistema de consulta</p>
+          <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>{memorando.localidade}</p>
         </div>
         <span className="w-fit rounded-full border px-2 py-1 text-xs font-semibold" style={statusTone}>
-          {STATUS_LABELS[memorando.status]}
+          {STATUS_LABELS[derivedStatus]}
         </span>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          ["Data", formatDate(memorando.recebidoEm)],
-          ["Hora", formatTime(memorando.recebidoEm)],
-          ["Produtores", memorando.produtoresInformados],
-          ["Identificados", identificados],
-        ].map(([label, value]) => (
-          <InfoBox key={label} label={String(label)} value={String(value)} />
-        ))}
+        <InfoBox label="Data" value={formatDate(memorando.recebidoEm)} />
+        <InfoBox label="Hora" value={formatTime(memorando.recebidoEm)} />
+        <InfoBox label="Informados" value={String(memorando.produtoresInformados)} />
+        <InfoBox label="Identificados" value={String(identificados)} />
       </div>
 
       {divergencia && (
         <div className="mt-3 rounded-md border px-3 py-2 text-sm" style={{ borderColor: "#FEDF89", backgroundColor: "#FFFAEB", color: COLORS.warning }}>
-          O memorando cita {memorando.produtoresInformados} produtor(es), mas o sistema identificou {identificados} processo(s).
+          O memorando cita {memorando.produtoresInformados} produtor(es), mas foram identificados {identificados} processo(s).
         </div>
       )}
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        {summary.aptos > 0 && (
-          <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: "#ABEFC6", backgroundColor: "#ECFDF3", color: "#027A48" }}>
-            {summary.aptos} apto(s)
-          </span>
-        )}
-        {summary.pendentes > 0 && (
-          <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: "#FEDF89", backgroundColor: "#FFFAEB", color: COLORS.warning }}>
-            {summary.pendentes} a conferir
-          </span>
-        )}
-        {summary.devolucoes > 0 && (
-          <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: "#FECDCA", backgroundColor: "#FEF3F2", color: COLORS.danger }}>
-            {summary.devolucoes} devolução
-          </span>
-        )}
+        <Badge tone="neutral">{summary.naoAnalisados} sem decisao</Badge>
+        <Badge tone="success">{summary.lancamentos} lancamento(s)</Badge>
+        <Badge tone="danger">{summary.devolucoes} devolucao(oes)</Badge>
       </div>
-
-      {(summary.lancamentosEncaminhados + summary.devolucoesEncaminhadas) > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          {summary.lancamentosEncaminhados > 0 && (
-            <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: "#B2DDFF", backgroundColor: "#EFF8FF", color: COLORS.info }}>
-              {summary.lancamentosEncaminhados} em lançamento
-            </span>
-          )}
-          {summary.devolucoesEncaminhadas > 0 && (
-            <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: "#FECDCA", backgroundColor: "#FEF3F2", color: COLORS.danger }}>
-              {summary.devolucoesEncaminhadas} devolvido(s)
-            </span>
-          )}
-        </div>
-      )}
 
       <div className="mt-4 flex justify-end">
         <button
@@ -122,7 +85,6 @@ export function MemorandoCard({
           style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card }}
         >
           <span className="absolute inset-0 -translate-x-full bg-[#6B9D4A] transition-transform duration-300 ease-out group-hover:translate-x-0" />
-          <span className="absolute inset-y-0 left-0 w-8 -translate-x-10 skew-x-[-18deg] bg-white/35 transition-transform duration-700 ease-out group-hover:translate-x-28" />
           <span className="relative z-10 transition-colors duration-300 group-hover:text-white">Analisar</span>
         </button>
       </div>
@@ -133,20 +95,15 @@ export function MemorandoCard({
 export function ProdutorCard({
   memorando,
   processo,
-  producerStatus,
   onOpen,
 }: {
   memorando: MemorandoAnalise;
   processo: ProcessoProdutor;
-  producerStatus: ProducerStatus;
   onOpen: (memorando: MemorandoAnalise, processo: ProcessoProdutor) => void;
 }) {
+  const producerStatus = getProcessoStatus(processo);
   const producerTone = getStatusTone(producerStatus);
   const dispatchLabel = processo.encaminhadoPara ? DISPATCH_TARGET_LABELS[processo.encaminhadoPara] : null;
-  const dispatchTone =
-    processo.encaminhadoPara === "devolucao"
-      ? { borderColor: "#FECDCA", backgroundColor: "#FEF3F2", color: COLORS.danger }
-      : { borderColor: "#ABEFC6", backgroundColor: "#ECFDF3", color: "#027A48" };
 
   return (
     <article className={`w-[640px] shrink-0 rounded-lg border p-4 ${HOVER_LIFT}`} style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}>
@@ -160,24 +117,15 @@ export function ProdutorCard({
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <InfoBox label="Memorando" value={memorando.numero} />
-        <InfoBox label="Localidade" value={memorando.localidade} />
-        <InfoBox label="Recebido" value={`${formatDate(memorando.recebidoEm)} · ${formatTime(memorando.recebidoEm)}`} />
+        <InfoBox label="Recebido" value={`${formatDate(memorando.recebidoEm)} - ${formatTime(memorando.recebidoEm)}`} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: "#B2DDFF", backgroundColor: "#EFF8FF", color: COLORS.info }}>
-          {TIPO_IDENTIFICADO_LABELS[getProcessoTipo(processo)]}
-        </span>
-        <span className="rounded-full border px-2 py-1 font-medium" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background, color: COLORS.textLight }}>
-          {GCC_STATUS_LABELS[getProcessoGccStatus(processo)]}
-        </span>
-        {dispatchLabel && (
-          <span className="rounded-full border px-2 py-1 font-medium" style={dispatchTone}>
-            {dispatchLabel}
-          </span>
-        )}
+        <Badge tone="info">{TIPO_IDENTIFICADO_LABELS[getProcessoTipo(processo)]}</Badge>
+        <Badge tone="neutral">{GCC_STATUS_LABELS[getProcessoGccStatus(processo)]}</Badge>
+        {dispatchLabel && <Badge tone={processo.encaminhadoPara === "devolucao" ? "danger" : "success"}>{dispatchLabel}</Badge>}
       </div>
 
       <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -188,11 +136,28 @@ export function ProdutorCard({
           style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card }}
         >
           <span className="absolute inset-0 -translate-x-full bg-[#6B9D4A] transition-transform duration-300 ease-out group-hover:translate-x-0" />
-          <span className="absolute inset-y-0 left-0 w-8 -translate-x-10 skew-x-[-18deg] bg-white/35 transition-transform duration-700 ease-out group-hover:translate-x-28" />
           <span className="relative z-10 transition-colors duration-300 group-hover:text-white">Analisar produtor</span>
         </button>
       </div>
     </article>
+  );
+}
+
+function Badge({ children, tone }: { children: ReactNode; tone: "success" | "danger" | "warning" | "info" | "neutral" }) {
+  const styles = {
+    success: { borderColor: "#ABEFC6", backgroundColor: "#ECFDF3", color: "#027A48" },
+    danger: { borderColor: "#FECDCA", backgroundColor: "#FEF3F2", color: COLORS.danger },
+    warning: { borderColor: "#FEDF89", backgroundColor: "#FFFAEB", color: COLORS.warning },
+    info: { borderColor: "#B2DDFF", backgroundColor: "#EFF8FF", color: COLORS.info },
+    neutral: { borderColor: COLORS.border, backgroundColor: COLORS.background, color: COLORS.textLight },
+  }[tone];
+
+  const Icon = tone === "success" ? CheckCircle2 : tone === "danger" ? RotateCcw : null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 font-medium" style={styles}>
+      {Icon && <Icon size={12} />}
+      {children}
+    </span>
   );
 }
 

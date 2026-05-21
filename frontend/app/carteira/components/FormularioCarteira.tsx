@@ -1,17 +1,22 @@
 // frontend/app/carteira/components/FormularioCarteira.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { AlignLeft, Building2, Calendar, FileText, Hash, Image as ImageIcon, MapPin, User } from "lucide-react";
+import UnlocSelect from "../../components/UnlocSelect";
 import { CarteiraRequest } from "../types/carteira";
-import { FileText, User, MapPin, Building2, Calendar, Hash, AlignLeft, Image as ImageIcon } from "lucide-react";
 
-const UNLOC_CODES: Record<string, string> = {
-  "Manaus": "MAO", "Parintins": "PAR", "Itacoatiara": "ITA",
-  "Coari": "COA", "Tefé": "TEF", "Tabatinga": "TAB",
-  "Humaitá": "HUM", "Lábrea": "LAB", "Manicoré": "MCO",
-  "Iranduba": "IRA", "Rio Preto da Eva": "RPE", "Presidente Figueiredo": "PFIG",
-  "Novo Airão": "NAI", "Careiro": "CAI", "Careiro da Várzea": "CAV",
-  "Autazes": "AUT", "Borba": "BOR", "Nova Olinda do Norte": "NON",
+const COLORS = {
+  primary: "#1F3A2E",
+  accent: "#6B8E23",
+  danger: "#DC2626",
+  card: "#FAFAF7",
+  border: "#D8DDD4",
+  borderFocus: "#6B8E23",
+  text: "#1E2A22",
+  textLight: "#6E786F",
+  inputBg: "#FDFDFC",
+  hoverBg: "#F0F4EE",
 };
 
 interface FormularioCarteiraProps {
@@ -21,11 +26,11 @@ interface FormularioCarteiraProps {
   onFormChange?: (data: CarteiraRequest) => void;
 }
 
-export default function FormularioCarteira({ 
-  onSubmit, 
+export default function FormularioCarteira({
+  onSubmit,
   isLoading = false,
   initialData,
-  onFormChange 
+  onFormChange,
 }: FormularioCarteiraProps) {
   const [form, setForm] = useState<CarteiraRequest>({
     registro: initialData?.registro || "",
@@ -91,7 +96,7 @@ export default function FormularioCarteira({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!form.registro || !form.cpf || !form.nome || !form.propriedade || !form.unloc) {
       setError("Preencha todos os campos obrigatórios (*)");
       return;
@@ -126,12 +131,12 @@ export default function FormularioCarteira({
   };
 
   const fieldStyle = (name: string) => ({
-    backgroundColor: "#FDFDFC",
-    borderColor: focusedField === name ? "#6B8E23" : "#D8DDD4",
-    color: "#1E2A22",
+    backgroundColor: COLORS.inputBg,
+    borderColor: focusedField === name ? COLORS.borderFocus : COLORS.border,
+    color: COLORS.text,
     outline: "none",
     transition: "border-color 0.2s, box-shadow 0.2s",
-    boxShadow: focusedField === name ? "0 0 0 3px rgba(107, 142, 35, 0.1)" : "none",
+    boxShadow: focusedField === name ? `0 0 0 3px ${COLORS.accent}18` : "none",
   });
 
   return (
@@ -139,24 +144,20 @@ export default function FormularioCarteira({
       <div
         className="rounded-3xl p-8 space-y-6 border"
         style={{
-          backgroundColor: "#FAFAF7",
-          borderColor: "#D8DDD4",
+          backgroundColor: COLORS.card,
+          borderColor: COLORS.border,
           boxShadow: "0 4px 24px rgba(31,58,46,0.08)",
         }}
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 pb-2 border-b" style={{ borderColor: "#D8DDD4" }}>
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ backgroundColor: "#1F3A2E" }}
-          >
+        <div className="flex items-center gap-3 pb-2 border-b" style={{ borderColor: COLORS.border }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: COLORS.primary }}>
             <FileText size={18} color="white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold" style={{ color: "#1F3A2E" }}>
+            <h2 className="text-xl font-bold" style={{ color: COLORS.primary }}>
               Nova Carteira Digital
             </h2>
-            <p className="text-xs" style={{ color: "#6E786F" }}>
+            <p className="text-xs" style={{ color: COLORS.textLight }}>
               Preencha os dados do produtor rural
             </p>
           </div>
@@ -165,19 +166,15 @@ export default function FormularioCarteira({
         {error && (
           <div
             className="flex items-center gap-2.5 p-3.5 rounded-xl text-sm font-medium"
-            style={{ backgroundColor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}
+            style={{ backgroundColor: "#FEF2F2", color: COLORS.danger, border: "1px solid #FECACA" }}
           >
-            <span>⚠</span> {error}
+            <AlertCircleText />
+            {error}
           </div>
         )}
 
-        {/* Registro e CPF */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-              <Hash size={12} style={{ color: "#6B8E23" }} />
-              Registro Estadual *
-            </label>
+          <InputField label="Registro Estadual *" icon={<Hash size={12} />} focused={focusedField === "registro"}>
             <input
               type="text"
               value={form.registro}
@@ -189,13 +186,9 @@ export default function FormularioCarteira({
               style={fieldStyle("registro")}
               required
             />
-          </div>
+          </InputField>
 
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-              <User size={12} style={{ color: "#6B8E23" }} />
-              CPF *
-            </label>
+          <InputField label="CPF *" icon={<User size={12} />} focused={focusedField === "cpf"}>
             <input
               type="text"
               value={form.cpf}
@@ -208,15 +201,10 @@ export default function FormularioCarteira({
               style={fieldStyle("cpf")}
               required
             />
-          </div>
+          </InputField>
         </div>
 
-        {/* Nome */}
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-            <User size={12} style={{ color: "#6B8E23" }} />
-            Nome do Produtor *
-          </label>
+        <InputField label="Nome do Produtor *" icon={<User size={12} />} focused={focusedField === "nome"}>
           <input
             type="text"
             value={form.nome}
@@ -228,14 +216,9 @@ export default function FormularioCarteira({
             style={fieldStyle("nome")}
             required
           />
-        </div>
+        </InputField>
 
-        {/* Propriedade */}
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-            <Building2 size={12} style={{ color: "#6B8E23" }} />
-            Propriedade *
-          </label>
+        <InputField label="Propriedade *" icon={<Building2 size={12} />} focused={focusedField === "propriedade"}>
           <input
             type="text"
             value={form.propriedade}
@@ -247,38 +230,20 @@ export default function FormularioCarteira({
             style={fieldStyle("propriedade")}
             required
           />
-        </div>
+        </InputField>
 
-        {/* UNLOC e Endereço */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-              <MapPin size={12} style={{ color: "#6B8E23" }} />
-              UNLOC (Município) *
-            </label>
-            <select
+          <InputField label="UNLOC *" icon={<MapPin size={12} />} focused={focusedField === "unloc"}>
+            <UnlocSelect
               value={form.unloc}
-              onChange={(e) => handleChange("unloc", e.target.value)}
-              onFocus={() => setFocusedField("unloc")}
-              onBlur={() => setFocusedField(null)}
-              className="w-full rounded-xl px-4 py-3 border text-sm"
-              style={fieldStyle("unloc")}
-              required
-            >
-              <option value="">Selecione o município</option>
-              {Object.entries(UNLOC_CODES).map(([municipio, sigla]) => (
-                <option key={sigla} value={sigla}>
-                  {sigla} - {municipio}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={(value) => handleChange("unloc", value)}
+              placeholder="Selecione a UNLOC"
+              error={!!error && !form.unloc}
+              colors={COLORS}
+            />
+          </InputField>
 
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-              <MapPin size={12} style={{ color: "#6B8E23" }} />
-              Endereço
-            </label>
+          <InputField label="Endereço" icon={<MapPin size={12} />} focused={focusedField === "endereco"}>
             <input
               type="text"
               value={form.endereco}
@@ -289,16 +254,11 @@ export default function FormularioCarteira({
               className="w-full rounded-xl px-4 py-3 border text-sm"
               style={fieldStyle("endereco")}
             />
-          </div>
+          </InputField>
         </div>
 
-        {/* Início e Validade */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-              <Calendar size={12} style={{ color: "#6B8E23" }} />
-              Data de Início
-            </label>
+          <InputField label="Data de Início" icon={<Calendar size={12} />} focused={focusedField === "inicio"}>
             <input
               type="date"
               value={form.inicio}
@@ -308,13 +268,9 @@ export default function FormularioCarteira({
               className="w-full rounded-xl px-4 py-3 border text-sm"
               style={fieldStyle("inicio")}
             />
-          </div>
+          </InputField>
 
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-              <Calendar size={12} style={{ color: "#6B8E23" }} />
-              Data de Validade
-            </label>
+          <InputField label="Data de Validade" icon={<Calendar size={12} />} focused={focusedField === "validade"}>
             <input
               type="date"
               value={form.validade}
@@ -324,15 +280,10 @@ export default function FormularioCarteira({
               className="w-full rounded-xl px-4 py-3 border text-sm"
               style={fieldStyle("validade")}
             />
-          </div>
+          </InputField>
         </div>
 
-        {/* Atividades */}
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-            <AlignLeft size={12} style={{ color: "#6B8E23" }} />
-            Atividade Principal
-          </label>
+        <InputField label="Atividade Principal" icon={<AlignLeft size={12} />} focused={focusedField === "atividade1"}>
           <textarea
             value={form.atividade1}
             onChange={(e) => handleChange("atividade1", e.target.value)}
@@ -343,13 +294,9 @@ export default function FormularioCarteira({
             className="w-full rounded-xl px-4 py-3 border text-sm resize-none"
             style={fieldStyle("atividade1")}
           />
-        </div>
+        </InputField>
 
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-            <AlignLeft size={12} style={{ color: "#6B8E23" }} />
-            Atividade Secundária
-          </label>
+        <InputField label="Atividade Secundária" icon={<AlignLeft size={12} />} focused={focusedField === "atividade2"}>
           <textarea
             value={form.atividade2}
             onChange={(e) => handleChange("atividade2", e.target.value)}
@@ -360,14 +307,9 @@ export default function FormularioCarteira({
             className="w-full rounded-xl px-4 py-3 border text-sm resize-none"
             style={fieldStyle("atividade2")}
           />
-        </div>
+        </InputField>
 
-        {/* Georreferenciamento */}
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-            <MapPin size={12} style={{ color: "#6B8E23" }} />
-            Georreferenciamento
-          </label>
+        <InputField label="Georreferenciamento" icon={<MapPin size={12} />} focused={focusedField === "georef"}>
           <input
             type="text"
             value={form.georef}
@@ -378,12 +320,11 @@ export default function FormularioCarteira({
             className="w-full rounded-xl px-4 py-3 border text-sm"
             style={fieldStyle("georef")}
           />
-        </div>
+        </InputField>
 
-        {/* Fotos */}
         <div className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: "#6E786F" }}>
-            <ImageIcon size={12} style={{ color: "#6B8E23" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: COLORS.textLight }}>
+            <ImageIcon size={12} style={{ color: COLORS.accent }} />
             Fotos (até 3)
           </label>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -426,35 +367,51 @@ export default function FormularioCarteira({
           <p className="text-xs text-gray-500">Formatos: JPG, PNG (máx. 5MB cada)</p>
         </div>
 
-        {/* Submit Button */}
         <button
           type="submit"
           disabled={isLoading}
           className="w-full py-3.5 rounded-xl font-semibold text-sm text-white transition-all duration-200"
           style={{
-            backgroundColor: isLoading ? "#6E786F" : "#1F3A2E",
+            backgroundColor: isLoading ? COLORS.textLight : COLORS.primary,
             cursor: isLoading ? "not-allowed" : "pointer",
             letterSpacing: "0.03em",
           }}
           onMouseEnter={(e) => {
-            if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#6B8E23";
+            if (!isLoading) e.currentTarget.style.backgroundColor = COLORS.accent;
           }}
           onMouseLeave={(e) => {
-            if (!isLoading) (e.currentTarget as HTMLElement).style.backgroundColor = "#1F3A2E";
+            if (!isLoading) e.currentTarget.style.backgroundColor = COLORS.primary;
           }}
         >
-          {isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="30 70" />
-              </svg>
-              Salvando carteira...
-            </span>
-          ) : (
-            "Salvar Carteira Digital"
-          )}
+          {isLoading ? "Salvando carteira..." : "Salvar Carteira Digital"}
         </button>
       </div>
     </form>
   );
+}
+
+function InputField({
+  label,
+  icon,
+  focused,
+  children,
+}: {
+  label: string;
+  icon: ReactNode;
+  focused: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: COLORS.textLight }}>
+        <span style={{ color: focused ? COLORS.primary : COLORS.accent }}>{icon}</span>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function AlertCircleText() {
+  return <span style={{ color: COLORS.danger }}>!</span>;
 }

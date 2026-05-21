@@ -59,6 +59,11 @@ public class SecurityConfig {
                         "/api/inscricoes/**"
                 ).permitAll()
 
+                // ENCAMINHAMENTOS DE ANÁLISE
+                .requestMatchers(
+                        "/api/encaminhamentos-analise/**"
+                ).permitAll()
+
                 // DASHBOARD
                 .requestMatchers(
                         "/api/dashboard/**"

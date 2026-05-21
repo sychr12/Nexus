@@ -2,6 +2,9 @@ const API_URL = "http://localhost:8080";
 
 interface LoginResponse {
   token: string;
+  username?: string;
+  perfil?: string;
+  role?: string;
 }
 
 export async function login(
