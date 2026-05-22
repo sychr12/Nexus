@@ -149,7 +149,21 @@ export async function baixarPdf(id: number, nome: string): Promise<void> {
 
 export async function visualizarPdf(id: number): Promise<void> {
   const token = getAuthToken();
-  window.open(`${API_URL}/carteira/visualizar/${id}?token=${token}`, "_blank");
+  const response = await fetch(`${API_URL}/carteira/visualizar/${id}`, {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Erro ao visualizar PDF");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function buscarUsuariosUnicos(): Promise<string[]> {

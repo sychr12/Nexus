@@ -1,4 +1,3 @@
-// app/carteira/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,6 +9,71 @@ import CardPreview from "./components/CardPreview";
 import ModalBatchUpload from "./components/ModalBatchUpload";
 import { CarteiraRequest, CarteiraResponse } from "./types/carteira";
 import { cadastrarCarteira, listarCarteiras } from "./services/carteiraService";
+
+// Animações CSS
+const animations = `
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+`;
 
 const COLORS = {
   background: "#EEF2EC",
@@ -40,6 +104,19 @@ export default function CarteiraDigitalPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [username, setUsername] = useState("Usuário");
+  const [animated, setAnimated] = useState(false);
+
+  useEffect(() => {
+    // Adiciona estilos de animação
+    if (!document.getElementById("carteira-animations")) {
+      const style = document.createElement("style");
+      style.id = "carteira-animations";
+      style.textContent = animations;
+      document.head.appendChild(style);
+    }
+    setAnimated(true);
+  }, []);
 
   const carregarCarteiras = async () => {
     try {
@@ -57,6 +134,22 @@ export default function CarteiraDigitalPage() {
     }
     carregarCarteiras();
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          setUsername(user.username || user.nomeCompleto || "Usuário");
+        } catch {
+          setUsername(localStorage.getItem("username") || "Usuário");
+        }
+      } else {
+        setUsername(localStorage.getItem("username") || "Usuário");
+      }
+    }
+  }, []);
 
   const handleSubmit = async (data: CarteiraRequest) => {
     try {
@@ -85,92 +178,115 @@ export default function CarteiraDigitalPage() {
   function handleLogout() {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
+    localStorage.removeItem("user");
     router.push("/login");
   }
-
-  const username = typeof window !== "undefined"
-    ? localStorage.getItem("username") || "Usuário"
-    : "Usuário";
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: COLORS.background }}>
       <TopBar onLogout={handleLogout} username={username} />
 
-      <main className="px-4 sm:px-6 lg:px-10 py-8 max-w-screen-2xl mx-auto">
-        {/* Page Header com botões */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1
-              className="text-3xl font-black tracking-tight"
-              style={{ color: COLORS.primary, letterSpacing: "-0.02em" }}
-            >
-              Carteira Digital do Produtor Rural
-            </h1>
-            <p className="text-sm mt-1.5" style={{ color: COLORS.textLight }}>
-              Cadastre e gerencie carteiras digitais dos produtores rurais
-            </p>
-          </div>
-          
-          {/* Apenas o botão Gerar Lote - Botão Nova Carteira REMOVIDO */}
-          <button
-            onClick={() => setIsBatchModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
-            style={{
-              backgroundColor: "#3b82f6",
-              color: "white",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = "#2563eb";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = "#3b82f6";
-            }}
+      <main style={{ paddingTop: "70px", minHeight: "100vh" }}>
+        <div className="px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto">
+          {/* Page Header com botões */}
+          <div 
+            className="mb-8 flex items-center justify-between"
+            style={{ animation: animated ? "fadeInUp 0.5s ease-out" : "none" }}
           >
-            <Upload size={16} />
-            Gerar Lote
-          </button>
-        </div>
-
-        {/* Success banner */}
-        {success && (
-          <div
-            className="mb-6 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2"
-            style={{ backgroundColor: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0" }}
-          >
-            <span>✓</span> {success}
-          </div>
-        )}
-
-        {/* Error banner */}
-        {error && (
-          <div
-            className="mb-6 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2"
-            style={{ backgroundColor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}
-          >
-            <span>⚠</span> {error}
+            <div>
+              <h1
+                className="text-3xl font-black tracking-tight transition-all duration-300 hover:translate-x-1"
+                style={{ color: COLORS.primary, letterSpacing: "-0.02em" }}
+              >
+                Carteira Digital do Produtor Rural
+              </h1>
+              <p className="text-sm mt-1.5 transition-all duration-300 delay-100" style={{ color: COLORS.textLight }}>
+                Cadastre e gerencie carteiras digitais dos produtores rurais
+              </p>
+            </div>
+            
+            {/* Botão Gerar Lote */}
             <button
-              onClick={() => setError(null)}
-              className="ml-auto underline text-xs hover:opacity-70 transition-opacity"
+              onClick={() => setIsBatchModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg"
+              style={{
+                backgroundColor: "#3b82f6",
+                color: "white",
+                animation: animated ? "pulse 2s infinite" : "none",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor = "#2563eb";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.backgroundColor = "#3b82f6";
+              }}
             >
-              Fechar
+              <Upload size={16} className="transition-transform duration-300 group-hover:rotate-12" />
+              Gerar Lote
             </button>
           </div>
-        )}
 
-        {/* Two-column layout */}
-        <div className="flex gap-6 items-start">
-          {/* Coluna Esquerda - Formulário */}
-          <div className="w-1/2 sticky top-6">
-            <FormularioCarteira 
-              onSubmit={handleSubmit}
-              isLoading={isLoading}
-              onFormChange={handleFormChange}
-            />
-          </div>
+          {/* Success banner */}
+          {success && (
+            <div
+              className="mb-6 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-300 hover:scale-[1.02]"
+              style={{ 
+                backgroundColor: "#DCFCE7", 
+                color: "#166534", 
+                border: "1px solid #BBF7D0",
+                animation: animated ? "slideInUp 0.4s ease-out" : "none"
+              }}
+            >
+              <span className="animate-pulse">✓</span> {success}
+            </div>
+          )}
 
-          {/* Coluna Direita - Preview do Cartão */}
-          <div className="w-1/2">
-            <CardPreview form={form} />
+          {/* Error banner */}
+          {error && (
+            <div
+              className="mb-6 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-300 hover:scale-[1.02]"
+              style={{ 
+                backgroundColor: "#FEF2F2", 
+                color: "#DC2626", 
+                border: "1px solid #FECACA",
+                animation: animated ? "slideInUp 0.4s ease-out" : "none"
+              }}
+            >
+              <span>⚠</span> {error}
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto underline text-xs hover:opacity-70 transition-opacity duration-300 hover:scale-105"
+              >
+                Fechar
+              </button>
+            </div>
+          )}
+
+          {/* Two-column layout */}
+          <div className="flex gap-6 items-start">
+            {/* Coluna Esquerda - Formulário */}
+            <div 
+              className="w-1/2 sticky top-6 transition-all duration-500"
+              style={{ 
+                animation: animated ? "fadeInLeft 0.6s ease-out 0.1s both" : "none",
+              }}
+            >
+              <FormularioCarteira 
+                onSubmit={handleSubmit}
+                isLoading={isLoading}
+                onFormChange={handleFormChange}
+              />
+            </div>
+
+            {/* Coluna Direita - Preview do Cartão */}
+            <div 
+              className="w-1/2 transition-all duration-500"
+              style={{ 
+                animation: animated ? "fadeInRight 0.6s ease-out 0.2s both" : "none",
+              }}
+            >
+              <CardPreview form={form} />
+            </div>
           </div>
         </div>
       </main>

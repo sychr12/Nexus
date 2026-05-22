@@ -5,13 +5,12 @@ import com.sicpr.backend.inscricao.dto.InscricaoResponse;
 import com.sicpr.backend.inscricao.model.Inscricao;
 import com.sicpr.backend.inscricao.repository.InscricaoRepository;
 import com.sicpr.backend.inscricao.validation.DmsCoordinateValidator;
+import com.sicpr.backend.security.CryptoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 
 @Service
@@ -19,36 +18,14 @@ import java.util.List;
 public class InscricaoService {
 
     private final InscricaoRepository repository;
+    private final CryptoService cryptoService;
 
     private String criptografar(String valor) {
-
-        if (valor == null || valor.isBlank()) {
-            return "";
-        }
-
-        return Base64.getEncoder()
-                .encodeToString(
-                        valor.getBytes(StandardCharsets.UTF_8)
-                );
+        return cryptoService.encrypt(valor);
     }
 
     private String descriptografar(String valor) {
-
-        if (valor == null || valor.isBlank()) {
-            return "";
-        }
-
-        try {
-
-            return new String(
-                    Base64.getDecoder().decode(valor),
-                    StandardCharsets.UTF_8
-            );
-
-        } catch (Exception e) {
-
-            return valor;
-        }
+        return cryptoService.decrypt(valor);
     }
 
     public InscricaoResponse salvar(

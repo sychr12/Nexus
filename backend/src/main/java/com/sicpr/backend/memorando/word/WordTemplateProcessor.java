@@ -19,13 +19,15 @@ public class WordTemplateProcessor {
     private static final DateTimeFormatter BR_DATE =
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    public byte[] processar(Memorando memorando) {
+    public byte[] processar(
+            Memorando memorando
+    ) {
 
         try {
 
             InputStream input =
                     getClass().getResourceAsStream(
-                            "/templates/memorando.docx"
+                            "/templates/modelo_memosaida.docx"
                     );
 
             if (input == null) {
@@ -41,34 +43,66 @@ public class WordTemplateProcessor {
                             )
                     );
 
-            Map<String, String> values = new HashMap<>();
+            Map<String,String> values =
+                    new HashMap<>();
 
-            values.put("${NUMERO}",     memorando.getNumero());
-            values.put("${UNLOC}",      memorando.getUnloc());
-            values.put("${MUNICIPIO}",  memorando.getMunicipio());
-            values.put("${MEMO_ENTRADA}", memorando.getMemoEntrada());
-            values.put("${USUARIO}",    memorando.getUsuario());
+            values.put(
+                    "(num)",
+                    memorando.getNumero()
+            );
 
-            // ── BUG CORRIGIDO ──────────────────────────────────────────────
-            // ${DATA} nunca era adicionado ao mapa → o placeholder ficava
-            // literal no documento gerado.
-            // ──────────────────────────────────────────────────────────────
-            values.put("${DATA}",
+            values.put(
+                    "(data)",
                     memorando.getDataEmissao() != null
-                            ? memorando.getDataEmissao().format(BR_DATE)
+                            ? memorando.getDataEmissao()
+                            .format(BR_DATE)
                             : ""
             );
 
-            PlaceholderReplacer.replace(document, values);
+            values.put(
+                    "(muni)",
+                    memorando.getMunicipio()
+            );
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            values.put(
+                    "(memos)",
+                    memorando.getMemoEntrada()
+            );
+
+            values.put(
+                    "(qtda)",
+                    memorando.getQuantidade() != null
+                            ? memorando.getQuantidade()
+                            .toString()
+                            : "0"
+            );
+
+            values.put(
+                    "(nomes)",
+                    memorando.getDescricao()
+            );
+
+            PlaceholderReplacer.replace(
+                    document,
+                    values
+            );
+
+            ByteArrayOutputStream out =
+                    new ByteArrayOutputStream();
+
             document.write(out);
+
+            document.close();
 
             return out.toByteArray();
 
-        } catch (Exception e) {
+        }
+
+        catch (Exception e) {
+
             throw new RuntimeException(
-                    "Erro ao processar template Word", e
+                    "Erro ao gerar documento",
+                    e
             );
         }
     }

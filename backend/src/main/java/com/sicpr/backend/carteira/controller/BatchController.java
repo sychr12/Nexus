@@ -19,10 +19,10 @@ import java.util.List;
 @RequestMapping("/api/carteira")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
+// @CrossOrigin(origins = "*")  // REMOVIDO - CORS é configurado no WebConfig
 public class BatchController {
 
-    private final BatchCarteiraService batchService; // Agora será usado
+    private final BatchCarteiraService batchService;
 
     @PostMapping("/batch/upload")
     public ResponseEntity<BatchResultDTO> processarBatch(
@@ -32,7 +32,6 @@ public class BatchController {
         log.info("POST /api/carteira/batch/upload - Arquivos: {}", files.size());
         String usuario = userDetails != null ? userDetails.getUsername() : "SISTEMA";
         
-        // USANDO O SERVICE
         BatchResultDTO resultado = batchService.processarBatch(files, usuario);
         
         return ResponseEntity.ok(resultado);
@@ -46,7 +45,6 @@ public class BatchController {
         log.info("POST /api/carteira/batch/zip - Arquivo: {}", zipFile.getOriginalFilename());
         String usuario = userDetails != null ? userDetails.getUsername() : "SISTEMA";
         
-        // USANDO O SERVICE
         BatchResultDTO resultado = batchService.processarZip(zipFile, usuario);
         
         return ResponseEntity.ok(resultado);
@@ -54,7 +52,6 @@ public class BatchController {
 
     @GetMapping("/batch/status/{batchId}")
     public ResponseEntity<BatchStatusDTO> getStatus(@PathVariable String batchId) {
-        // USANDO O SERVICE
         return ResponseEntity.ok(batchService.getStatus(batchId));
     }
 }

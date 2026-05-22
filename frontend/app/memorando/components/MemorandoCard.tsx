@@ -27,7 +27,7 @@ export default function MemorandoCard({ title, value, icon }: Props) {
     >
       {icon && (
         <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
           style={{ backgroundColor: `${COLORS.accent}14` }}
         >
           <span style={{ color: COLORS.accent }}>{icon}</span>

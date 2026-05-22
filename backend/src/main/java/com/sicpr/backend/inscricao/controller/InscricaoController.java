@@ -11,30 +11,23 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/inscricoes")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+// @CrossOrigin(origins = "*")  // REMOVIDO - CORS é configurado no WebConfig
 public class InscricaoController {
 
     private final InscricaoService service;
 
     @PostMapping
-    public InscricaoResponse salvar(
-            @RequestBody InscricaoRequest request
-    ) {
-
+    public InscricaoResponse salvar(@RequestBody InscricaoRequest request) {
         return service.salvar(request);
     }
 
-    // API SEGURA
     @GetMapping
     public List<InscricaoResponse> listar() {
-
         return service.listarPublico();
     }
 
-    // WEB ADMIN
     @GetMapping("/web")
     public List<InscricaoResponse> listarWeb() {
-
         return service.listarWeb();
     }
 }

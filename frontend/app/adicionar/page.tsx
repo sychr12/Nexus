@@ -18,7 +18,7 @@ import UnlocSelect from "../components/UnlocSelect";
 import { getUnlocByMunicipio } from "../lib/unlocs";
 import TopBar from "../sidebar/page";
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
 const COLORS = {
   primary: "#2D452F",

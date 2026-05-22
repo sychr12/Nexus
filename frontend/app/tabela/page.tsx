@@ -8,7 +8,6 @@ import {
   Search, 
   ChevronLeft, 
   ChevronRight,
-  Download,
   Eye,
   EyeOff,
   FileText,
@@ -92,7 +91,7 @@ export default function TabelaPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:8080/api/inscricoes/web", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"}/inscricoes/web`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -383,7 +382,11 @@ export default function TabelaPage() {
                         onClick={limparFiltros}
                         title="Limpar filtros"
                         className="group relative inline-flex min-h-[46px] w-[104px] items-center justify-center overflow-hidden rounded-xl border text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#B42318]/10"
-                        style={{ color: COLORS.danger, borderColor: "#FECDCA", backgroundColor: "#FEF3F2" }}
+                        style={{
+                          color: COLORS.danger,
+                          border: "1px solid #FECDCA",
+                          backgroundColor: "#FEF3F2",
+                        }}
                         onMouseEnter={(event) => {
                           event.currentTarget.style.color = "#FFFFFF";
                           event.currentTarget.style.borderColor = COLORS.danger;

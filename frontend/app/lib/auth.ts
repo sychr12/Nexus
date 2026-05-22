@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
 export function isAdminUser(username: string, role?: string | null) {
   return username.trim().toLowerCase() === "admin" || (role || "").toUpperCase().includes("ADMIN");
@@ -11,7 +11,7 @@ export async function resolveStoredAuthUser(defaultUsername = "Usuario") {
 
   if (!role && token && username) {
     try {
-      const response = await fetch(`${API_URL}/api/users/username/${encodeURIComponent(username)}`, {
+      const response = await fetch(`${API_URL}/users/username/${encodeURIComponent(username)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

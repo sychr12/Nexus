@@ -29,10 +29,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String path = request.getServletPath();
+        String method = request.getMethod();
 
         if (
-                path.startsWith("/api/auth")
-                        || path.startsWith("/api/inscricoes")
+                ("POST".equals(method) && "/api/auth/login".equals(path))
+                        || ("GET".equals(method) && "/api/auth/ping".equals(path))
+                        || ("POST".equals(method) && "/api/inscricoes".equals(path))
+                        || ("GET".equals(method) && "/api/inscricoes".equals(path))
                         || path.startsWith("/error")
                         || path.startsWith("/swagger-ui")
                         || path.startsWith("/v3/api-docs")

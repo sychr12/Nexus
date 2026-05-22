@@ -45,8 +45,9 @@ const TOP_ITEMS = [
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
-  { id: "emails", label: "E-mails", icon: Mail, href: "/emails" },
+  { id: "emails", label: "E-mails", icon: Mail, href: "/email" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
+  { id: "Gerenciamento de Usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
   { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
   { id: "notificacao", label: "Notificação", icon: Bell, href: "/notificacao" },
 ];
@@ -56,15 +57,100 @@ interface TopBarProps {
   username: string;
 }
 
+// Animações CSS
+const animations = `
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 0px rgba(107, 157, 74, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(107, 157, 74, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0px rgba(107, 157, 74, 0);
+  }
+}
+`;
+
 export default function TopBar({ onLogout, username }: TopBarProps) {
   const router = useRouter();
   const activePath = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [animated, setAnimated] = useState(false);
 
   useEffect(() => {
+    // Adiciona estilos de animação
+    if (!document.getElementById("topbar-animations")) {
+      const style = document.createElement("style");
+      style.id = "topbar-animations";
+      style.textContent = animations;
+      document.head.appendChild(style);
+    }
+
     const initialTimer = window.setTimeout(() => setCurrentTime(new Date()), 0);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    
+    // Ativa animações após montagem
+    setTimeout(() => setAnimated(true), 100);
+    
     return () => {
       window.clearTimeout(initialTimer);
       clearInterval(timer);
@@ -78,12 +164,18 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 shadow-lg" style={{ backgroundColor: COLORS.primary }}>
+      <header 
+        className="fixed top-0 left-0 right-0 z-50 shadow-lg" 
+        style={{ 
+          backgroundColor: COLORS.primary,
+          animation: animated ? "fadeInDown 0.6s ease-out" : "none"
+        }}
+      >
         {/* Logo e informações do usuário */}
         <div className="px-6 py-2 border-b" style={{ borderBottomColor: COLORS.secondary }}>
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center gap-0">
+            {/* Logo com animação */}
+            <div className="flex items-center gap-0" style={{ animation: animated ? "slideInLeft 0.5s ease-out" : "none" }}>
               <div className="relative h-16 w-20 overflow-hidden rounded-xl lg:h-20 lg:w-30">
                 <Image
                   src="/sicpr-badge.png"
@@ -91,7 +183,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                   width={1536}
                   height={1024}
                   priority
-                  className="absolute left-1/2 top-1/2 w-[128px] -translate-x-1/2 -translate-y-1/2 object-contain lg:w-[176px]"
+                  className="absolute left-1/2 top-1/2 w-32 -translate-x-1/2 -translate-y-1/2 object-contain lg:w-44 transition-transform duration-300 hover:scale-110"
                   style={{ filter: "brightness(0) saturate(100%) invert(54%) sepia(33%) saturate(707%) hue-rotate(50deg) brightness(94%) contrast(88%) drop-shadow(0 4px 8px rgba(0,0,0,0.18))" }}
                 />
               </div>
@@ -101,10 +193,13 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
               </div>
             </div>
 
-            {/* Desktop - Info */}
-            <div className="hidden lg:flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: COLORS.secondary }}>
-                <span className="text-xs text-white">
+            {/* Desktop - Info com animação */}
+            <div className="hidden lg:flex items-center gap-4" style={{ animation: animated ? "slideInRight 0.5s ease-out" : "none" }}>
+              <div 
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-300 hover:scale-105" 
+                style={{ backgroundColor: COLORS.secondary }}
+              >
+                <span className="text-xs text-white transition-colors duration-300">
                   {currentTime ? currentTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "--/--/----"}
                 </span>
                 <span className="text-xs text-white/50">•</span>
@@ -113,23 +208,29 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                 </span>
               </div>
 
-              <button className="relative p-2 rounded-lg hover:bg-white/10 transition-colors">
+              <button 
+                className="relative p-2 rounded-lg hover:bg-white/10 transition-all duration-300 hover:scale-110"
+                style={{ animation: animated ? "pulse 2s infinite" : "none" }}
+              >
                 <Bell size={18} className="text-white" />
               </button>
 
               <div className="flex items-center gap-3 pl-3 border-l border-white/20">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-white" suppressHydrationWarning>{username}</p>
+                  <p className="text-sm font-medium text-white transition-colors duration-300 hover:text-accent">{username}</p>
                   <p className="text-xs" style={{ color: COLORS.light }}>Administrador</p>
                 </div>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: COLORS.accent }}>
+                <div 
+                  className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all duration-300 hover:scale-110 hover:shadow-lg" 
+                  style={{ backgroundColor: COLORS.accent }}
+                >
                   <User size={16} className="text-white" />
                 </div>
               </div>
 
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-all duration-300 hover:scale-105"
               >
                 <LogOut size={16} />
                 <span>Sair</span>
@@ -139,18 +240,18 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
+              className="lg:hidden p-2 rounded-lg text-white hover:bg-white/10 transition-all duration-300 hover:scale-110"
             >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {mobileMenuOpen ? <X size={24} className="animate-spin" /> : <Menu size={24} />}
             </button>
           </div>
         </div>
 
-        {/* Abas - Desktop (sem scroll, fonte menor) */}
+        {/* Abas - Desktop com animação */}
         <div className="hidden lg:block px-6 py-1">
           <div className="flex items-center justify-center">
-            <nav className="flex items-center justify-center gap-1 flex-wrap">
-              {TOP_ITEMS.map((item) => {
+            <nav className="flex items-center justify-center gap-1 flex-wrap" style={{ animation: animated ? "fadeIn 0.8s ease-out" : "none" }}>
+              {TOP_ITEMS.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activePath === item.href;
                 return (
@@ -158,7 +259,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                     key={item.id}
                     onClick={() => handleNavigation(item.href)}
                     className={`
-                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap
+                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-300 whitespace-nowrap
                       ${isActive 
                         ? "text-white shadow-sm" 
                         : "text-white/70 hover:text-white hover:bg-white/10"
@@ -166,9 +267,19 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                     `}
                     style={{
                       backgroundColor: isActive ? COLORS.accent : "transparent",
+                      animation: animated ? `fadeIn 0.4s ease-out ${index * 0.02}s both` : "none",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
                     }}
                   >
-                    <Icon size={12} />
+                    <Icon size={12} className="transition-transform duration-300 group-hover:scale-110" />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -178,23 +289,32 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
         </div>
       </header>
 
-      {/* Menu Mobile Dropdown */}
+      {/* Menu Mobile Dropdown com animação */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-[81px] z-40">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute top-0 left-0 right-0 max-h-[calc(100vh-81px)] overflow-y-auto" style={{ backgroundColor: COLORS.primary }}>
+        <div className="lg:hidden fixed inset-x-0 z-40" style={{ top: '81px', animation: "fadeInDown 0.3s ease-out" }}>
+          <div className="absolute inset-0 bg-black/50 animate-fadeIn" onClick={() => setMobileMenuOpen(false)} />
+          <div 
+            className="absolute top-0 left-0 right-0 max-h-[calc(100vh-81px)] overflow-y-auto" 
+            style={{ 
+              backgroundColor: COLORS.primary,
+              animation: "slideInLeft 0.3s ease-out"
+            }}
+          >
             <div className="p-4 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: COLORS.accent }}>
+                <div 
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110" 
+                  style={{ backgroundColor: COLORS.accent }}
+                >
                   <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold text-white" suppressHydrationWarning>{username}</p>
+                  <p className="font-semibold text-white">{username}</p>
                   <p className="text-xs text-white/60">Administrador</p>
                 </div>
                 <button
                   onClick={onLogout}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-300"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-300 transition-all duration-300 hover:scale-105 hover:bg-red-500/30"
                 >
                   <LogOut size={16} />
                   Sair
@@ -202,7 +322,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
               </div>
             </div>
             <nav className="p-4 space-y-1">
-              {TOP_ITEMS.map((item) => {
+              {TOP_ITEMS.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activePath === item.href;
                 return (
@@ -210,7 +330,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                     key={item.id}
                     onClick={() => handleNavigation(item.href)}
                     className={`
-                      w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all
+                      w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                       ${isActive 
                         ? "text-white" 
                         : "text-white/70 hover:text-white hover:bg-white/10"
@@ -218,9 +338,16 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
                     `}
                     style={{
                       backgroundColor: isActive ? COLORS.accent : "transparent",
+                      animation: `fadeIn 0.3s ease-out ${index * 0.03}s both`
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateX(5px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateX(0)";
                     }}
                   >
-                    <Icon size={20} />
+                    <Icon size={20} className="transition-transform duration-300" />
                     <span className="text-sm font-medium">{item.label}</span>
                   </button>
                 );
@@ -230,7 +357,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
         </div>
       )}
 
-      <div className="h-[104px] lg:h-[152px]" />
+      <div style={{ height: '104px' }} />
     </>
   );
 }
