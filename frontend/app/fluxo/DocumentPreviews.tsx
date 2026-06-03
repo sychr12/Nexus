@@ -30,6 +30,8 @@ interface PreviewProps {
 }
 
 const value = (dados: Record<string, string> | undefined, key: string, fallback = "") => dados?.[key] || fallback;
+const longDate = (date = new Date()) =>
+  date.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
 
 export function GeneratedDocumentPreview({ processo, documento, dados }: PreviewProps) {
   if (documento.tipo === "fac") {
@@ -167,55 +169,63 @@ function FacPreview({ processo, dados }: { processo: DraftProcesso; dados: Recor
 }
 
 function DeclaracaoPreview({ processo, dados }: { processo: DraftProcesso; dados: Record<string, string> }) {
+  const unidadeLocal = processo.unidadeLocal || "Boca do Acre";
+  const finalidade = value(dados, "finalidade", typeLabels[processo.tipoProcesso]);
+  const numero = value(dados, "numero", "BOA 437/2026");
+  const numeroControle = value(dados, "numeroControle", numero);
+  const municipio = value(dados, "municipio", unidadeLocal);
+  const propriedade = value(dados, "propriedade", "Sitio Terra Nova Casa");
+  const localizacao = value(dados, "endereco", "Margem direita do Rio Purus Comunidade Lago Novo");
+  const anoAtendimento = value(dados, "anoAtendimento", "2012");
+  const atividadePrincipal = value(dados, "atividadePrincipal", "Horticultura em area de 0,2 ha");
+  const cultivos = value(dados, "incluindo", "Cultivo de Alface e Cebola de palha");
+  const tecnico = processo.tecnicoResponsavel || value(dados, "tecnicoResponsavel", "Tecnico Responsavel");
+  const gerente = processo.gerenteResponsavel || value(dados, "gerenteResponsavel", "Gerente da Unloc");
+
   return (
-    <div className="relative mx-auto min-h-[930px] w-full max-w-[680px] overflow-hidden bg-white px-16 py-10 text-[15px] leading-8 text-black shadow-sm">
-      <div className="absolute left-0 top-0 h-16 w-16 border-l-2 border-t-2 border-[#315B6D]/40" />
-      <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-[70px] border-b-2 border-l-2 border-[#D9B64C]/40" />
-      <AmazonasHeader />
-      <h2 className="text-center text-xl font-bold">Declaracao</h2>
+    <div
+      className="relative mx-auto min-h-[960px] max-w-3xl overflow-hidden bg-white px-20 pb-44 pt-36 font-serif text-[14px] leading-7 text-[#1F1F1F] shadow-sm"
+      style={{ backgroundImage: "url('/images/PapelTimbrado.png')", backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}
+    >
+      <h2 className="text-center text-xl font-bold">Declaração</h2>
 
-      <p className="mt-12 text-right">
-        {processo.unidadeLocal || "Unidade Local"} - AM, {value(dados, "data", new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }))}.
-      </p>
-      <p className="mt-4 font-bold">No. {value(dados, "numero", "BOA 437/2026")}.</p>
+      <div className="mt-9 grid grid-cols-[1fr_auto] items-start gap-6 font-semibold">
+        <p>Nº. {numero}.</p>
+        <p className="text-right">{unidadeLocal} - AM, {value(dados, "data", longDate())}.</p>
+      </div>
 
-      <p className="mt-12 text-justify">
-        Declaramos para os devidos fins de <strong>{typeLabels[processo.tipoProcesso]}</strong> da Carteira do Produtor Primario,
-        que o Senhor: <strong>{processo.produtor || "Nome do produtor"}</strong>, Portador do RG No <strong>{value(dados, "rg", "194.514 SEP/AC")}</strong>
-        e CPF No <strong>{processo.cpf || "000.000.000-00"}</strong>, e possuidor de um imovel rural denominado de
-        <strong> {value(dados, "propriedade", "Sitio Terra Nova")}</strong>, localizado na
-        <strong> {value(dados, "endereco", "Margem direita do Rio Purus Comunidade Lago Novo")}</strong>, situado no Municipio de
-        <strong> {processo.unidadeLocal || "Boca do Acre"}</strong>, com o numero de controle <strong>{value(dados, "numeroControle", "BOA 437/2026")}</strong>.
-      </p>
+      <section className="mt-12 space-y-4 text-justify indent-10">
+        <p>
+          Declaramos para os devidos fins de <strong>{finalidade}</strong> do Cartão do Produtor Primário que o Senhor:
+          {" "}<strong>{processo.produtor || "Nome do produtor"}</strong>, portador do RG nº{" "}
+          <strong>{value(dados, "rg", "194.514 SEP/AC")}</strong> e CPF nº{" "}
+          <strong>{processo.cpf || "000.000.000-00"}</strong>, é possuidor de um imóvel rural denominado{" "}
+          <strong>{propriedade}</strong>, localizado na <strong>{localizacao}</strong>, situado no Município de{" "}
+          <strong>{municipio}</strong>, com o número de controle <strong>{numeroControle}</strong>.
+        </p>
 
-      <p className="mt-4 text-justify">
-        O Produtor e atendido pela Unidade local de {processo.unidadeLocal || "Boca do Acre"} / IDAM - Instituto de Desenvolvimento
-        Agropecuario e Florestal Sustentavel do Estado do Amazonas, desde o ano de {value(dados, "anoAtendimento", "2012")},
-        tendo como <strong>Atividade principal: {value(dados, "atividadePrincipal", "Horticultura em area de 0,2 ha")}</strong>,
-        incluindo: <strong>{value(dados, "incluindo", "Cultivo de Alface e Cebola de palha")}.</strong>
-      </p>
+        <p>
+          O produtor é atendido pela Unidade Local de {unidadeLocal} / IDAM - Instituto de Desenvolvimento
+          Agropecuário e Florestal Sustentável do Estado do Amazonas, desde o ano de {anoAtendimento}, tendo como{" "}
+          <strong>atividade principal: {atividadePrincipal}</strong>, incluindo: <strong>{cultivos}</strong>.
+        </p>
+      </section>
 
-      <div className="mt-12 grid grid-cols-2 gap-8 text-center font-bold">
+      <div className="mt-11 grid grid-cols-2 gap-10 text-center font-bold">
         <p>Latitude {value(dados, "latitude", "08°75'28,62\"")}</p>
         <p>Longitude {value(dados, "longitude", "67°37'10,93\"")}</p>
       </div>
 
-      <div className="mt-28 grid grid-cols-2 gap-16 text-center">
+      <div className="mt-24 grid grid-cols-2 gap-16 text-center text-[13px] leading-5">
         <div>
-          <div className="border-t border-black pt-2">Tecnico Responsavel</div>
-          <p className="text-xs">{processo.tecnicoResponsavel || "Tecnico responsavel"}</p>
+          <div className="mx-auto w-44 border-t border-black pt-2">Técnico Responsável</div>
+          <p className="mt-1 text-[11px] text-gray-700">{tecnico}</p>
         </div>
         <div>
-          <div className="border-t border-black pt-2">{processo.gerenteResponsavel || "Gerente da Unloc"}</div>
-          <p className="text-xs">Visto/Gerente da Unloc</p>
+          <div className="mx-auto w-44 border-t border-black pt-2">{gerente}</div>
+          <p className="mt-1 text-[11px] text-gray-700">Visto/Gerente da Unloc</p>
         </div>
       </div>
-
-      <footer className="absolute bottom-0 left-0 right-0 grid grid-cols-[1fr_1.2fr_1.4fr] gap-4 border-t border-gray-200 px-8 py-5 text-[10px] leading-4 text-[#315B6D]">
-        <div>www.idam.am.gov.br<br />facebook.com/idam_govam<br />instagram.com/idam_govam</div>
-        <div>presidencia@idam.am.gov.br<br />Av. Carlos Drummond de Andrade<br />Manaus - AM</div>
-        <div className="font-bold text-[#315B6D]">Instituto de Desenvolvimento Agropecuario e Florestal Sustentavel do Estado do Amazonas - IDAM</div>
-      </footer>
     </div>
   );
 }
