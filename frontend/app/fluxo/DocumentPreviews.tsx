@@ -226,6 +226,7 @@ function DeclaracaoPreview({ processo, dados }: { processo: DraftProcesso; dados
           <p className="mt-1 text-[11px] text-gray-700">Visto/Gerente da Unloc</p>
         </div>
       </div>
+      <DeclaracaoTimbradoFooter />
     </div>
   );
 }
@@ -299,6 +300,34 @@ function MemorandoPreview({ processo }: { processo: DraftProcesso }) {
       </div>
       <MemorandoTimbradoFooter />
     </div>
+  );
+}
+
+function DeclaracaoTimbradoFooter() {
+  return (
+    <footer className="absolute bottom-8 left-12 right-12 grid grid-cols-[1fr_1.25fr_1.55fr] items-center gap-5 text-[11px] leading-4 text-[#315B6D]">
+      <div className="space-y-0.5">
+        <p>www.idam.am.gov.br</p>
+        <p>twitter.com/idam_govam</p>
+        <p>youtube.com/idam_govam</p>
+        <p>facebook.com/idam_govam</p>
+        <p>Instagram.com/@idam_govam</p>
+      </div>
+      <div className="border-x border-[#98A6A1] px-5">
+        <p>presidencia@idam.am.gov.br</p>
+        <p>Fone: (92) 98452-9911</p>
+        <p>Avenida Carlos Drummond de</p>
+        <p>Andrade, 1460, Bloco G - 2º Andar</p>
+        <p>Conj. Atílio Andreazza - Japiim</p>
+        <p>Manaus - AM - CEP: 69077-730</p>
+      </div>
+      <div className="pl-2 text-[13px] font-bold leading-5">
+        <p>Instituto de Desenvolvimento</p>
+        <p>Agropecuário e Florestal</p>
+        <p>Sustentável do Estado do</p>
+        <p>Amazonas - IDAM</p>
+      </div>
+    </footer>
   );
 }
 
