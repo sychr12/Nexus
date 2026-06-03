@@ -1,10 +1,24 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ChevronDown, Eye, FileText, Paperclip, Search, Send, X } from "lucide-react";
-import { isAdminUser, resolveStoredAuthUser } from "../lib/auth";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, History, Info, MapPin, RotateCcw, Search, Send, X } from "lucide-react";
+import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
+import { ProcessoTimeline } from "../fluxo/ProcessoTimeline";
 import TopBar from "../sidebar/page";
+import {
+  SITUACAO_LABELS,
+  STATUS_COLORS,
+  TIPO_PROCESSO_LABELS,
+  concluirLancamento,
+  devolverLancamentoParaAnalise,
+  formatDateTime,
+  getDocumentosGerados,
+  getOutrosDocumentos,
+  loadProcessos,
+  saveProcessos,
+} from "../fluxo/storage";
+import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
 
 const COLORS = {
   primary: "#2D452F",
@@ -14,123 +28,39 @@ const COLORS = {
   text: "#1A2E1B",
   textLight: "#6B7C6A",
   border: "#E2E8E0",
-  info: "#175CD3",
+  danger: "#B42318",
 };
 
-const STORAGE_KEY = "sicpr-analises-lancamentos";
+const PAGE_SIZE_OPTIONS = [50, 100];
 
-interface EncaminhamentoAnalise {
-  id: string;
-  memorandoNumero: string;
-  memorandoTitulo: string;
-  memorandoPdf: string;
-  produtor: string;
-  cpf: string;
-  localidade: string;
-  processoPdf: string;
-  declaracaoPdf: string;
-  tipoIdentificado: string;
-  resultadoConsulta: string;
-  dataDeclaracao: string;
-  recebidoEm: string;
-  encaminhadoEm: string;
-  usuarioEncarregado?: string;
-  observacao: string;
-}
+type LancamentoFilter = "todos" | "aguardando" | "concluidos";
+type ExpandedTab = "dados" | "historico" | "documentos";
 
-type ViewerKind = "processo" | "declaracao" | "memorando";
-
-const formatDate = (value?: string) => {
-  if (!value) return "-";
-  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("pt-BR");
-};
-
-const formatTime = (value?: string) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-};
-
-const formatarNomeAbreviado = (nome: string) => {
-  const partes = nome.trim().split(/\s+/).filter(Boolean);
-  if (partes.length <= 2) return nome;
-
-  const [primeiro, ...restante] = partes;
-  const ultimo = restante.pop();
-  const iniciais = restante.map((parte) => `${parte.charAt(0).toUpperCase()}.`);
-
-  return [primeiro, ...iniciais, ultimo].filter(Boolean).join(" ");
-};
-
-const formatarMemorando = (memorando: string) => {
-  const match = memorando.match(/(\d+)\/(\d{4})$/);
-  if (!match) return memorando;
-  return `Memo ${match[1]}/${match[2]}`;
-};
-
-const mesesAbreviados = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
-const formatarDataCurta = (value?: string) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  const dia = String(date.getDate()).padStart(2, "0");
-  const mes = mesesAbreviados[date.getMonth()];
-  const hora = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return `${dia} ${mes} • ${hora}`;
-};
-
-const normalizarSituacao = (consulta: string) => {
-  const texto = consulta.trim();
-  const lower = texto.toLowerCase();
-
-  if (lower.includes("sem cadastro")) {
-    return { label: "Sem cadastro", className: "bg-red-50 text-red-700 ring-red-100" };
-  }
-
-  if (lower.includes("cadastro encontrado")) {
-    return { label: "Encontrado", className: "bg-emerald-50 text-emerald-700 ring-emerald-100" };
-  }
-
-  return { label: texto || "Não informado", className: "bg-slate-50 text-slate-700 ring-slate-200" };
-};
-
-const getArquivos = (item: EncaminhamentoAnalise) => [
-  { kind: "processo" as ViewerKind, label: "Processo", file: item.processoPdf },
-  { kind: "declaracao" as ViewerKind, label: "Declaração", file: item.declaracaoPdf },
-  { kind: "memorando" as ViewerKind, label: "Memorando", file: item.memorandoPdf },
+const FILTERS: { id: LancamentoFilter; label: string }[] = [
+  { id: "todos", label: "Todos" },
+  { id: "aguardando", label: "Aguardando lançamento" },
+  { id: "concluidos", label: "Concluídos" },
 ];
-
-const contarArquivos = (item: EncaminhamentoAnalise) => getArquivos(item).filter((arquivo) => arquivo.file).length;
-
-const getDetalhesProcesso = (item: EncaminhamentoAnalise) =>
-  [
-    ["Produtor", item.produtor],
-    ["CPF", item.cpf],
-    ["Memorando", item.memorandoNumero],
-    ["Título do memorando", item.memorandoTitulo],
-    ["Localidade", item.localidade],
-    ["Tipo", item.tipoIdentificado],
-    ["Consulta", item.resultadoConsulta],
-    ["Analista", item.usuarioEncarregado || "Não informado"],
-    ["Data da declaração", formatDate(item.dataDeclaracao)],
-    ["Recebido", `${formatDate(item.recebidoEm)} às ${formatTime(item.recebidoEm)}`],
-    ["Encaminhado", `${formatDate(item.encaminhadoEm)} às ${formatTime(item.encaminhadoEm)}`],
-    ["Observação", item.observacao],
-  ].filter(([, value]) => Boolean(value));
 
 export default function LancamentosPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("Usuário");
-  const [userRole, setUserRole] = useState("USUARIO");
-  const [items, setItems] = useState<EncaminhamentoAnalise[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedItem, setSelectedItem] = useState<EncaminhamentoAnalise | null>(null);
-  const [viewerKind, setViewerKind] = useState<ViewerKind>("processo");
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [username, setUsername] = useState("Lancamento");
+  const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<LancamentoFilter>("aguardando");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedTab, setExpandedTab] = useState<ExpandedTab>("dados");
+  const [justificativas, setJustificativas] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [preview, setPreview] = useState<
+    | { tipo: "gerado"; processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }
+    | { tipo: "anexo"; processo: ProcessoSicpr; documento: DocumentoProcesso }
+    | null
+  >(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -138,443 +68,367 @@ export default function LancamentosPage() {
       router.push("/login");
       return;
     }
-
-    const timer = window.setTimeout(async () => {
-      const authUser = await resolveStoredAuthUser("Usuário");
-      setUsername(authUser.username);
-      setUserRole(authUser.role);
-      try {
-        setItems(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as EncaminhamentoAnalise[]);
-      } catch {
-        setItems([]);
-      }
+    const timer = window.setTimeout(() => {
+      setUsername(localStorage.getItem("username") || "Lancamento");
+      setProcessos(loadProcessos());
     }, 0);
-
     return () => window.clearTimeout(timer);
   }, [router]);
 
-  const filteredItems = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const digits = searchTerm.replace(/\D/g, "");
-    if (!term && !digits) return items;
+  const processosLancamento = useMemo(
+    () => processos.filter((processo) => processo.situacao === "aprovado_lancamento" || processo.situacao === "concluido"),
+    [processos],
+  );
 
-    return items.filter(
-      (item) =>
-        item.produtor.toLowerCase().includes(term) ||
-        item.memorandoNumero.toLowerCase().includes(term) ||
-        item.localidade.toLowerCase().includes(term) ||
-        (digits.length > 0 && item.cpf.replace(/\D/g, "").includes(digits)),
-    );
-  }, [items, searchTerm]);
+  const stats = useMemo(() => {
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    const mesAtual = new Date().getMonth();
+    const anoAtual = new Date().getFullYear();
+    const concluidos = processosLancamento.filter((processo) => processo.situacao === "concluido");
 
-  const isAdmin = isAdminUser(username, userRole);
+    return {
+      aguardando: processosLancamento.filter((processo) => processo.situacao === "aprovado_lancamento").length,
+      concluidosHoje: concluidos.filter((processo) => processo.lancadoEm && new Date(processo.lancadoEm).toLocaleDateString("pt-BR") === hoje).length,
+      concluidosMes: concluidos.filter((processo) => {
+        if (!processo.lancadoEm) return false;
+        const date = new Date(processo.lancadoEm);
+        return date.getMonth() === mesAtual && date.getFullYear() === anoAtual;
+      }).length,
+    };
+  }, [processosLancamento]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return processosLancamento
+      .filter((processo) => {
+        if (filter === "aguardando") return processo.situacao === "aprovado_lancamento";
+        if (filter === "concluidos") return processo.situacao === "concluido";
+        return true;
+      })
+      .filter((processo) =>
+        !term ||
+        processo.produtor.toLowerCase().includes(term) ||
+        processo.cpf.includes(term) ||
+        processo.unidadeLocal.toLowerCase().includes(term) ||
+        (processo.memorandoNumero || "").toLowerCase().includes(term),
+      );
+  }, [filter, processosLancamento, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function persist(next: ProcessoSicpr[]) {
+    setProcessos(next);
+    saveProcessos(next);
+  }
 
   function handleLogout() {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
-    localStorage.removeItem("role");
-    localStorage.removeItem("perfil");
     router.push("/login");
   }
 
-  function openViewer(item: EncaminhamentoAnalise, kind: ViewerKind) {
-    setSelectedItem(item);
-    setViewerKind(kind);
+  function applyFilter(next: LancamentoFilter) {
+    setFilter(next);
+    setPage(1);
   }
 
-  const selectedFile =
-    selectedItem && viewerKind === "processo"
-      ? selectedItem.processoPdf
-      : selectedItem && viewerKind === "declaracao"
-        ? selectedItem.declaracaoPdf
-        : selectedItem?.memorandoPdf;
+  function concluir(id: string) {
+    persist(concluirLancamento(processos, id, username));
+    setMessageType("success");
+    setMessage("Lançamento concluído e histórico preservado.");
+    setExpandedId(null);
+  }
 
-  const selectedFileLabel =
-    viewerKind === "processo" ? "Processo" : viewerKind === "declaracao" ? "Declaração" : "Memorando";
+  function devolverParaAnalise(id: string) {
+    const justificativa = justificativas[id]?.trim();
+    if (!justificativa) {
+      setErrors((current) => ({ ...current, [id]: "A justificativa é obrigatória para devolver o processo à Análise." }));
+      setExpandedTab("dados");
+      return;
+    }
+
+    persist(devolverLancamentoParaAnalise(processos, id, username, justificativa));
+    setMessageType("success");
+    setMessage("Processo devolvido para Análise com justificativa registrada.");
+    setExpandedId(null);
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedId((current) => current === id ? null : id);
+    setExpandedTab("dados");
+  }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
       <TopBar onLogout={handleLogout} username={username} />
-
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Lançamentos</h1>
-              <p className="text-sm" style={{ color: COLORS.textLight }}>
-                Processos aptos encaminhados pela análise para lançamento no sistema.
-              </p>
+              <p className="text-sm" style={{ color: COLORS.textLight }}>Fila operacional de processos aprovados pela Análise e aguardando lançamento.</p>
             </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="relative sm:w-96">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Buscar por produtor, CPF, memorando ou localidade..."
-                  className="w-full rounded-md py-2 pl-9 pr-3 text-sm outline-none"
-                  style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text }}
-                />
-              </div>
-
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm("")}
-                  className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-white"
-                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
-                >
-                  <X size={16} />
-                  Limpar
-                </button>
-              )}
+            <div className="relative lg:w-96">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+              <input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Buscar nome, CPF, município ou memorando..."
+                className="w-full rounded-md border py-2 pl-9 pr-3 text-sm outline-none"
+                style={{ borderColor: COLORS.border }}
+              />
             </div>
           </div>
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {[
-              { label: "Para lançamento", value: items.length, icon: Send, color: COLORS.info },
-              { label: "Memorandos", value: new Set(items.map((item) => item.memorandoNumero)).size, icon: FileText, color: COLORS.primary },
-              { label: "Filtrados", value: filteredItems.length, icon: CheckCircle2, color: COLORS.accent },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="rounded-lg border p-4 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: COLORS.textLight }}>{item.label}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums" style={{ color: COLORS.text }}>{item.value}</p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-md" style={{ backgroundColor: `${item.color}18` }}>
-                      <Icon size={20} style={{ color: item.color }} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-
-          <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
-              <h2 className="text-base font-semibold" style={{ color: COLORS.text }}>Processos encaminhados</h2>
-              <p className="text-xs" style={{ color: COLORS.textLight }}>Cada processo mantém vínculo com o memorando usado no encaminhamento.</p>
+          {message && (
+            <div className="flex items-start gap-3 rounded-md border px-4 py-3 text-sm font-medium" style={{ backgroundColor: messageType === "error" ? "#FEF3F2" : COLORS.card, borderColor: messageType === "error" ? "#FCA5A5" : COLORS.border, color: messageType === "error" ? COLORS.danger : COLORS.primary }}>
+              {messageType === "error" ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+              <span>{message}</span>
             </div>
+          )}
 
-            {filteredItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center px-4 py-14 text-center">
-                <Send size={34} style={{ color: COLORS.textLight }} />
-                <p className="mt-3 text-sm" style={{ color: COLORS.textLight }}>Nenhum processo encaminhado para lançamento.</p>
-              </div>
-            ) : (
-              <>
-              <div className="space-y-3 p-3 md:hidden">
-                {filteredItems.map((item) => {
-                  const arquivos = getArquivos(item);
-                  const situacao = normalizarSituacao(item.resultadoConsulta);
-                  const isExpanded = expandedItemId === item.id;
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard label="Aguardando lançamento" value={stats.aguardando} active={filter === "aguardando"} onClick={() => applyFilter("aguardando")} />
+            <StatCard label="Concluídos hoje" value={stats.concluidosHoje} active={filter === "concluidos"} onClick={() => applyFilter("concluidos")} />
+            <StatCard label="Concluídos no mês" value={stats.concluidosMes} active={filter === "concluidos"} onClick={() => applyFilter("concluidos")} />
+          </div>
 
-                  return (
-                    <div key={item.id} className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}>
-                      <div className="flex items-start justify-between gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                          className="min-w-0 text-left"
-                          title={item.produtor}
-                        >
-                          <span className="block truncate font-semibold" style={{ color: COLORS.text }}>
-                            {formatarNomeAbreviado(item.produtor)}
-                          </span>
-                          <span className="mt-0.5 block text-xs tabular-nums" style={{ color: COLORS.textLight }}>{item.cpf}</span>
-                        </button>
-                        <span
-                          className={`inline-flex max-w-[140px] shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${situacao.className}`}
-                          title={item.resultadoConsulta}
-                        >
-                          <span className="truncate">{situacao.label}</span>
-                        </span>
+          <div className="flex flex-wrap gap-2">
+            {FILTERS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => applyFilter(item.id)}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold transition-colors"
+                style={{
+                  backgroundColor: filter === item.id ? COLORS.primary : COLORS.card,
+                  border: `1px solid ${filter === item.id ? COLORS.primary : COLORS.border}`,
+                  color: filter === item.id ? COLORS.card : COLORS.text,
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <section className="grid gap-3">
+            {pageItems.map((processo) => {
+              const isExpanded = expandedId === processo.id;
+              const docs = getDocumentosGerados(processo);
+              const anexos = getOutrosDocumentos(processo);
+              const isAguardando = processo.situacao === "aprovado_lancamento";
+
+              return (
+                <article key={processo.id} className="rounded-lg border px-4 py-3 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                  <button type="button" onClick={() => toggleExpanded(processo.id)} className="flex w-full flex-wrap items-start justify-between gap-4 text-left">
+                    <div className="min-w-0">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[processo.situacao]}`}>
+                        {SITUACAO_LABELS[processo.situacao]}
+                      </span>
+                      <h2 className="mt-2 truncate text-base font-semibold" style={{ color: COLORS.text }}>{processo.produtor}</h2>
+                      <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>CPF: {processo.cpf}</p>
+                      <div className="mt-2 grid gap-1 text-sm" style={{ color: COLORS.textLight }}>
+                        <span className="inline-flex items-center gap-2"><MapPin size={14} /> {processo.unidadeLocal}</span>
+                        <span className="inline-flex items-center gap-2"><FileText size={14} /> Memorando {processo.memorandoNumero || "-"}</span>
+                        <span className="inline-flex items-center gap-2"><Clock size={14} /> {formatDateTime(processo.analisadoEm || processo.lancadoEm)}</span>
                       </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.textLight }}>
+                      {isExpanded ? "Recolher" : "Expandir"}
+                      <ChevronDown size={14} className={isExpanded ? "rotate-180 transition-transform" : "transition-transform"} />
+                    </span>
+                  </button>
 
-                      <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold" style={{ color: COLORS.text }}>{formatarMemorando(item.memorandoNumero)}</p>
-                          <p className="text-xs" style={{ color: COLORS.textLight }}>{item.localidade} • {item.tipoIdentificado}</p>
-                          <p className="text-xs tabular-nums" style={{ color: COLORS.textLight }}>{formatarDataCurta(item.encaminhadoEm)}</p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={!isAdmin}
-                          title={isAdmin ? "Lançar processo" : "Apenas administrador pode alterar esta etapa"}
-                          className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                          style={{ backgroundColor: isAdmin ? COLORS.primary : COLORS.textLight }}
-                        >
-                          <Send size={14} />
-                          {isAdmin ? "Lançar" : "Bloqueado"}
+                  {isExpanded && (
+                    <div className="mt-4 border-t pt-4" style={{ borderTopColor: COLORS.border }}>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setExpandedTab("dados")} className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold" style={{ backgroundColor: expandedTab === "dados" ? COLORS.background : "transparent", color: expandedTab === "dados" ? COLORS.primary : COLORS.textLight }}>
+                          <Info size={15} /> Dados
                         </button>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                          className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#ECFDF3]"
-                          style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
-                        >
-                          <Paperclip size={14} />
-                          {contarArquivos(item)} arquivos
+                        <button type="button" onClick={() => setExpandedTab("historico")} className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold" style={{ backgroundColor: expandedTab === "historico" ? COLORS.background : "transparent", color: expandedTab === "historico" ? COLORS.primary : COLORS.textLight }}>
+                          <History size={15} /> Histórico
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#ECFDF3]"
-                          style={{ color: COLORS.textLight }}
-                        >
-                          Detalhes
-                          <ChevronDown size={14} className={`transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                        <button type="button" onClick={() => setExpandedTab("documentos")} className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold" style={{ backgroundColor: expandedTab === "documentos" ? COLORS.background : "transparent", color: expandedTab === "documentos" ? COLORS.primary : COLORS.textLight }}>
+                          <FileText size={15} /> Documentos ({docs.length + anexos.length})
                         </button>
                       </div>
 
-                      {isExpanded && (
-                        <div className="mt-3 space-y-3 border-t pt-3" style={{ borderTopColor: COLORS.border }}>
-                          <div className="grid gap-2">
-                            {getDetalhesProcesso(item).map(([label, value]) => (
-                              <div key={label}>
-                                <p className="text-[11px] font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-                                <p className="break-words text-sm font-medium" style={{ color: COLORS.text }}>{value}</p>
-                              </div>
-                            ))}
+                      {expandedTab === "dados" && (
+                        <div className="mt-4 space-y-4">
+                          <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3" style={{ color: COLORS.text }}>
+                            <InfoItem label="Status" value={SITUACAO_LABELS[processo.situacao]} />
+                            <InfoItem label="Tipo" value={TIPO_PROCESSO_LABELS[processo.tipoProcesso]} />
+                            <InfoItem label="UNLOC" value={processo.unidadeLocal} />
+                            <InfoItem label="Memorando" value={processo.memorandoNumero || "-"} />
+                            <InfoItem label="Analista" value={processo.analistaResponsavel || "-"} />
+                            <InfoItem label="Aprovado em" value={formatDateTime(processo.analisadoEm)} />
+                            <InfoItem label="Lançado em" value={formatDateTime(processo.lancadoEm)} />
                           </div>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase" style={{ color: COLORS.textLight }}>Arquivos</p>
-                            <div className="mt-1 space-y-1">
-                              {arquivos.map((arquivo) => (
-                                <button
-                                  key={arquivo.kind}
-                                  type="button"
-                                  onClick={() => openViewer(item, arquivo.kind)}
-                                  title={`Visualizar ${arquivo.file}`}
-                                  className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-[#ECFDF3]"
-                                  style={{ color: COLORS.textLight }}
-                                >
-                                  <Eye size={14} className="shrink-0" style={{ color: COLORS.primary }} />
-                                  <span className="font-semibold" style={{ color: COLORS.text }}>{arquivo.label}:</span>
-                                  <span className="truncate">{arquivo.file}</span>
+
+                          {isAguardando && (
+                            <div className="grid gap-3">
+                              {errors[processo.id] && (
+                                <div role="alert" className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#FEF3F2", borderColor: "#FCA5A5", color: COLORS.danger }}>
+                                  <AlertTriangle size={16} />
+                                  <span>{errors[processo.id]}</span>
+                                </div>
+                              )}
+                              <textarea
+                                value={justificativas[processo.id] || ""}
+                                onChange={(event) => {
+                                  setJustificativas((current) => ({ ...current, [processo.id]: event.target.value }));
+                                  if (errors[processo.id]) setErrors((current) => ({ ...current, [processo.id]: "" }));
+                                }}
+                                placeholder="Justificativa obrigatória somente para devolver à Análise."
+                                rows={3}
+                                className="w-full rounded-md border px-3 py-2 text-sm outline-none"
+                                style={{ borderColor: COLORS.border }}
+                              />
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <button type="button" onClick={() => devolverParaAnalise(processo.id)} className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.danger }}>
+                                  <RotateCcw size={15} /> Devolver para análise
+                                </button>
+                                <button type="button" onClick={() => concluir(processo.id)} className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
+                                  <Send size={15} /> Concluir lançamento
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {expandedTab === "historico" && (
+                        <div className="mt-4 rounded-md border p-4" style={{ borderColor: COLORS.border }}>
+                          <ProcessoTimeline processo={processo} />
+                        </div>
+                      )}
+
+                      {expandedTab === "documentos" && (
+                        <div className="mt-4 grid gap-3">
+                          <div className="rounded-md border p-3" style={{ borderColor: COLORS.border }}>
+                            <p className="mb-2 font-semibold" style={{ color: COLORS.text }}>Documentos gerados automaticamente</p>
+                            <div className="grid gap-1">
+                              {docs.map((doc) => (
+                                <button key={doc.arquivo} type="button" onClick={() => setPreview({ tipo: "gerado", processo, documento: doc })} className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.textLight }}>
+                                  <Eye size={14} style={{ color: COLORS.primary }} />
+                                  <span className="font-semibold" style={{ color: COLORS.text }}>{doc.nome}</span>
+                                  <span className="min-w-0 truncate">{doc.arquivo}</span>
                                 </button>
                               ))}
                             </div>
                           </div>
+
+                          <div className="rounded-md border p-3" style={{ borderColor: COLORS.border }}>
+                            <p className="mb-2 font-semibold" style={{ color: COLORS.text }}>Documentos anexados</p>
+                            {anexos.length > 0 ? (
+                              <div className="grid gap-1">
+                                {anexos.map((doc) => (
+                                  <button key={doc.id} type="button" onClick={() => setPreview({ tipo: "anexo", processo, documento: doc })} className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.textLight }}>
+                                    <Eye size={14} style={{ color: COLORS.primary }} />
+                                    <span className="min-w-0 truncate">{doc.arquivo}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm" style={{ color: COLORS.textLight }}>Sem anexos extras</p>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="hidden overflow-x-auto md:block">
-                <table className="min-w-[860px] w-full text-left text-sm">
-                  <thead style={{ backgroundColor: COLORS.background, color: COLORS.textLight }}>
-                    <tr>
-                      {["Produtor", "Processo", "Situação", "Arquivos", "Ação"].map((header) => (
-                        <th key={header} className={`px-4 py-3 text-xs font-semibold uppercase ${header === "Ação" ? "text-center" : ""}`}>{header}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredItems.map((item) => {
-                      const arquivos = getArquivos(item);
-                      const situacao = normalizarSituacao(item.resultadoConsulta);
-                      const isExpanded = expandedItemId === item.id;
-
-                      return (
-                        <Fragment key={item.id}>
-                          <tr className="border-t align-middle transition-colors hover:bg-[#F8FAF7]" style={{ borderTopColor: COLORS.border }}>
-                            <td className="w-[26%] px-4 py-3">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                                className="flex min-w-0 items-center gap-2 text-left"
-                                title="Ver detalhes"
-                              >
-                                <ChevronDown
-                                  size={16}
-                                  className={`shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                                  style={{ color: COLORS.textLight }}
-                                />
-                                <span className="min-w-0">
-                                  <span className="block max-w-[240px] truncate font-semibold" style={{ color: COLORS.text }} title={item.produtor}>
-                                    {formatarNomeAbreviado(item.produtor)}
-                                  </span>
-                                  <span className="mt-0.5 block text-xs tabular-nums" style={{ color: COLORS.textLight }}>
-                                    {item.cpf}
-                                  </span>
-                                </span>
-                              </button>
-                            </td>
-                            <td className="w-[30%] px-4 py-3">
-                              <div className="space-y-0.5">
-                                <p className="font-semibold" style={{ color: COLORS.text }}>{formatarMemorando(item.memorandoNumero)}</p>
-                                <p className="text-xs" style={{ color: COLORS.textLight }}>{item.localidade} • {item.tipoIdentificado}</p>
-                                <p className="text-xs tabular-nums" style={{ color: COLORS.textLight }}>{formatarDataCurta(item.encaminhadoEm)}</p>
-                              </div>
-                            </td>
-                            <td className="w-[16%] px-4 py-3">
-                              <span
-                                className={`inline-flex max-w-[180px] items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${situacao.className}`}
-                                title={item.resultadoConsulta}
-                              >
-                                <span className="truncate">{situacao.label}</span>
-                              </span>
-                            </td>
-                            <td className="w-[14%] px-4 py-3">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                                className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#ECFDF3]"
-                                style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
-                                title="Ver arquivos"
-                              >
-                                <Paperclip size={14} />
-                                {contarArquivos(item)} arquivos
-                              </button>
-                            </td>
-                            <td className="w-[14%] px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                disabled={!isAdmin}
-                                title={isAdmin ? "Lançar processo" : "Apenas administrador pode alterar esta etapa"}
-                                className="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
-                                style={{ backgroundColor: isAdmin ? COLORS.primary : COLORS.textLight }}
-                              >
-                                <Send size={14} />
-                                {isAdmin ? "Lançar" : "Bloqueado"}
-                              </button>
-                            </td>
-                          </tr>
-
-                          {isExpanded && (
-                            <tr className="border-t" style={{ borderTopColor: COLORS.border, backgroundColor: COLORS.background }}>
-                              <td colSpan={5} className="px-4 py-4">
-                                <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-                                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                    {getDetalhesProcesso(item).map(([label, value]) => (
-                                      <div key={label} className="rounded-md border px-3 py-2" style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}>
-                                        <p className="text-[11px] font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-                                        <p className="mt-1 break-words text-sm font-medium" style={{ color: COLORS.text }}>{value}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-
-                                  <div className="rounded-md border px-3 py-2" style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}>
-                                    <p className="text-[11px] font-semibold uppercase" style={{ color: COLORS.textLight }}>Arquivos</p>
-                                    <div className="mt-2 space-y-1">
-                                      {arquivos.map((arquivo) => (
-                                        <button
-                                          key={arquivo.kind}
-                                          type="button"
-                                          onClick={() => openViewer(item, arquivo.kind)}
-                                          title={`Visualizar ${arquivo.file}`}
-                                          className="group flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-all duration-200 hover:bg-[#ECFDF3]"
-                                          style={{ color: COLORS.textLight }}
-                                        >
-                                          <Eye size={14} className="shrink-0" style={{ color: COLORS.primary }} />
-                                          <span className="font-semibold" style={{ color: COLORS.text }}>{arquivo.label}:</span>
-                                          <span className="truncate transition-colors group-hover:text-[#2D452F]">{arquivo.file}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              </>
-            )}
+                  )}
+                </article>
+              );
+            })}
           </section>
+
+          {filtered.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, color: COLORS.text }}>
+              <span>Página {currentPage} de {totalPages} | {filtered.length} processo(s)</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border px-3 py-1.5 font-semibold outline-none" style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}>
+                  {PAGE_SIZE_OPTIONS.map((option) => <option key={option} value={option}>{option} por página</option>)}
+                </select>
+                <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Anterior</button>
+                <button type="button" disabled={currentPage === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Próxima</button>
+              </div>
+            </div>
+          )}
+
+          {filtered.length === 0 && <div className="rounded-lg border p-10 text-center text-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, color: COLORS.textLight }}>Nenhum processo encontrado em Lançamentos.</div>}
         </div>
       </main>
 
-      {selectedItem && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center px-3 py-4 sm:px-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedItem(null)} />
-          <section className="relative flex h-[calc(100vh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-lg border shadow-2xl sm:h-[calc(100vh-3rem)]" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="shrink-0 flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+      {preview && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-5">
+          <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
+          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
               <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Visualização de PDFs</p>
-                <h2 className="mt-1 text-lg font-semibold" style={{ color: COLORS.primary }}>{selectedItem.produtor}</h2>
-                <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>{selectedItem.memorandoNumero} · {selectedItem.localidade}</p>
+                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{preview.tipo === "gerado" ? "Documento gerado pelo sistema" : "Anexo enviado pela UNLOC"}</p>
+                <h2 className="mt-1 text-base font-semibold" style={{ color: COLORS.primary }}>{preview.tipo === "gerado" ? preview.documento.nome : preview.documento.arquivo}</h2>
+                <p className="text-sm" style={{ color: COLORS.textLight }}>{preview.processo.produtor} | {preview.processo.unidadeLocal}</p>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedItem(null)}
-                title="Fechar"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
-                style={{ color: COLORS.textLight }}
-              >
+              <button type="button" onClick={() => setPreview(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
                 <X size={18} />
               </button>
             </div>
-
-            <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-              <span className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold" style={{ backgroundColor: COLORS.background, border: `1px solid ${COLORS.border}`, color: COLORS.primary }}>
-                <FileText size={15} />
-                {selectedFileLabel}
-              </span>
-              <span className="min-w-0 truncate text-sm" style={{ color: COLORS.textLight }}>
-                {selectedFile}
-              </span>
-            </div>
-
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-5 lg:grid-cols-[minmax(0,1fr)_390px]">
-              <div className="flex min-h-[360px] flex-col items-center justify-center overflow-hidden rounded-md border border-dashed text-center lg:min-h-0" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                <FileText size={56} style={{ color: COLORS.primary }} />
-                <p className="mt-3 text-sm font-semibold" style={{ color: COLORS.text }}>{selectedFile}</p>
-                <p className="mt-2 max-w-md text-sm leading-6" style={{ color: COLORS.textLight }}>
-                  Prévia do PDF de {selectedFileLabel.toLowerCase()} encaminhado pela análise para a etapa de lançamento.
-                </p>
-              </div>
-
-              <aside className="min-h-0 space-y-3 overflow-y-auto pr-1">
-                <div className="rounded-md border px-3 py-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                  <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Arquivos do processo</p>
-                  <div className="mt-2 space-y-1">
-                    {getArquivos(selectedItem).map((arquivo) => (
-                      <button
-                        key={arquivo.kind}
-                        type="button"
-                        onClick={() => setViewerKind(arquivo.kind)}
-                        title={`Visualizar ${arquivo.file}`}
-                        className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors hover:bg-white ${viewerKind === arquivo.kind ? "bg-white shadow-sm" : ""}`}
-                        style={{ color: COLORS.textLight, border: viewerKind === arquivo.kind ? `1px solid ${COLORS.border}` : "1px solid transparent" }}
-                      >
-                        <Eye size={14} className="shrink-0" style={{ color: COLORS.primary }} />
-                        <span className="font-semibold" style={{ color: COLORS.text }}>{arquivo.label}:</span>
-                        <span className="truncate">{arquivo.file}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                  {getDetalhesProcesso(selectedItem).map(([label, value]) => (
-                    <div key={label} className="rounded-md border px-3 py-2" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-                      <p className="mt-1 break-words text-sm font-medium leading-5" style={{ color: COLORS.text }}>{value}</p>
-                    </div>
-                  ))}
-                </div>
-              </aside>
+            <div className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
+              {preview.tipo === "gerado" ? (
+                <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
+              ) : (
+                <AttachmentPreview documento={preview.documento} />
+              )}
             </div>
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
+  if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
+    return (
+      <div className="flex justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={documento.conteudo} alt={documento.arquivo} className="max-h-[72vh] max-w-full rounded-md border bg-white object-contain" />
+      </div>
+    );
+  }
+
+  if (documento.conteudo && documento.mimeType === "application/pdf") {
+    return <iframe title={documento.arquivo} src={documento.conteudo} className="h-[72vh] w-full rounded-md border bg-white" />;
+  }
+
+  return (
+    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
+      <FileText size={48} />
+      <p className="mt-3 font-semibold">{documento.arquivo}</p>
+      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pré-visualização disponível para imagens e PDF.</p>
+    </div>
+  );
+}
+
+function StatCard({ label, value, active, onClick }: { label: string; value: number; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="rounded-md border px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm" style={{ borderColor: active ? COLORS.primary : COLORS.border, backgroundColor: active ? "#EEF5EC" : COLORS.card }}>
+      <p className="text-xs font-semibold uppercase" style={{ color: active ? COLORS.primary : COLORS.textLight }}>{label}</p>
+      <p className="mt-1 text-xl font-bold" style={{ color: COLORS.primary }}>{value}</p>
+    </button>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
+      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
+      <p className="mt-1 font-semibold" style={{ color: COLORS.text }}>{value}</p>
     </div>
   );
 }

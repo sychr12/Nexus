@@ -2,150 +2,80 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, FileText, Mail, RotateCcw, Search, X } from "lucide-react";
-import { isAdminUser, resolveStoredAuthUser } from "../lib/auth";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, MapPin, RotateCcw, Search, UserRound, X } from "lucide-react";
+import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
+import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
 import TopBar from "../sidebar/page";
-import { EmptyState, MemorandoCard, ProdutorCard } from "./AnaliseCards";
-import AnaliseModal from "./AnaliseModal";
-import { COLORS, HOVER_LIFT, HOVER_SOFT, INITIAL_MEMORANDOS, STATUS_DESCRIPTIONS, STATUS_LABELS } from "./data";
 import {
-  emptyFlags,
-  getDerivedMemoStatus,
-  getNextMemoStatusAfterDecision,
-  getProcessoFlags,
-  isMemorandoConcluido,
-} from "./rules";
-import { ANALISES_STORAGE_KEY, appendEncaminhamentos, buildEncaminhamento } from "./storage";
-import type {
-  AnalysisFlags,
-  AnalysisViewMode,
-  DispatchTarget,
-  MemorandoAnalise,
-  MemoStatus,
-  ModalScope,
-  ModalTab,
-  MotivoMemorandoDevolucao,
-  MotivoProcessoDevolucao,
-  ProcessoProdutor,
-  TimelineEvent,
-  ViewerKind,
-} from "./types";
+  SITUACAO_LABELS,
+  STATUS_COLORS,
+  TIPO_PROCESSO_LABELS,
+  decidirAnalise,
+  formatDateTime,
+  getDocumentosGerados,
+  getOutrosDocumentos,
+  loadProcessos,
+  saveProcessos,
+} from "../fluxo/storage";
+import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
 
-const STATUS_FILTERS: MemoStatus[] = ["recebido", "em_analise", "finalizado"];
-
-const eventId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-const timelineEvent = (usuario: string, acao: string, detalhe?: string, processoId?: number): TimelineEvent => ({
-  id: eventId(),
-  usuario,
-  dataHora: new Date().toISOString(),
-  acao,
-  detalhe,
-  processoId,
-});
-
-const normalizeStatus = (status: string | undefined): MemoStatus => {
-  if (status === "finalizado" || status === "concluido" || status === "lancamento" || status === "devolucao") return "finalizado";
-  if (status === "em_analise") return "em_analise";
-  return "recebido";
+const COLORS = {
+  primary: "#2D452F",
+  accent: "#6B9D4A",
+  background: "#F5F7F5",
+  card: "#FFFFFF",
+  text: "#1A2E1B",
+  textLight: "#6B7C6A",
+  border: "#E2E8E0",
+  danger: "#B42318",
 };
 
-const migrateDecision = (processo: ProcessoProdutor) => {
-  if (processo.decisao) return processo.decisao;
-  if (processo.encaminhadoPara) return processo.encaminhadoPara;
-  if (processo.status === "concluido" && processo.encaminhadoPara) return processo.encaminhadoPara;
-  return null;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
+type MemorandoAnaliseResumo = {
+  id: string;
+  numero: string;
+  criadoEm?: string;
+  gerente?: string;
+  unidadeLocal: string;
+  processos: ProcessoSicpr[];
 };
 
-const mergeFlags = (base?: Partial<AnalysisFlags>): AnalysisFlags => ({ ...emptyFlags(), ...base });
+type MemorandoStatusFilter = "todos" | "em_analise" | "concluido";
+type DetailTab = "dados" | "historico" | "documentos";
 
-const normalizeMotivoText = (motivo?: string) =>
-  motivo
-    ?.normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+const MEMORANDO_STATUS_FILTERS: { key: MemorandoStatusFilter; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "em_analise", label: "Em análise" },
+  { key: "concluido", label: "Concluído" },
+];
 
-const normalizeProcessoDevolucaoMotivo = (
-  motivo?: string,
-): MotivoProcessoDevolucao | undefined => {
-  if (!motivo) return undefined;
-
-  const normalized = normalizeMotivoText(motivo) || "";
-
-  if (normalized.includes("cpf")) return "CPF divergente";
-  if (normalized.includes("cadastro") || normalized.includes("gcc")) return "Cadastro divergente";
-  if (normalized.includes("data") || normalized.includes("declaracao vencida")) return "Data invalida";
-  if (normalized.includes("ilegivel") || normalized.includes("corrompido")) return "Documento ilegivel";
-  if (normalized.includes("falt") || normalized.includes("checklist") || normalized.includes("ausente")) return "Documento ausente";
-
-  return "Documento invalido";
-};
-
-const normalizeMemorandoDevolucaoMotivo = (
-  motivo?: string,
-): MotivoMemorandoDevolucao | undefined => {
-  if (!motivo) return undefined;
-
-  const normalized = normalizeMotivoText(motivo) || "";
-
-  if (normalized.includes("ilegivel") || normalized.includes("corrompido")) return "Documento ilegivel";
-  if (normalized.includes("assinatura")) return "Assinatura ausente";
-  if (normalized.includes("falt") || normalized.includes("ausente")) return "Documento ausente";
-  if (normalized.includes("inconsistente") || normalized.includes("divergente")) return "Dados inconsistentes";
-
-  return "Documento invalido";
-};
-
-const migrateMemorando = (memorando: MemorandoAnalise): MemorandoAnalise => {
-  const processos = memorando.processos.map((processo) => {
-    const migrated = {
-      ...processo,
-      decisao: migrateDecision(processo),
-      observacao: processo.observacao || "",
-      motivoDevolucao: normalizeProcessoDevolucaoMotivo(processo.motivoDevolucao),
-    };
-    return {
-      ...migrated,
-      flags: { ...getProcessoFlags(migrated), ...processo.flags },
-    };
-  });
-
-  const memorandoDecisao =
-    memorando.memorandoDecisao ||
-    ((memorando.status as string) === "devolucao" ? "incorreto" : null);
-
-  const status = getNextMemoStatusAfterDecision(processos, memorandoDecisao === "incorreto");
-
-  return {
-    ...memorando,
-    status: status === "finalizado" ? "finalizado" : normalizeStatus(memorando.status) === "em_analise" ? "em_analise" : "recebido",
-    memorandoDecisao,
-    motivoDevolucaoMemorando: normalizeMemorandoDevolucaoMotivo(memorando.motivoDevolucaoMemorando),
-    observacaoMemorando: memorando.observacaoMemorando || "",
-    flags: {
-      ...mergeFlags(memorando.flags),
-      memorandoInvalido: memorandoDecisao === "incorreto" || Boolean(memorando.flags?.memorandoInvalido),
-    },
-    timeline: memorando.timeline || [timelineEvent("Sistema", "Memorando recebido", memorando.numero)],
-    processos,
-  };
-};
+const DETAIL_TABS: { key: DetailTab; label: string }[] = [
+  { key: "dados", label: "Dados" },
+  { key: "historico", label: "Histórico" },
+  { key: "documentos", label: "Documentos" },
+];
 
 export default function AnalisesPage() {
   const router = useRouter();
-  const [memorandos, setMemorandos] = useState<MemorandoAnalise[]>(() => INITIAL_MEMORANDOS.map(migrateMemorando));
-  const [analysisView, setAnalysisView] = useState<AnalysisViewMode>("memorandos");
-  const [activeStatus, setActiveStatus] = useState<MemoStatus>("recebido");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMemorandoId, setSelectedMemorandoId] = useState<number | null>(null);
-  const [selectedProcessId, setSelectedProcessId] = useState<number | null>(null);
-  const [modalScope, setModalScope] = useState<ModalScope>("memorando");
-  const [activeTab, setActiveTab] = useState<ModalTab>("resumo");
-  const [viewerKind, setViewerKind] = useState<ViewerKind>("processo");
-  const [flowNotice, setFlowNotice] = useState("");
-  const [storageReady, setStorageReady] = useState(false);
-  const [username, setUsername] = useState("Usuario");
-  const [userRole, setUserRole] = useState("USUARIO");
+  const [username, setUsername] = useState("Analista");
+  const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
+  const [search, setSearch] = useState("");
+  const [justificativas, setJustificativas] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [expandedMemoIds, setExpandedMemoIds] = useState<string[]>([]);
+  const [selectedProcesso, setSelectedProcesso] = useState<ProcessoSicpr | null>(null);
+  const [modalError, setModalError] = useState("");
+  const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>("dados");
+  const [statusFilter, setStatusFilter] = useState<MemorandoStatusFilter>("em_analise");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [preview, setPreview] = useState<
+    | { tipo: "gerado"; processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }
+    | { tipo: "anexo"; processo: ProcessoSicpr; documento: DocumentoProcesso }
+    | null
+  >(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -153,463 +83,519 @@ export default function AnalisesPage() {
       router.push("/login");
       return;
     }
-
-    const timer = window.setTimeout(async () => {
-      const savedMemorandos = localStorage.getItem(ANALISES_STORAGE_KEY);
-      if (savedMemorandos) {
-        try {
-          const parsedMemorandos = (JSON.parse(savedMemorandos) as MemorandoAnalise[]).map(migrateMemorando);
-          const memorandosNovos = INITIAL_MEMORANDOS.map(migrateMemorando).filter(
-            (memorando) => !parsedMemorandos.some((saved) => saved.id === memorando.id),
-          );
-          setMemorandos([...parsedMemorandos, ...memorandosNovos]);
-        } catch {
-          localStorage.removeItem(ANALISES_STORAGE_KEY);
-        }
-      }
-
-      const authUser = await resolveStoredAuthUser("Usuario");
-
-      setStorageReady(true);
-      setUsername(authUser.username);
-      setUserRole(authUser.role);
+    const timer = window.setTimeout(() => {
+      setUsername(localStorage.getItem("username") || "Analista");
+      setProcessos(loadProcessos());
     }, 0);
-
     return () => window.clearTimeout(timer);
   }, [router]);
 
-  useEffect(() => {
-    if (!storageReady) return;
-    localStorage.setItem(ANALISES_STORAGE_KEY, JSON.stringify(memorandos));
-  }, [memorandos, storageReady]);
-
-  const selectedMemorando = useMemo(
-    () => memorandos.find((memorando) => memorando.id === selectedMemorandoId) || null,
-    [memorandos, selectedMemorandoId],
-  );
-
-  const selectedProcesso = useMemo(
-    () => selectedMemorando?.processos.find((processo) => processo.id === selectedProcessId) || selectedMemorando?.processos[0] || null,
-    [selectedMemorando, selectedProcessId],
-  );
-
-  const isAdmin = isAdminUser(username, userRole);
-  const selectedMemorandoLocked = selectedMemorando ? isMemorandoConcluido(selectedMemorando) : false;
-  const selectedMemorandoReadOnly = selectedMemorandoLocked && !isAdmin;
-  const selectedProcessoLocked = Boolean(selectedProcesso?.decisao && !isAdmin);
-
-  const filteredMemorandos = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const digits = searchTerm.replace(/\D/g, "");
-
-    return memorandos.filter((memorando) => {
-      const derivedStatus = getDerivedMemoStatus(memorando);
-      const matchesStatus = derivedStatus === activeStatus;
-      const matchesSearch =
+  const processosFiltrados = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return processos
+      .filter((processo) => ["em_analise", "aprovado_lancamento", "concluido"].includes(processo.situacao) && processo.memorandoNumero)
+      .filter((processo) =>
         !term ||
-        memorando.numero.toLowerCase().includes(term) ||
-        memorando.titulo.toLowerCase().includes(term) ||
-        memorando.localidade.toLowerCase().includes(term) ||
-        memorando.processos.some(
-          (processo) =>
-            processo.produtor.toLowerCase().includes(term) ||
-            (digits.length > 0 && processo.cpf.replace(/\D/g, "").includes(digits)),
-        );
+        processo.produtor.toLowerCase().includes(term) ||
+        processo.cpf.includes(term) ||
+        processo.unidadeLocal.toLowerCase().includes(term) ||
+        processo.tecnicoResponsavel.toLowerCase().includes(term) ||
+        (processo.gerenteResponsavel || "").toLowerCase().includes(term) ||
+        (processo.memorandoNumero || "").toLowerCase().includes(term),
+      );
+  }, [processos, search]);
 
-      return matchesStatus && matchesSearch;
+  const memorandos = useMemo(() => {
+    const grupos = new Map<string, MemorandoAnaliseResumo>();
+
+    processosFiltrados.forEach((processo) => {
+      const key = processo.memorandoLoteId || processo.memorandoNumero || processo.id;
+      const grupo = grupos.get(key);
+
+      if (grupo) {
+        if (!grupo.processos.some((item) => item.id === processo.id)) grupo.processos.push(processo);
+        return;
+      }
+
+      grupos.set(key, {
+        id: key,
+        numero: processo.memorandoNumero || "-",
+        criadoEm: processo.memorandoCriadoEm || processo.enviadoAnaliseEm,
+        gerente: processo.gerenteResponsavel,
+        unidadeLocal: processo.unidadeLocal,
+        processos: [processo],
+      });
     });
-  }, [activeStatus, memorandos, searchTerm]);
 
-  const filteredProdutores = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const digits = searchTerm.replace(/\D/g, "");
+    return Array.from(grupos.values())
+      .filter((memorando) => statusFilter === "todos" || getMemorandoStatus(memorando).key === statusFilter)
+      .sort((a, b) => new Date(b.criadoEm || "").getTime() - new Date(a.criadoEm || "").getTime());
+  }, [processosFiltrados, statusFilter]);
 
-    return memorandos.flatMap((memorando) =>
-      memorando.processos
-        .map((processo) => ({ memorando, processo }))
-        .filter(({ memorando: memo, processo }) => {
-          const memoStatus = getDerivedMemoStatus(memo);
-          const matchesStatus =
-            activeStatus === "finalizado"
-              ? processo.decisao === "lancamento" || processo.decisao === "devolucao"
-              : !processo.decisao && memoStatus === activeStatus;
-          const matchesSearch =
-            !term ||
-            processo.produtor.toLowerCase().includes(term) ||
-            memo.numero.toLowerCase().includes(term) ||
-            memo.titulo.toLowerCase().includes(term) ||
-            memo.localidade.toLowerCase().includes(term) ||
-            (digits.length > 0 && processo.cpf.replace(/\D/g, "").includes(digits));
+  const totalPages = Math.max(1, Math.ceil(memorandos.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const memorandosPaginados = memorandos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-          return matchesStatus && matchesSearch;
-        }),
-    );
-  }, [activeStatus, memorandos, searchTerm]);
-
-  const counts = useMemo(() => {
-    const processos = memorandos.flatMap((memorando) => memorando.processos);
-    return {
-      memorandos: memorandos.length,
-      processos: processos.length,
-      semDecisao: processos.filter((processo) => !processo.decisao).length,
-      lancamentos: processos.filter((processo) => processo.decisao === "lancamento").length,
-      devolucoes: processos.filter((processo) => processo.decisao === "devolucao").length,
-    };
-  }, [memorandos]);
+  function persist(next: ProcessoSicpr[]) {
+    setProcessos(next);
+    saveProcessos(next);
+  }
 
   function handleLogout() {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
-    localStorage.removeItem("role");
-    localStorage.removeItem("perfil");
     router.push("/login");
   }
 
-  function markMemorandoOpened(memorando: MemorandoAnalise) {
-    const now = new Date().toISOString();
-    setMemorandos((current) =>
-      current.map((item) => {
-        if (item.id !== memorando.id) return item;
-        if (getDerivedMemoStatus(item) !== "recebido") return item;
-
-        return {
-          ...item,
-          status: "em_analise",
-          abertoPor: username,
-          abertoEm: now,
-          timeline: [...(item.timeline || []), timelineEvent(username, "Memorando aberto", "Analise iniciada automaticamente.")],
-        };
-      }),
-    );
-  }
-
-  function openMemorando(memorando: MemorandoAnalise) {
-    markMemorandoOpened(memorando);
-    setSelectedMemorandoId(memorando.id);
-    setSelectedProcessId(memorando.processos[0]?.id || null);
-    setModalScope("memorando");
-    setActiveTab("resumo");
-    setViewerKind("processo");
-    setFlowNotice("");
-  }
-
-  function openProcesso(memorando: MemorandoAnalise, processo: ProcessoProdutor, tab: ModalTab = "processos") {
-    markMemorandoOpened(memorando);
-    setSelectedMemorandoId(memorando.id);
-    setSelectedProcessId(processo.id);
-    setModalScope("produtor");
-    setActiveTab(tab);
-    setViewerKind("processo");
-    setFlowNotice("");
-  }
-
-  function updateSelectedMemorando(updater: (memorando: MemorandoAnalise) => MemorandoAnalise) {
-    if (!selectedMemorando) return;
-    setMemorandos((current) => current.map((memorando) => (memorando.id === selectedMemorando.id ? updater(memorando) : memorando)));
-  }
-
-  function updateProcesso(updater: (processo: ProcessoProdutor) => ProcessoProdutor) {
-    if (!selectedMemorando || !selectedProcesso) return;
-    if (selectedProcessoLocked) return;
-
-    updateSelectedMemorando((memorando) => ({
-      ...memorando,
-      processos: memorando.processos.map((processo) =>
-        processo.id === selectedProcesso.id ? updater(processo) : processo,
-      ),
-    }));
-  }
-
-  function setMemorandoDecision(decision: "correto" | "incorreto") {
-    if (!selectedMemorando || selectedMemorandoReadOnly) return;
-    updateSelectedMemorando((memorando) => ({
-      ...memorando,
-      memorandoDecisao: decision,
-      flags: { ...mergeFlags(memorando.flags), memorandoInvalido: decision === "incorreto" },
-      timeline: [...(memorando.timeline || []), timelineEvent(username, `Memorando marcado como ${decision}`)],
-    }));
-    setFlowNotice(decision === "correto" ? "Memorando liberado para analise individual." : "Memorando incorreto: informe motivo e envie tudo para devolucao.");
-  }
-
-  function returnWholeMemorando(motivo: MotivoMemorandoDevolucao, observacao: string) {
-    if (!selectedMemorando || selectedMemorandoReadOnly) return;
-    if (!observacao.trim()) {
-      setFlowNotice("Escreva a observacao da devolucao antes de finalizar o memorando.");
+  function aprovar(id: string) {
+    if (!isAnaliseOperacional(id)) {
+      setModalError("Este processo já saiu da etapa de Análise e está disponível apenas para consulta.");
+      setActiveDetailTab("dados");
       return;
     }
-    const now = new Date().toISOString();
-    const processos = selectedMemorando.processos.map((processo) => ({
-      ...processo,
-      decisao: "devolucao" as const,
-      motivoDevolucao: motivo as unknown as MotivoProcessoDevolucao,
-      observacao: observacao || processo.observacao,
-      decisaoResponsavel: username,
-      decisaoEm: now,
-      encaminhadoPara: "devolucao" as const,
-      encaminhadoEm: now,
-    }));
-    const updatedMemo: MemorandoAnalise = {
-      ...selectedMemorando,
-      status: "finalizado",
-      memorandoDecisao: "incorreto",
-      motivoDevolucaoMemorando: motivo,
-      observacaoMemorando: observacao,
-      memorandoResponsavel: username,
-      memorandoAnalisadoEm: now,
-      flags: { ...mergeFlags(selectedMemorando.flags), memorandoInvalido: true },
-      processos,
-      timeline: [
-        ...(selectedMemorando.timeline || []),
-        timelineEvent(username, "Memorando devolvido integralmente", `${motivo}${observacao ? ` - ${observacao}` : ""}`),
-      ],
-    };
-
-    appendEncaminhamentos("devolucao", processos.map((processo) => buildEncaminhamento(updatedMemo, processo, "devolucao", now)));
-    setMemorandos((current) => current.map((memorando) => (memorando.id === selectedMemorando.id ? updatedMemo : memorando)));
-    setActiveStatus("finalizado");
-    setFlowNotice("Memorando finalizado e todos os produtores enviados para Devolucao.");
+    persist(decidirAnalise(processos, id, username, "aprovado_lancamento"));
+    setMessageType("success");
+    setMessage("Processo aprovado pela análise e encaminhado para Lançamentos.");
   }
 
-  function updateProcessoField<K extends keyof ProcessoProdutor>(field: K, value: ProcessoProdutor[K]) {
-    updateProcesso((processo) => ({
-      ...processo,
-      [field]: value,
-      flags: getProcessoFlags({ ...processo, [field]: value }),
-    }));
-  }
-
-  function updateObservation(value: string) {
-    updateProcesso((processo) => ({
-      ...processo,
-      observacao: value.slice(0, 500),
-      observacaoAtualizadaEm: value.trim() ? new Date().toISOString() : undefined,
-    }));
-    if (value.trim()) {
-      updateSelectedMemorando((memorando) => ({
-        ...memorando,
-        timeline: [...(memorando.timeline || []), timelineEvent(username, "Observacao adicionada", selectedProcesso?.produtor, selectedProcesso?.id)],
-      }));
-    }
-  }
-
-  function decideProcesso(target: DispatchTarget, motivo?: MotivoProcessoDevolucao, observacao?: string) {
-    if (!selectedMemorando || !selectedProcesso || selectedProcessoLocked) return;
-    if (selectedMemorando.memorandoDecisao === "incorreto" && !isAdmin) return;
-    if (target === "devolucao" && !observacao?.trim()) {
-      setFlowNotice("Escreva o motivo detalhado da devolucao antes de confirmar.");
+  function devolver(id: string) {
+    if (!isAnaliseOperacional(id)) {
+      setModalError("Este processo já saiu da etapa de Análise. Devoluções posteriores devem ocorrer em Lançamentos.");
+      setActiveDetailTab("dados");
       return;
     }
-    const now = new Date().toISOString();
-    const nextProcesso = {
-      ...selectedProcesso,
-      decisao: target,
-      motivoDevolucao: target === "devolucao" ? motivo : undefined,
-      observacao: observacao ?? selectedProcesso.observacao,
-      decisaoResponsavel: username,
-      decisaoEm: now,
-      encaminhadoPara: target,
-      encaminhadoEm: now,
-    };
+    const justificativa = justificativas[id]?.trim();
+    if (!justificativa) {
+      setModalError("A justificativa é obrigatória para devolver o processo à UNLOC.");
+      setActiveDetailTab("dados");
+      return;
+    }
+    persist(decidirAnalise(processos, id, username, "devolvido_analise", justificativa));
+    setMessageType("success");
+    setMessage("Processo devolvido ao técnico responsável da Unidade Local.");
+  }
 
-    const processos = selectedMemorando.processos.map((processo) => (processo.id === selectedProcesso.id ? nextProcesso : processo));
-    const nextStatus = getNextMemoStatusAfterDecision(processos);
-    const updatedMemo: MemorandoAnalise = {
-      ...selectedMemorando,
-      status: nextStatus,
-      processos,
-      timeline: [
-        ...(selectedMemorando.timeline || []),
-        timelineEvent(
-          username,
-          target === "lancamento" ? "Lancamento realizado" : "Devolucao realizada",
-          target === "lancamento" ? selectedProcesso.produtor : `${selectedProcesso.produtor} - ${motivo || "Sem motivo"}`,
-          selectedProcesso.id,
-        ),
-      ],
-    };
+  function toggleMemo(id: string) {
+    setExpandedMemoIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
 
-    appendEncaminhamentos(target, [buildEncaminhamento(updatedMemo, nextProcesso, target, now)]);
-    setMemorandos((current) => current.map((memorando) => (memorando.id === selectedMemorando.id ? updatedMemo : memorando)));
-    setActiveStatus("finalizado");
-    setFlowNotice(target === "lancamento" ? "Produtor encaminhado automaticamente para Lancamentos." : "Produtor encaminhado automaticamente para Devolucao.");
+  function isAnaliseOperacional(id: string) {
+    return processos.find((processo) => processo.id === id)?.situacao === "em_analise";
+  }
+
+  function approveSelectedProcesso(id: string) {
+    setModalError("");
+    aprovar(id);
+    setSelectedProcesso(null);
+  }
+
+  function devolverSelectedProcesso(id: string) {
+    const justificativa = justificativas[id]?.trim();
+    devolver(id);
+    if (justificativa) setSelectedProcesso(null);
   }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
       <TopBar onLogout={handleLogout} username={username} />
-
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Analises</h1>
-              <p className="text-sm" style={{ color: COLORS.textLight }}>
-                Conferencia rapida, decisao direta e encaminhamento automatico.
-              </p>
+              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Análises</h1>
+              <p className="text-sm" style={{ color: COLORS.textLight }}>Processos assinados pelo gerente, com memorando de lote, FAC e declarações automáticas.</p>
             </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="relative sm:w-96">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Buscar por memorando, produtor, CPF ou localidade..."
-                  className="w-full rounded-md py-2 pl-9 pr-3 text-sm outline-none"
-                  style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text }}
-                />
-              </div>
-
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm("")}
-                  className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-white ${HOVER_SOFT}`}
-                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
-                >
-                  <X size={16} />
-                  Limpar
-                </button>
-              )}
+            <div className="relative lg:w-96">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+              <input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Buscar produtor, CPF, UNLOC ou memorando..."
+                className="w-full rounded-md border py-2 pl-9 pr-3 text-sm outline-none"
+                style={{ borderColor: COLORS.border }}
+              />
             </div>
           </div>
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            {[
-              { label: "Memorandos", value: counts.memorandos, icon: Mail, color: COLORS.primary },
-              { label: "Processos", value: counts.processos, icon: FileText, color: COLORS.info },
-              { label: "Sem decisao", value: counts.semDecisao, icon: AlertTriangle, color: COLORS.warning },
-              { label: "Lancamentos", value: counts.lancamentos, icon: CheckCircle2, color: COLORS.accent },
-              { label: "Devolucoes", value: counts.devolucoes, icon: RotateCcw, color: COLORS.danger },
-            ].map((item) => {
-              const Icon = item.icon;
+          {message && (
+            <div
+              role={messageType === "error" ? "alert" : "status"}
+              className={`sicpr-alert ${messageType === "error" ? "sicpr-alert-error" : ""} flex items-start gap-3 rounded-md border px-4 py-3 text-sm font-medium`}
+              style={{
+                backgroundColor: messageType === "error" ? "#FEF3F2" : COLORS.card,
+                borderColor: messageType === "error" ? "#FCA5A5" : COLORS.border,
+                color: messageType === "error" ? COLORS.danger : COLORS.primary,
+              }}
+            >
+              {messageType === "error" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0" />}
+              <span>{message}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {MEMORANDO_STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => {
+                  setStatusFilter(filter.key);
+                  setPage(1);
+                }}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold transition-colors"
+                style={{
+                  backgroundColor: statusFilter === filter.key ? COLORS.primary : COLORS.card,
+                  border: `1px solid ${statusFilter === filter.key ? COLORS.primary : COLORS.border}`,
+                  color: statusFilter === filter.key ? COLORS.card : COLORS.text,
+                }}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <section className="grid gap-3">
+            {memorandosPaginados.map((memorando) => {
+              const isExpanded = expandedMemoIds.includes(memorando.id);
+              const memoStatus = getMemorandoStatus(memorando);
               return (
-                <div key={item.label} className={`rounded-lg border p-4 shadow-sm ${HOVER_LIFT}`} style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: COLORS.textLight }}>{item.label}</p>
-                      <p className="mt-1 text-2xl font-bold tabular-nums" style={{ color: COLORS.text }}>{item.value}</p>
+              <article key={memorando.id} className="rounded-lg border px-4 py-3 shadow-sm transition-shadow hover:shadow-md" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                <button
+                  type="button"
+                  onClick={() => toggleMemo(memorando.id)}
+                  className="flex w-full flex-wrap items-center justify-between gap-4 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${memoStatus.className}`}>
+                        {memoStatus.label}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-[#F5F7F5] px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-[#E2E8E0]" style={{ color: COLORS.primary }}>
+                        {memorando.processos.length} {memorando.processos.length === 1 ? "Processo" : "Processos"}
+                      </span>
                     </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-md" style={{ backgroundColor: `${item.color}18` }}>
-                      <Icon size={20} style={{ color: item.color }} />
+                    <h2 className="mt-2 truncate text-base font-semibold uppercase tracking-wide" style={{ color: COLORS.primary }}>Memorando {memorando.numero}</h2>
+                    <div className="mt-2 grid gap-1 text-sm font-medium" style={{ color: COLORS.textLight }}>
+                      <span className="inline-flex items-center gap-2">
+                        <MapPin size={14} />
+                        {memorando.unidadeLocal}
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <UserRound size={14} />
+                        Gerente: {memorando.gerente || "-"}
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <Clock size={14} />
+                        {formatDateTime(memorando.criadoEm)}
+                      </span>
                     </div>
                   </div>
-                </div>
-              );
+                  <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.textLight }}>
+                    {isExpanded ? "Recolher" : "Produtores"}
+                    <ChevronDown size={14} className={isExpanded ? "rotate-180 transition-transform" : "transition-transform"} />
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div className="mt-4 overflow-hidden rounded-md border" style={{ borderColor: COLORS.border }}>
+                    <div className="grid grid-cols-[1.5fr_.8fr_.8fr_.8fr] gap-3 border-b px-3 py-2 text-xs font-semibold uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
+                      <span>Produtor</span>
+                      <span>Tipo</span>
+                      <span>Status</span>
+                      <span className="text-right">Ação</span>
+                    </div>
+                    {memorando.processos.map((processo) => (
+                      <button
+                        key={processo.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProcesso(processo);
+                          setActiveDetailTab("dados");
+                          setModalError("");
+                        }}
+                        className="grid w-full grid-cols-[1.5fr_.8fr_.8fr_.8fr] items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-[#F5F7F5]"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold" style={{ color: COLORS.text }}>{processo.produtor}</span>
+                          <span className="text-xs" style={{ color: COLORS.textLight }}>{processo.cpf}</span>
+                        </span>
+                        <span style={{ color: COLORS.text }}>{TIPO_PROCESSO_LABELS[processo.tipoProcesso]}</span>
+                        <span className={`w-fit rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[processo.situacao]}`}>
+                          {SITUACAO_LABELS[processo.situacao]}
+                        </span>
+                        <span className="text-right font-semibold" style={{ color: COLORS.primary }}>Ver detalhes</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
             })}
           </section>
 
-          <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="border-b" style={{ borderBottomColor: COLORS.border }}>
-              <div className="flex flex-wrap gap-2 px-4 pt-3">
-                {[
-                  { value: "memorandos" as AnalysisViewMode, label: "Memorandos", icon: Mail },
-                  { value: "produtores" as AnalysisViewMode, label: "Produtores", icon: FileText },
-                ].map((view) => {
-                  const Icon = view.icon;
-                  const isActive = analysisView === view.value;
-                  return (
-                    <button
-                      key={view.value}
-                      type="button"
-                      onClick={() => setAnalysisView(view.value)}
-                      className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${HOVER_LIFT}`}
-                      style={{
-                        backgroundColor: isActive ? COLORS.primary : COLORS.background,
-                        border: `1px solid ${isActive ? COLORS.primary : COLORS.border}`,
-                        color: isActive ? "#FFFFFF" : COLORS.text,
-                      }}
-                    >
-                      <Icon size={16} />
-                      {view.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap gap-2 px-4 pb-5 pt-3">
-                {STATUS_FILTERS.map((status) => {
-                  const isActive = activeStatus === status;
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => setActiveStatus(status)}
-                      className={`rounded-md px-3 py-2 text-sm font-medium ${HOVER_LIFT}`}
-                      style={{
-                        backgroundColor: isActive ? COLORS.accent : COLORS.background,
-                        border: `1px solid ${isActive ? COLORS.accent : COLORS.border}`,
-                        color: isActive ? "#FFFFFF" : COLORS.text,
-                      }}
-                    >
-                      {STATUS_LABELS[status]}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="px-4 pb-4">
-                <h2 className="text-base font-semibold" style={{ color: COLORS.text }}>
-                  {analysisView === "memorandos" ? STATUS_LABELS[activeStatus] : `Produtores em ${STATUS_LABELS[activeStatus].toLowerCase()}`}
-                </h2>
-                <p className="text-xs" style={{ color: COLORS.textLight }}>
-                  {analysisView === "memorandos"
-                    ? STATUS_DESCRIPTIONS[activeStatus]
-                    : "Pesquisa individual por produtor, CPF ou memorando mantendo o vinculo com o lote."}
-                </p>
+          {memorandos.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, color: COLORS.text }}>
+              <span>Página {currentPage} de {totalPages} | {memorandos.length} memorando(s)</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-md border px-3 py-1.5 font-semibold outline-none"
+                  style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}
+                >
+                  {PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{option} por página</option>
+                  ))}
+                </select>
+                <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Anterior</button>
+                <button type="button" disabled={currentPage === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Próxima</button>
               </div>
             </div>
+          )}
 
-            {analysisView === "memorandos" ? (
-              filteredMemorandos.length === 0 ? (
-                <EmptyState message="Nenhum memorando encontrado nesta lista." />
-              ) : (
-                <div className="flex max-w-full gap-4 overflow-x-auto overscroll-x-contain p-4 pb-5">
-                  {filteredMemorandos.map((memorando) => (
-                    <MemorandoCard key={memorando.id} memorando={memorando} onOpen={openMemorando} />
-                  ))}
-                </div>
-              )
-            ) : filteredProdutores.length === 0 ? (
-              <EmptyState message="Nenhum produtor encontrado nesta lista." />
-            ) : (
-              <div className="flex max-w-full gap-3 overflow-x-auto overscroll-x-contain p-4 pb-5">
-                {filteredProdutores.map(({ memorando, processo }) => (
-                  <ProdutorCard
-                    key={`${memorando.id}-${processo.id}`}
-                    memorando={memorando}
-                    processo={processo}
-                    onOpen={openProcesso}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+          {memorandos.length === 0 && <div className="rounded-lg border p-10 text-center text-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, color: COLORS.textLight }}>Nenhum memorando encontrado.</div>}
         </div>
       </main>
 
-      {selectedMemorando && (
-        <AnaliseModal
-          selectedMemorando={selectedMemorando}
-          selectedProcesso={selectedProcesso}
-          modalScope={modalScope}
-          activeTab={activeTab}
-          viewerKind={viewerKind}
-          flowNotice={flowNotice}
-          isAdmin={isAdmin}
-          selectedMemorandoReadOnly={selectedMemorandoReadOnly}
-          selectedProcessoLocked={selectedProcessoLocked}
-          onClose={() => setSelectedMemorandoId(null)}
-          onTabChange={setActiveTab}
-          onSelectProcesso={setSelectedProcessId}
-          onViewerKindChange={setViewerKind}
-          onSetMemorandoDecision={setMemorandoDecision}
-          onReturnMemorando={returnWholeMemorando}
-          onUpdateDeclarationDate={(value) => updateProcessoField("dataDeclaracao", value)}
-          onUpdateObservation={updateObservation}
-          onDecideProcesso={decideProcesso}
-        />
+      {selectedProcesso && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center px-4 py-5">
+          <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedProcesso(null)} />
+          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
+              <div>
+                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Detalhes do processo</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>{selectedProcesso.produtor}</h2>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[selectedProcesso.situacao]}`}>
+                    {SITUACAO_LABELS[selectedProcesso.situacao]}
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: COLORS.textLight }}>{selectedProcesso.cpf} | {selectedProcesso.unidadeLocal} | {TIPO_PROCESSO_LABELS[selectedProcesso.tipoProcesso]}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedProcesso(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="border-b px-5 pt-3" style={{ borderBottomColor: COLORS.border }}>
+              <div className="flex flex-wrap gap-2">
+                {DETAIL_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveDetailTab(tab.key)}
+                    className="rounded-t-md px-3 py-2 text-sm font-semibold transition-colors"
+                    style={{
+                      backgroundColor: activeDetailTab === tab.key ? COLORS.background : "transparent",
+                      color: activeDetailTab === tab.key ? COLORS.primary : COLORS.textLight,
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              {activeDetailTab === "dados" && (
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <InfoCard label="Status" value={SITUACAO_LABELS[selectedProcesso.situacao]} badgeClass={STATUS_COLORS[selectedProcesso.situacao]} />
+                    <InfoCard label="Técnico responsável" value={selectedProcesso.tecnicoResponsavel} />
+                    <InfoCard label="Gerente responsável" value={selectedProcesso.gerenteResponsavel || "-"} />
+                    <InfoCard label="Data de criação" value={formatDateTime(selectedProcesso.criadoEm)} />
+                    <InfoCard label="Último encaminhamento" value={formatDateTime(selectedProcesso.enviadoAnaliseEm || selectedProcesso.encaminhadoGerenteEm)} />
+                    <InfoCard label="Memorando atual" value={selectedProcesso.memorandoNumero || "-"} />
+                    <InfoCard label="UNLOC" value={selectedProcesso.unidadeLocal} />
+                    <InfoCard label="Tipo do processo" value={TIPO_PROCESSO_LABELS[selectedProcesso.tipoProcesso]} />
+                    <InfoCard label="Assinatura do gerente" value={formatDateTime(selectedProcesso.gerenteAssinadoEm)} />
+                  </div>
+
+                  {modalError && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-3 rounded-md border px-4 py-3 text-sm font-medium"
+                      style={{ backgroundColor: "#FEF3F2", borderColor: "#FCA5A5", color: COLORS.danger }}
+                    >
+                      <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                      <span>{modalError}</span>
+                    </div>
+                  )}
+
+                  {selectedProcesso.situacao === "em_analise" ? (
+                    <>
+                      <textarea
+                        value={justificativas[selectedProcesso.id] || ""}
+                        onChange={(event) => {
+                          setJustificativas({ ...justificativas, [selectedProcesso.id]: event.target.value });
+                          if (modalError) setModalError("");
+                        }}
+                        placeholder="Justificativa obrigatória somente para devolução."
+                        rows={3}
+                        className="w-full rounded-md border px-3 py-2 text-sm outline-none"
+                        style={{ borderColor: COLORS.border }}
+                      />
+
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button type="button" onClick={() => approveSelectedProcesso(selectedProcesso.id)} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
+                          <CheckCircle2 size={15} />
+                          Aprovar para lançamento
+                        </button>
+                        <button type="button" onClick={() => devolverSelectedProcesso(selectedProcesso.id)} className="sicpr-danger-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.danger }}>
+                          <RotateCcw size={15} />
+                          Devolver a UNLOC
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-md border px-4 py-3 text-sm" style={{ backgroundColor: COLORS.background, borderColor: COLORS.border, color: COLORS.textLight }}>
+                      Processo fora da etapa operacional da Análise. Nesta tela ele fica disponível apenas para consulta.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeDetailTab === "historico" && (
+                <div className="grid gap-4">
+                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
+                    <p className="mb-3 font-semibold" style={{ color: COLORS.text }}>Resumo do histórico</p>
+                    <HistoricoResumo processo={selectedProcesso} />
+                  </div>
+                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
+                    <p className="mb-4 font-semibold" style={{ color: COLORS.text }}>Timeline do processo</p>
+                    <ProcessoTimeline processo={selectedProcesso} />
+                  </div>
+                </div>
+              )}
+
+              {activeDetailTab === "documentos" && (
+                <div className="grid gap-4">
+                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border, color: COLORS.textLight }}>
+                    <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
+                      <FileText size={15} /> Documentos gerados automaticamente
+                    </p>
+                    <div className="grid gap-1">
+                      {getDocumentosGerados(selectedProcesso).map((doc) => (
+                        <button
+                          key={doc.arquivo}
+                          type="button"
+                          onClick={() => setPreview({ tipo: "gerado", processo: selectedProcesso, documento: doc })}
+                          className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
+                          style={{ color: COLORS.textLight }}
+                        >
+                          <Eye size={13} style={{ color: COLORS.primary }} />
+                          <span className="font-semibold" style={{ color: COLORS.text }}>{doc.nome}</span>
+                          <span className="min-w-0 truncate">{doc.arquivo}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border, color: COLORS.textLight }}>
+                    <p className="mb-2 font-semibold" style={{ color: COLORS.text }}>Documentos anexados</p>
+                    {getOutrosDocumentos(selectedProcesso).length > 0 ? getOutrosDocumentos(selectedProcesso).map((doc) => (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        onClick={() => setPreview({ tipo: "anexo", processo: selectedProcesso, documento: doc })}
+                        className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
+                        style={{ color: COLORS.textLight }}
+                      >
+                        <Eye size={13} style={{ color: COLORS.primary }} />
+                        <span className="min-w-0 truncate">{doc.arquivo}</span>
+                      </button>
+                    )) : <p className="text-sm">Sem anexos extras</p>}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </section>
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-5">
+          <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
+          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
+              <div>
+                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{preview.tipo === "gerado" ? "Documento gerado pelo sistema" : "Anexo enviado pela Unloc"}</p>
+                <h2 className="mt-1 text-base font-semibold" style={{ color: COLORS.primary }}>
+                  {preview.tipo === "gerado" ? preview.documento.nome : preview.documento.arquivo}
+                </h2>
+                <p className="text-sm" style={{ color: COLORS.textLight }}>{preview.processo.produtor} | {preview.processo.unidadeLocal}</p>
+              </div>
+              <button type="button" onClick={() => setPreview(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
+              {preview.tipo === "gerado" ? (
+                <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
+              ) : (
+                <AttachmentPreview documento={preview.documento} />
+              )}
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
+}
+
+function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
+  if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
+    return (
+      <div className="flex justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={documento.conteudo} alt={documento.arquivo} className="max-h-[72vh] max-w-full rounded-md border bg-white object-contain" />
+      </div>
+    );
+  }
+
+  if (documento.conteudo && documento.mimeType === "application/pdf") {
+    return <iframe title={documento.arquivo} src={documento.conteudo} className="h-[72vh] w-full rounded-md border bg-white" />;
+  }
+
+  return (
+    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
+      <FileText size={48} />
+      <p className="mt-3 font-semibold">{documento.arquivo}</p>
+      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pre-visualizacao disponivel para imagens e PDF.</p>
+    </div>
+  );
+}
+
+function InfoCard({ label, value, badgeClass }: { label: string; value: string; badgeClass?: string }) {
+  return (
+    <div className="rounded-md border bg-white px-3 py-3" style={{ borderColor: COLORS.border }}>
+      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
+      {badgeClass ? (
+        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass}`}>
+          {value}
+        </span>
+      ) : (
+        <p className="mt-2 break-words text-sm font-semibold" style={{ color: COLORS.text }}>{value}</p>
+      )}
+    </div>
+  );
+}
+
+function getMemorandoStatus(memorando: MemorandoAnaliseResumo) {
+  const situacoes = memorando.processos.map((processo) => processo.situacao);
+
+  if (situacoes.every((situacao) => situacao === "concluido" || situacao === "aprovado_lancamento")) {
+    return { key: "concluido" as const, label: "Concluído", className: "bg-emerald-50 text-emerald-700 ring-emerald-100" };
+  }
+  if (situacoes.some((situacao) => situacao === "aprovado_lancamento" || situacao === "concluido")) {
+    return { key: "em_analise" as const, label: "Em análise", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" };
+  }
+  return { key: "em_analise" as const, label: "Em análise", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" };
 }

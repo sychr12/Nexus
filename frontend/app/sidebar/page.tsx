@@ -21,7 +21,8 @@ import {
   Search,
   Paperclip,
   Key,
-  RotateCcw,
+  Building2,
+  UserCheck,
 } from "lucide-react";
 
 // Paleta de cores da sua imagem
@@ -38,17 +39,19 @@ const TOP_ITEMS = [
   { id: "home", label: "Home", icon: Home, href: "/" },
   { id: "dashboard", label: "Dashboard / KPIs", icon: LayoutDashboard, href: "/dashboard" },
   { id: "relatorios", label: "Relatórios", icon: PieChart, href: "/relatorios" },
+  { id: "unloc", label: "Unloc", icon: Building2, href: "/unloc" },
+  { id: "gerente", label: "Gerente UNLOC", icon: UserCheck, href: "/gerente" },
+  { id: "memorandos-assinados", label: "Memorandos Assinados", icon: FileText, href: "/memorandos-assinados" },
   { id: "memorando", label: "Memorando de Saída", icon: FileText, href: "/memorando" },
-  { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
   { id: "carteira", label: "Carteira Digital", icon: CreditCard, href: "/carteira" },
   { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
+  { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
   { id: "emails", label: "E-mails", icon: Mail, href: "/email" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
   { id: "Gerenciamento de Usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
-  { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
   { id: "notificacao", label: "Notificação", icon: Bell, href: "/notificacao" },
 ];
 
@@ -357,7 +360,7 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
         </div>
       )}
 
-      <div style={{ height: '104px' }} />
+      <div className="h-[104px] lg:h-[154px]" />
     </>
   );
 }
