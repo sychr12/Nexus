@@ -250,7 +250,7 @@ function MemorandoPreview({ processo }: { processo: DraftProcesso }) {
   return (
     <div
       className="relative mx-auto min-h-[960px] w-full max-w-[680px] overflow-hidden bg-white px-14 pb-44 pt-36 text-[13px] leading-6 text-black shadow-sm"
-      style={{ backgroundImage: "url('/idam-papel-timbrado-30anos.png')", backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}
+      style={{ backgroundImage: "url('/images/PapelTimbrado.png')", backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}
     >
       <p className="font-bold uppercase">MEMO Nº {processo.memorandoNumero || "0001/26"} - UNLOC {unidadeLocal}</p>
       <p className="mt-4 text-right">{unidadeLocal}, {dataCriacao.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}.</p>
@@ -312,7 +312,7 @@ function MemorandoTimbradoFooter() {
       </div>
       <div className="flex justify-end">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/idam-30anos-logo.png" alt="IDAM 30 anos" className="h-14 w-auto object-contain" />
+        <img src="/images/IDAM.png" alt="IDAM 30 anos" className="h-14 w-auto object-contain" />
       </div>
     </footer>
   );
