@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Eye, FileSignature, FileText, RotateCcw, Search, X } from "lucide-react";
-import { GeneratedDocumentPreview as DocumentTemplatePreview } from "../fluxo/DocumentPreviews";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileSignature, FileText, MapPin, RotateCcw, Search, X } from "lucide-react";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
+import { AttachmentPreview, DetailInfoCard, SICPR_COLORS, StatCard } from "../fluxo/SharedUi";
 import TopBar from "../sidebar/page";
 import {
   SITUACAO_LABELS,
@@ -19,17 +19,10 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
+import { GeneratedDocumentPreview } from "./GerenteDocumentPreviews";
+import { getGerenteHistory, getGerenteHistoryStatusClass } from "./history";
 
-const COLORS = {
-  primary: "#2D452F",
-  accent: "#6B9D4A",
-  background: "#F5F7F5",
-  card: "#FFFFFF",
-  text: "#1A2E1B",
-  textLight: "#6B7C6A",
-  border: "#E2E8E0",
-  danger: "#B42318",
-};
+const COLORS = SICPR_COLORS;
 
 const PAGE_SIZE = 50;
 type DetailTab = "dados" | "historico" | "documentos";
@@ -50,6 +43,8 @@ export default function GerentePage() {
   const [page, setPage] = useState(1);
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoSicpr | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>("dados");
+  const [expandedHistoryMemoIds, setExpandedHistoryMemoIds] = useState<string[]>([]);
+  const [showFullHistory, setShowFullHistory] = useState(false);
   const [batchReturnOpen, setBatchReturnOpen] = useState(false);
   const [batchJustificativa, setBatchJustificativa] = useState("");
   const [batchError, setBatchError] = useState("");
@@ -89,6 +84,7 @@ export default function GerentePage() {
   const totalPages = Math.max(1, Math.ceil(pendentes.length / PAGE_SIZE));
   const pagedPendentes = pendentes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const gerenteHistory = useMemo(() => getGerenteHistory(processos, username), [processos, username]);
+  const visibleGerenteHistory = showFullHistory ? gerenteHistory : gerenteHistory.slice(0, 10);
   const stats = useMemo(() => {
     const hoje = new Date().toLocaleDateString("pt-BR");
     const aprovadosHoje = gerenteHistory.filter((item) => item.tipo === "aprovado" && new Date(item.dataHora).toLocaleDateString("pt-BR") === hoje).length;
@@ -115,6 +111,10 @@ export default function GerentePage() {
 
   function toggle(id: string) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function toggleHistoryMemo(id: string) {
+    setExpandedHistoryMemoIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
   function approveBatch() {
@@ -308,20 +308,93 @@ export default function GerentePage() {
           </section>
 
           <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
-              <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>Histórico recente</h2>
-              <p className="text-xs" style={{ color: COLORS.textLight }}>Últimas decisões registradas pelo gerente.</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>Histórico recente</h2>
+                <p className="text-xs" style={{ color: COLORS.textLight }}>Últimos memorandos analisados pelo gerente.</p>
+              </div>
+              {gerenteHistory.length > 10 && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullHistory((current) => !current)}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold"
+                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
+                >
+                  {showFullHistory ? "Mostrar últimos 10" : "Ver histórico completo"}
+                </button>
+              )}
             </div>
-            <div className="px-4 py-3">
-              {gerenteHistory.length > 0 ? gerenteHistory.slice(0, 8).map((item) => (
-                <div key={item.id} className="py-1.5 text-sm">
-                  <div>
-                    <p className="font-semibold" style={{ color: COLORS.text }}>{item.produtor}</p>
-                    <p className="text-xs" style={{ color: COLORS.textLight }}>
-                      {item.tipo === "aprovado" ? "Aprovado" : "Devolvido"} • {formatDateTime(item.dataHora)}
-                    </p>
-                  </div>
-                </div>
+            <div className="grid gap-3 px-4 py-4">
+              {visibleGerenteHistory.length > 0 ? visibleGerenteHistory.map((item) => (
+                <article key={item.id} className="rounded-lg border px-4 py-3 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleHistoryMemo(item.id)}
+                    className="flex w-full flex-wrap items-start justify-between gap-4 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getGerenteHistoryStatusClass(item.tipo)}`}>
+                          {item.tipo === "aprovado" ? "Aprovado" : "Devolvido"}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-[#F5F7F5] px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ring-[#E2E8E0]" style={{ color: COLORS.primary }}>
+                          {item.quantidade} {item.quantidade === 1 ? "processo" : "processos"}
+                        </span>
+                      </div>
+                      <h3 className="mt-2 truncate text-base font-semibold uppercase tracking-wide" style={{ color: COLORS.primary }}>
+                        Memorando {item.numero}
+                      </h3>
+                      <div className="mt-2 grid gap-1 text-sm font-medium" style={{ color: COLORS.textLight }}>
+                        <span className="inline-flex items-center gap-2">
+                          <Clock size={14} />
+                          {formatDateTime(item.dataHora)}
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <MapPin size={14} />
+                          UNLOC: {item.unidadeLocal || "-"}
+                        </span>
+                        {item.motivo && (
+                          <span className="text-sm" style={{ color: COLORS.danger }}>
+                            Motivo: {item.motivo}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.textLight }}>
+                      {expandedHistoryMemoIds.includes(item.id) ? "Recolher" : "Ver produtores"}
+                      <ChevronDown size={14} className={expandedHistoryMemoIds.includes(item.id) ? "rotate-180 transition-transform" : "transition-transform"} />
+                    </span>
+                  </button>
+
+                  {expandedHistoryMemoIds.includes(item.id) && (
+                    <div className="mt-4 overflow-hidden rounded-md border" style={{ borderColor: COLORS.border }}>
+                      {item.produtores.map((produtor) => {
+                        const processo = processos.find((current) => current.id === produtor.id);
+                        return (
+                          <button
+                            key={produtor.id}
+                            type="button"
+                            onClick={() => {
+                              if (!processo) return;
+                              setSelectedProcesso(processo);
+                              setActiveDetailTab("dados");
+                            }}
+                            className="flex w-full flex-wrap items-center justify-between gap-3 border-b px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-[#F5F7F5]"
+                            style={{ borderBottomColor: COLORS.border }}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold" style={{ color: COLORS.text }}>{produtor.produtor}</span>
+                              <span className="text-xs" style={{ color: COLORS.textLight }}>{produtor.cpf}</span>
+                            </span>
+                            <span className="text-xs font-semibold" style={{ color: COLORS.primary }}>
+                              {TIPO_PROCESSO_LABELS[produtor.tipoProcesso]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
               )) : (
                 <div className="px-4 py-8 text-center text-sm" style={{ color: COLORS.textLight }}>Nenhuma decisão registrada ainda.</div>
               )}
@@ -539,239 +612,3 @@ export default function GerentePage() {
   );
 }
 
-function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
-  if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
-    return (
-      <div className="flex justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={documento.conteudo} alt={documento.arquivo} className="max-h-[72vh] max-w-full rounded-md border bg-white object-contain" />
-      </div>
-    );
-  }
-
-  if (documento.conteudo && documento.mimeType === "application/pdf") {
-    return <iframe title={documento.arquivo} src={documento.conteudo} className="h-[72vh] w-full rounded-md border bg-white" />;
-  }
-
-  return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
-      <FileText size={48} />
-      <p className="mt-3 font-semibold">{documento.arquivo}</p>
-      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pre-visualizacao disponivel para imagens e PDF.</p>
-    </div>
-  );
-}
-
-function DetailInfoCard({ label, value, badgeClass }: { label: string; value: string; badgeClass?: string }) {
-  return (
-    <div className="rounded-md border bg-white px-3 py-3" style={{ borderColor: COLORS.border }}>
-      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-      {badgeClass ? (
-        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass}`}>
-          {value}
-        </span>
-      ) : (
-        <p className="mt-2 break-words text-sm font-semibold" style={{ color: COLORS.text }}>{value}</p>
-      )}
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border px-3 py-2 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-      <p className="mt-1 text-xl font-bold" style={{ color: COLORS.primary }}>{value}</p>
-    </div>
-  );
-}
-
-function getGerenteHistory(processos: ProcessoSicpr[], username: string) {
-  return processos
-    .flatMap((processo) =>
-      processo.historico
-        .filter((item) =>
-          item.usuario === username &&
-          (item.acao === "Aprovado e assinado pelo gerente" || item.acao === "Devolvido pelo gerente"),
-        )
-        .map((item) => ({
-          id: `${processo.id}-${item.id}`,
-          produtor: processo.produtor,
-          dataHora: item.dataHora,
-          tipo: item.acao === "Devolvido pelo gerente" ? "devolvido" as const : "aprovado" as const,
-        })),
-    )
-    .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime());
-}
-
-function GeneratedDocumentPreview({ processo, documento }: { processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }) {
-  if (documento.tipo === "fac" || documento.tipo === "declaracao_produtor") {
-    return <DocumentTemplatePreview processo={processo} documento={documento} />;
-  }
-
-  if (documento.tipo === "formulario") {
-    return <FormularioPreview processo={processo} />;
-  }
-
-  if (documento.tipo === "memorando") {
-    return <MemorandoPreview processo={processo} />;
-  }
-
-  return (
-    <div className="mx-auto min-h-[720px] max-w-3xl bg-white px-12 py-10 text-[14px] leading-7 shadow-sm">
-      <header className="mb-8 text-center">
-        <p className="text-3xl font-bold text-emerald-700">AMAZONAS</p>
-        <p className="text-xs font-semibold uppercase text-gray-500">Governo do Estado</p>
-      </header>
-      <h3 className="text-center text-xl font-bold">{documento.nome}</h3>
-      <p className="mt-10 text-right">{processo.unidadeLocal} - AM, {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}.</p>
-      <p className="mt-6">
-        Declaramos para os devidos fins de <strong>{processo.tipoProcesso}</strong> da Carteira do Produtor Rural que
-        <strong> {processo.produtor}</strong>, CPF <strong>{processo.cpf}</strong>, possui processo cadastral vinculado a
-        Unidade Local de <strong>{processo.unidadeLocal}</strong>.
-      </p>
-      <p className="mt-4">
-        Este documento foi gerado automaticamente pelo SICPR com base nos dados preenchidos pela Unloc, sem necessidade de preenchimento manual.
-      </p>
-      {documento.dados && Object.keys(documento.dados).length > 0 && (
-        <div className="mt-8 rounded border border-gray-200 p-4">
-          <p className="mb-2 font-bold">Dados informados no preenchimento</p>
-          {Object.entries(documento.dados).map(([campo, valor]) => (
-            <p key={campo}>
-              <strong>{campo}:</strong> {valor || "-"}
-            </p>
-          ))}
-        </div>
-      )}
-      <div className="mt-20 grid grid-cols-2 gap-12 text-center">
-        <div>
-          <div className="border-t border-gray-500 pt-2">Tecnico responsavel</div>
-          <p className="text-xs text-gray-500">{processo.tecnicoResponsavel}</p>
-        </div>
-        <div>
-          <div className="border-t border-gray-500 pt-2">Gerente da Unidade Local</div>
-          <p className="text-xs text-gray-500">{processo.gerenteResponsavel || "Aguardando assinatura"}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FormularioPreview({ processo }: { processo: ProcessoSicpr }) {
-  return (
-    <div className="mx-auto min-h-[720px] max-w-3xl bg-white px-12 py-10 text-[14px] leading-7 shadow-sm">
-      <header className="mb-8 text-center">
-        <p className="text-3xl font-bold text-emerald-700">AMAZONAS</p>
-        <p className="text-xs font-semibold uppercase text-gray-500">Governo do Estado</p>
-      </header>
-      <h3 className="text-center text-xl font-bold">Formulario cadastral</h3>
-      <div className="mt-10 grid gap-3 rounded border border-gray-200 p-5">
-        <p><strong>Produtor:</strong> {processo.produtor}</p>
-        <p><strong>CPF:</strong> {processo.cpf}</p>
-        <p><strong>Tipo do processo:</strong> {TIPO_PROCESSO_LABELS[processo.tipoProcesso]}</p>
-        <p><strong>Unidade Local:</strong> {processo.unidadeLocal}</p>
-        <p><strong>Tecnico responsavel:</strong> {processo.tecnicoResponsavel}</p>
-        <p><strong>Gerente responsavel:</strong> {processo.gerenteResponsavel || "Aguardando assinatura"}</p>
-      </div>
-    </div>
-  );
-}
-
-function MemorandoPreview({ processo }: { processo: ProcessoSicpr }) {
-  const produtores = processo.memorandoProdutores?.length
-    ? processo.memorandoProdutores
-    : [{ id: processo.id, produtor: processo.produtor, cpf: processo.cpf, tipoProcesso: processo.tipoProcesso }];
-  const criadoEm = processo.memorandoCriadoEm ? new Date(processo.memorandoCriadoEm) : new Date();
-  const dataCriacao = Number.isNaN(criadoEm.getTime()) ? new Date() : criadoEm;
-  const grupos = groupProdutoresByTipoMemorando(produtores);
-  const unidadeLocal = processo.unidadeLocal || "Unidade Local";
-  const gerente = processo.gerenteResponsavel || "Gerente da Unidade Local";
-
-  return (
-    <div
-      className="relative mx-auto min-h-[960px] max-w-3xl overflow-hidden bg-white px-14 pb-44 pt-36 text-[13px] leading-6 text-black shadow-sm"
-      style={{ backgroundImage: "url('/images/PapelTimbrado.png')", backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}
-    >
-      <p className="font-bold uppercase">MEMO Nº {processo.memorandoNumero} - UNLOC {unidadeLocal}</p>
-      <p className="mt-4 text-right">{unidadeLocal}, {dataCriacao.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}.</p>
-      <div className="mt-8 space-y-1 uppercase">
-        <p><strong>DA:</strong> UNIDADE LOCAL DE {unidadeLocal}</p>
-        <p><strong>PARA:</strong> CPCPR - GABIN</p>
-      </div>
-      <p className="mt-8">Prezado Senhor,</p>
-      {grupos.map((grupo, groupIndex) => (
-        <section key={grupo.tipo} className={groupIndex === 0 ? "mt-5" : "mt-8"}>
-          <p>{grupo.texto}</p>
-          <table className="mt-4 w-full border-collapse text-[12px]">
-            <thead>
-              <tr>
-                <th className="border border-black px-2 py-1 text-center">Nº</th>
-                <th className="border border-black px-2 py-1 text-left">NOME</th>
-                <th className="border border-black px-2 py-1 text-left">CPF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {grupo.produtores.map((produtor, index) => (
-                <tr key={produtor.id || `${produtor.cpf}-${index}`}>
-                  <td className="border border-black px-2 py-1 text-center">{index + 1}</td>
-                  <td className="border border-black px-2 py-1 uppercase">{produtor.produtor}</td>
-                  <td className="border border-black px-2 py-1">{produtor.cpf}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ))}
-      <p className="mt-8">Cordialmente,</p>
-      <div className="mx-auto mt-20 w-80 border-t border-black pt-2 text-center">
-        <p className="font-semibold uppercase">{gerente}</p>
-        <p>Gerente da Unloc {unidadeLocal}</p>
-      </div>
-      <MemorandoTimbradoFooter />
-    </div>
-  );
-}
-
-function MemorandoTimbradoFooter() {
-  return (
-    <footer className="absolute bottom-8 left-12 right-12 grid grid-cols-[1fr_1.25fr_1fr] items-center gap-5 text-[11px] leading-4 text-[#7D8AA5]">
-      <div className="space-y-0.5">
-        <p>www.idam.am.gov.br</p>
-        <p>twitter.com/idam_govam</p>
-        <p>youtube.com/idam_govam</p>
-        <p>facebook.com/idam_govam</p>
-        <p>Instagram.com/@idam_govam</p>
-      </div>
-      <div className="border-x border-[#98A6A1] px-5">
-        <p>presidencia@idam.am.gov.br</p>
-        <p>Fone: (92) 98452-9911</p>
-        <p>Avenida Carlos Drummond de</p>
-        <p>Andrade, 1460, Bloco G - 2º Andar</p>
-        <p>Conj. Atílio Andreazza - Japiim</p>
-        <p>Manaus - AM - CEP: 69077-730</p>
-      </div>
-      <div className="flex justify-end">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/IDAM.png" alt="IDAM 30 anos" className="h-14 w-auto object-contain" />
-      </div>
-    </footer>
-  );
-}
-
-function groupProdutoresByTipoMemorando(
-  produtores: Array<{ id?: string; produtor: string; cpf: string; tipoProcesso: ProcessoSicpr["tipoProcesso"] }>,
-) {
-  const textos = {
-    renovacao: "Ao cumprimentar Vossa Senhoria, estamos encaminhando em anexo as Carteiras de Produtor Rural para que sejam revalidadas, conforme relação abaixo:",
-    inscricao: "Aproveitamos o ensejo para encaminhar em anexo o Primeiro Cadastro de Produtor Rural, para que seja expedida a 1ª via da Carteira do Produtor Rural abaixo relacionado:",
-    alteracao: "Aproveitamos também para encaminhar em anexo as alterações do Cadastro dos Cartões do Produtor Primário, para que sejam corrigidas, conforme relação abaixo:",
-  };
-
-  return (["renovacao", "inscricao", "alteracao"] as const)
-    .map((tipo) => ({
-      tipo,
-      texto: textos[tipo],
-      produtores: produtores.filter((produtor) => produtor.tipoProcesso === tipo),
-    }))
-    .filter((grupo) => grupo.produtores.length > 0);
-}

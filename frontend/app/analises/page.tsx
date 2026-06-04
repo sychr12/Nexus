@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, MapPin, RotateCcw, Search, UserRound, X } from "lucide-react";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
+import { AttachmentPreview, DetailInfoCard as InfoCard, SICPR_COLORS } from "../fluxo/SharedUi";
 import TopBar from "../sidebar/page";
 import {
   SITUACAO_LABELS,
@@ -18,17 +19,9 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
+import { getMemorandoStatus } from "./helpers";
 
-const COLORS = {
-  primary: "#2D452F",
-  accent: "#6B9D4A",
-  background: "#F5F7F5",
-  card: "#FFFFFF",
-  text: "#1A2E1B",
-  textLight: "#6B7C6A",
-  border: "#E2E8E0",
-  danger: "#B42318",
-};
+const COLORS = SICPR_COLORS;
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
@@ -548,54 +541,4 @@ export default function AnalisesPage() {
       )}
     </div>
   );
-}
-
-function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
-  if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
-    return (
-      <div className="flex justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={documento.conteudo} alt={documento.arquivo} className="max-h-[72vh] max-w-full rounded-md border bg-white object-contain" />
-      </div>
-    );
-  }
-
-  if (documento.conteudo && documento.mimeType === "application/pdf") {
-    return <iframe title={documento.arquivo} src={documento.conteudo} className="h-[72vh] w-full rounded-md border bg-white" />;
-  }
-
-  return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
-      <FileText size={48} />
-      <p className="mt-3 font-semibold">{documento.arquivo}</p>
-      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pre-visualizacao disponivel para imagens e PDF.</p>
-    </div>
-  );
-}
-
-function InfoCard({ label, value, badgeClass }: { label: string; value: string; badgeClass?: string }) {
-  return (
-    <div className="rounded-md border bg-white px-3 py-3" style={{ borderColor: COLORS.border }}>
-      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-      {badgeClass ? (
-        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass}`}>
-          {value}
-        </span>
-      ) : (
-        <p className="mt-2 break-words text-sm font-semibold" style={{ color: COLORS.text }}>{value}</p>
-      )}
-    </div>
-  );
-}
-
-function getMemorandoStatus(memorando: MemorandoAnaliseResumo) {
-  const situacoes = memorando.processos.map((processo) => processo.situacao);
-
-  if (situacoes.every((situacao) => situacao === "concluido" || situacao === "aprovado_lancamento")) {
-    return { key: "concluido" as const, label: "Concluído", className: "bg-emerald-50 text-emerald-700 ring-emerald-100" };
-  }
-  if (situacoes.some((situacao) => situacao === "aprovado_lancamento" || situacao === "concluido")) {
-    return { key: "em_analise" as const, label: "Em análise", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" };
-  }
-  return { key: "em_analise" as const, label: "Em análise", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" };
 }

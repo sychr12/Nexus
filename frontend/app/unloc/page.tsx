@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, RotateCcw,
 import UnlocSelect from "../components/UnlocSelect";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
+import { AttachmentPreview, DetailInfoCard, FilterStatCard as StatCard, SICPR_COLORS } from "../fluxo/SharedUi";
 import TopBar from "../sidebar/page";
 import {
   SITUACAO_LABELS,
@@ -21,93 +22,11 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr, TipoProcessoSicpr } from "../fluxo/types";
+import { DOCUMENT_MODELS, DETAIL_TABS, PAGE_SIZE, PROCESS_FILTERS, initialForm } from "./config";
+import type { AnexoUpload, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
+import { fileToAnexo, formatCpf, formatFileSize, onlyDigits } from "./file-utils";
 
-const COLORS = {
-  primary: "#2D452F",
-  accent: "#6B9D4A",
-  background: "#F5F7F5",
-  card: "#FFFFFF",
-  text: "#1A2E1B",
-  textLight: "#6B7C6A",
-  border: "#E2E8E0",
-  danger: "#B42318",
-};
-
-const initialForm = {
-  produtor: "",
-  cpf: "",
-  tipoProcesso: "inscricao" as TipoProcessoSicpr,
-  unidadeLocal: "",
-};
-
-type AnexoUpload = Pick<DocumentoProcesso, "id" | "nome" | "arquivo" | "conteudo" | "mimeType" | "tamanho">;
-type GeneratedDocKey = "fac" | "declaracao_produtor";
-type ProcessoFilter = "todos" | "em_elaboracao" | "encaminhado_gerente" | "em_analise" | "devolvidos" | "concluidos";
-type DetailTab = "dados" | "historico" | "documentos";
-
-const PAGE_SIZE = 50;
-
-const PROCESS_FILTERS: Array<{ id: ProcessoFilter; label: string }> = [
-  { id: "em_elaboracao", label: "Em elaboração" },
-  { id: "encaminhado_gerente", label: "Aguardando gerente" },
-  { id: "em_analise", label: "Em análise" },
-  { id: "devolvidos", label: "Devolvidos" },
-  { id: "concluidos", label: "Concluídos" },
-  { id: "todos", label: "Todos" },
-];
-
-const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
-  { key: "dados", label: "Dados" },
-  { key: "historico", label: "Histórico" },
-  { key: "documentos", label: "Documentos" },
-];
-
-const DOCUMENT_MODELS: Array<{
-  tipo: GeneratedDocKey;
-  nome: string;
-  descricao: string;
-  campos: Array<{ key: string; label: string; placeholder: string }>;
-}> = [
-  {
-    tipo: "declaracao_produtor",
-    nome: "Declaração",
-    descricao: "Declaracao textual assinada pela unidade local.",
-    campos: [
-      { key: "numero", label: "Numero da declaracao", placeholder: "Ex.: BOA 437/2026" },
-      { key: "rg", label: "RG / Documento de identidade", placeholder: "Ex.: 194.514 SEP/AC" },
-      { key: "propriedade", label: "Nome da propriedade", placeholder: "Ex.: Sitio Terra Nova" },
-      { key: "endereco", label: "Endereco/comunidade", placeholder: "Ex.: Margem direita do Rio Purus Comunidade Lago Novo" },
-      { key: "anoAtendimento", label: "Atendido desde", placeholder: "Ex.: 2012" },
-      { key: "atividadePrincipal", label: "Atividade principal", placeholder: "Ex.: Horticultura" },
-      { key: "area", label: "Area", placeholder: "Ex.: 0,2 ha" },
-      { key: "incluindo", label: "Incluindo", placeholder: "Ex.: Cultivo de Alface e Cebola de palha" },
-      { key: "latitude", label: "Latitude", placeholder: "Ex.: 08°75'28,62\"" },
-      { key: "longitude", label: "Longitude", placeholder: "Ex.: 67°37'10,93\"" },
-    ],
-  },
-  {
-    tipo: "fac",
-    nome: "FAC",
-    descricao: "Declaracao de produtor rural com dados cadastrais.",
-    campos: [
-      { key: "inscricaoEstadual", label: "Inscricao estadual", placeholder: "Opcional" },
-      { key: "rg", label: "RG / Documento de identidade", placeholder: "Ex.: 194.514 SSP/AC" },
-      { key: "emissor", label: "Estado emissor", placeholder: "Ex.: SEP/AC" },
-      { key: "rua", label: "Rua / Av.", placeholder: "Ex.: Zona Rural" },
-      { key: "bairro", label: "Bairro", placeholder: "Ex.: Zona Rural" },
-      { key: "municipio", label: "Municipio", placeholder: "Ex.: Boca do Acre" },
-      { key: "uf", label: "UF", placeholder: "Ex.: AM" },
-      { key: "endereco", label: "Endereco da propriedade", placeholder: "Ex.: Margem direita do Rio Purus" },
-      { key: "propriedade", label: "Nome da propriedade", placeholder: "Ex.: Sitio Terra Nova" },
-      { key: "comunidade", label: "Comunidade", placeholder: "Ex.: Lago Novo" },
-      { key: "atividade", label: "Atividade principal", placeholder: "Ex.: Horticultura" },
-      { key: "areaTotal", label: "Area total", placeholder: "Ex.: 15,00" },
-      { key: "areaExplorada", label: "Area explorada", placeholder: "Ex.: 0,5 HA" },
-      { key: "producoes", label: "Principais producoes", placeholder: "Ex.: Horticultura, exceto morango" },
-      { key: "observacao", label: "Observacoes", placeholder: "Ex.: Atividade Principal - Alface 0,2 ha" },
-    ],
-  },
-];
+const COLORS = SICPR_COLORS;
 
 export default function UnlocPage() {
   const router = useRouter();
@@ -941,96 +860,4 @@ export default function UnlocPage() {
       )}
     </div>
   );
-}
-
-function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
-  if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
-    return (
-      <div className="flex justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={documento.conteudo} alt={documento.arquivo} className="max-h-[72vh] max-w-full rounded-md border bg-white object-contain" />
-      </div>
-    );
-  }
-
-  if (documento.conteudo && documento.mimeType === "application/pdf") {
-    return <iframe title={documento.arquivo} src={documento.conteudo} className="h-[72vh] w-full rounded-md border bg-white" />;
-  }
-
-  return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
-      <FileText size={48} />
-      <p className="mt-3 font-semibold">{documento.arquivo}</p>
-      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pre-visualizacao disponivel para imagens e PDF.</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value, active, onClick }: { label: string; value: number; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-md border px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
-      style={{
-        borderColor: active ? COLORS.primary : COLORS.border,
-        backgroundColor: active ? "#EEF5EC" : COLORS.background,
-      }}
-    >
-      <p className="text-xs font-semibold uppercase" style={{ color: active ? COLORS.primary : COLORS.textLight }}>{label}</p>
-      <p className="mt-1 text-xl font-bold" style={{ color: COLORS.primary }}>{value}</p>
-    </button>
-  );
-}
-
-function DetailInfoCard({ label, value, badgeClass }: { label: string; value: string; badgeClass?: string }) {
-  return (
-    <div className="rounded-md border bg-white px-3 py-3" style={{ borderColor: COLORS.border }}>
-      <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{label}</p>
-      {badgeClass ? (
-        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeClass}`}>
-          {value}
-        </span>
-      ) : (
-        <p className="mt-2 break-words text-sm font-semibold" style={{ color: COLORS.text }}>{value}</p>
-      )}
-    </div>
-  );
-}
-
-function fileToAnexo(file: File): Promise<AnexoUpload> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        id: `${Date.now()}-${file.name}-${Math.random().toString(16).slice(2)}`,
-        nome: file.name,
-        arquivo: file.name,
-        conteudo: String(reader.result || ""),
-        mimeType: file.type,
-        tamanho: file.size,
-      });
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-function formatFileSize(size?: number) {
-  if (!size) return "Tamanho nao informado";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-function formatCpf(value: string) {
-  const digits = onlyDigits(value).slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
