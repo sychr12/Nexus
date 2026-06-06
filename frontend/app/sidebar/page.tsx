@@ -22,6 +22,7 @@ import {
   Paperclip,
   Key,
   RotateCcw,
+  MessageCircle,
 } from "lucide-react";
 
 // Paleta de cores da sua imagem
@@ -46,6 +47,7 @@ const TOP_ITEMS = [
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
   { id: "emails", label: "E-mails", icon: Mail, href: "/email" },
+  { id: "mensagens", label: "Mensagens", icon: MessageCircle, href: "/mensagens" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
   { id: "Gerenciamento de Usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
   { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
