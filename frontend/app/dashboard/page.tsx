@@ -15,7 +15,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import TopBar from "../sidebar/page"; // Mudado de Sidebar para TopBar
+import TopBar from "../sidebar/page";
 
 import StatsCards from "./components/StatsCards";
 import UsersOnline from "./components/UsersOnline";
@@ -29,6 +29,64 @@ import {
   Relatorio,
   Notificacao,
 } from "./lib/types";
+
+// Animações CSS
+const animations = `
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+`;
 
 // Nova paleta de cores
 const COLORS = {
@@ -54,6 +112,8 @@ export default function DashboardPage() {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [animated, setAnimated] = useState(false);
+  const [username, setUsername] = useState("Usuário");
 
   const [lineChartData, setLineChartData] = useState([
     { mes: "Jan", receita: 42000, despesa: 28000 },
@@ -72,6 +132,25 @@ export default function DashboardPage() {
   ]);
 
   useEffect(() => {
+    // Adiciona estilos de animação
+    if (!document.getElementById("dashboard-animations")) {
+      const style = document.createElement("style");
+      style.id = "dashboard-animations";
+      style.textContent = animations;
+      document.head.appendChild(style);
+    }
+
+    // Pega o username do localStorage
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUsername(user.username || user.nomeCompleto || "Usuário");
+      } catch {
+        setUsername("Usuário");
+      }
+    }
+
     const token = localStorage.getItem("token");
     if (!token) {
       router.push("/login");
@@ -79,6 +158,10 @@ export default function DashboardPage() {
     }
     loadAll();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    
+    // Ativa animações após carregamento
+    setTimeout(() => setAnimated(true), 100);
+    
     return () => clearInterval(timer);
   }, []);
 
@@ -112,12 +195,10 @@ export default function DashboardPage() {
 
   function handleLogout() {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     localStorage.removeItem("username");
     router.push("/login");
   }
-
-  const username = typeof window !== "undefined" ? localStorage.getItem("username") || "Usuário" : "Usuário";
-  const unreadCount = notificacoes.filter((n) => !n.lida).length;
 
   if (loading) {
     return (
@@ -129,23 +210,45 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      {/* TopBar sem props isOpen/onClose */}
       <TopBar onLogout={handleLogout} username={username} />
 
-      {/* Conteúdo principal - sem lg:pl-72 */}
-      <main className="px-4 sm:px-6 lg:px-8 py-8">
+      {/* Conteúdo principal com paddingTop para compensar o TopBar */}
+      <main className="px-4 sm:px-6 lg:px-8 py-8" style={{ paddingTop: "70px" }}>
         <div className="space-y-8">
-          {stats && <StatsCards stats={stats} />}
+          {/* TÍTULO DO DASHBOARD */}
+          <div style={{ animation: animated ? "fadeInUp 0.5s ease-out" : "none" }}>
+            <h1 className="text-3xl font-bold tracking-tight" style={{ color: COLORS.primary }}>
+              Dashboard
+            </h1>
+            <p className="text-sm mt-1" style={{ color: COLORS.textLight }}>
+              Visão geral do sistema e métricas principais
+            </p>
+          </div>
+
+          {/* Stats Cards com animação */}
+          <div style={{ animation: animated ? "fadeInUp 0.6s ease-out 0.1s both" : "none" }}>
+            {stats && <StatsCards stats={stats} />}
+          </div>
 
           {/* 2 GRÁFICOS LADO A LADO */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Gráfico de Linha */}
-            <div className="rounded-xl shadow-sm border p-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.light }}>
+            <div 
+              className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+              style={{ 
+                backgroundColor: COLORS.card, 
+                borderColor: COLORS.light,
+                animation: animated ? "fadeInLeft 0.6s ease-out 0.2s both" : "none"
+              }}
+            >
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${COLORS.primary}10` }}>
+                <div 
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
+                  style={{ backgroundColor: `${COLORS.primary}10` }}
+                >
                   <TrendingUp size={18} style={{ color: COLORS.primary }} />
                 </div>
-                <h3 className="font-semibold" style={{ color: COLORS.text }}>Receita vs Despesa</h3>
+                <h3 className="font-semibold transition-colors duration-300 hover:text-accent" style={{ color: COLORS.text }}>Receita vs Despesa</h3>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={lineChartData}>
@@ -161,19 +264,47 @@ export default function DashboardPage() {
                     }}
                   />
                   <Legend />
-                  <Line type="monotone" dataKey="receita" name="Receita (R$)" stroke={COLORS.primary} strokeWidth={2} dot={{ fill: COLORS.primary, r: 4 }} />
-                  <Line type="monotone" dataKey="despesa" name="Despesa (R$)" stroke={COLORS.accent} strokeWidth={2} dot={{ fill: COLORS.accent, r: 4 }} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="receita" 
+                    name="Receita (R$)" 
+                    stroke={COLORS.primary} 
+                    strokeWidth={2} 
+                    dot={{ fill: COLORS.primary, r: 4 }}
+                    animationDuration={1500}
+                    animationBegin={300}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="despesa" 
+                    name="Despesa (R$)" 
+                    stroke={COLORS.accent} 
+                    strokeWidth={2} 
+                    dot={{ fill: COLORS.accent, r: 4 }}
+                    animationDuration={1500}
+                    animationBegin={500}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
             {/* Gráfico de Barras */}
-            <div className="rounded-xl shadow-sm border p-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.light }}>
+            <div 
+              className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+              style={{ 
+                backgroundColor: COLORS.card, 
+                borderColor: COLORS.light,
+                animation: animated ? "fadeInRight 0.6s ease-out 0.2s both" : "none"
+              }}
+            >
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${COLORS.accent}10` }}>
+                <div 
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
+                  style={{ backgroundColor: `${COLORS.accent}10` }}
+                >
                   <PieChartIcon size={18} style={{ color: COLORS.accent }} />
                 </div>
-                <h3 className="font-semibold" style={{ color: COLORS.text }}>Top Categorias</h3>
+                <h3 className="font-semibold transition-colors duration-300 hover:text-accent" style={{ color: COLORS.text }}>Top Categorias</h3>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={barChartData}>
@@ -187,7 +318,14 @@ export default function DashboardPage() {
                       borderRadius: "8px",
                     }}
                   />
-                  <Bar dataKey="valor" name="Percentual (%)" fill={COLORS.accent} radius={[8, 8, 0, 0]} />
+                  <Bar 
+                    dataKey="valor" 
+                    name="Percentual (%)" 
+                    fill={COLORS.accent} 
+                    radius={[8, 8, 0, 0]} 
+                    animationDuration={1500}
+                    animationBegin={300}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -195,25 +333,50 @@ export default function DashboardPage() {
 
           {/* Cards complementares */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {usuarios.length > 0 && <UsersOnline users={usuarios} />}
+            {/* UsersOnline com animação */}
+            <div style={{ animation: animated ? "fadeInUp 0.5s ease-out 0.3s both" : "none" }}>
+              {usuarios.length > 0 && <UsersOnline users={usuarios} />}
+            </div>
 
+            {/* Distribuição */}
             {categorias.length > 0 && (
-              <div className="rounded-xl shadow-sm border p-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.light }}>
+              <div 
+                className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+                style={{ 
+                  backgroundColor: COLORS.card, 
+                  borderColor: COLORS.light,
+                  animation: animated ? "fadeInUp 0.5s ease-out 0.4s both" : "none"
+                }}
+              >
                 <div className="flex items-center gap-2 mb-6">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${COLORS.secondary}10` }}>
+                  <div 
+                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
+                    style={{ backgroundColor: `${COLORS.secondary}10` }}
+                  >
                     <PieChartIcon size={18} style={{ color: COLORS.secondary }} />
                   </div>
                   <h3 className="font-semibold" style={{ color: COLORS.text }}>Distribuição</h3>
                 </div>
                 <div className="space-y-4">
                   {categorias.map((cat, i) => (
-                    <div key={i}>
+                    <div 
+                      key={i} 
+                      className="transition-all duration-300 hover:translate-x-1"
+                      style={{ animation: animated ? `fadeInRight 0.3s ease-out ${i * 0.1 + 0.5}s both` : "none" }}
+                    >
                       <div className="flex justify-between text-sm mb-1">
                         <span style={{ color: COLORS.textLight }}>{cat.nome}</span>
                         <span className="font-medium" style={{ color: COLORS.text }}>{cat.total}%</span>
                       </div>
                       <div className="w-full rounded-full h-2" style={{ backgroundColor: COLORS.light }}>
-                        <div className="h-2 rounded-full" style={{ width: `${cat.total}%`, backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }} />
+                        <div 
+                          className="h-2 rounded-full transition-all duration-1000 ease-out"
+                          style={{ 
+                            width: `${cat.total}%`, 
+                            backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
+                            animation: animated ? "slideIn 0.8s ease-out" : "none"
+                          }} 
+                        />
                       </div>
                     </div>
                   ))}
@@ -221,19 +384,33 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="rounded-xl shadow-sm border p-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.light }}>
+            {/* Evolução Mensal */}
+            <div 
+              className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
+              style={{ 
+                backgroundColor: COLORS.card, 
+                borderColor: COLORS.light,
+                animation: animated ? "fadeInUp 0.5s ease-out 0.5s both" : "none"
+              }}
+            >
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${COLORS.primary}10` }}>
+                <div 
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
+                  style={{ backgroundColor: `${COLORS.primary}10` }}
+                >
                   <Activity size={18} style={{ color: COLORS.primary }} />
                 </div>
                 <h3 className="font-semibold" style={{ color: COLORS.text }}>Evolução Mensal</h3>
-                <div className="ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded-full" style={{ backgroundColor: `${COLORS.accent}20`, color: COLORS.accent }}>
-                  <TrendingUp size={12} />
+                <div 
+                  className="ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-all duration-300 hover:scale-105"
+                  style={{ backgroundColor: `${COLORS.accent}20`, color: COLORS.accent }}
+                >
+                  <TrendingUp size={12} className="animate-pulse" />
                   <span>+12%</span>
                 </div>
               </div>
               <div className="h-48 flex items-center justify-center">
-                <div className="text-center">
+                <div className="text-center transition-all duration-300 hover:scale-105">
                   <Activity size={40} style={{ color: COLORS.textLight }} />
                   <p className="text-sm mt-2" style={{ color: COLORS.textLight }}>Mais dados em breve</p>
                 </div>
@@ -242,10 +419,21 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {atividades.length > 0 && <RecentActivities activities={atividades} />}
+            {/* Recent Activities */}
+            <div style={{ animation: animated ? "fadeInUp 0.5s ease-out 0.6s both" : "none" }}>
+              {atividades.length > 0 && <RecentActivities activities={atividades} />}
+            </div>
 
+            {/* Relatórios */}
             {relatorios.length > 0 && (
-              <div className="rounded-xl shadow-sm border" style={{ backgroundColor: COLORS.card, borderColor: COLORS.light }}>
+              <div 
+                className="rounded-xl shadow-sm border transition-all duration-300 hover:shadow-lg"
+                style={{ 
+                  backgroundColor: COLORS.card, 
+                  borderColor: COLORS.light,
+                  animation: animated ? "fadeInUp 0.5s ease-out 0.7s both" : "none"
+                }}
+              >
                 <div className="p-6 border-b" style={{ borderBottomColor: COLORS.light }}>
                   <div className="flex items-center gap-2">
                     <FileText size={18} style={{ color: COLORS.accent }} />
@@ -254,12 +442,20 @@ export default function DashboardPage() {
                 </div>
                 <div className="divide-y" style={{ borderColor: COLORS.light }}>
                   {relatorios.map((rel, i) => (
-                    <div key={i} className="p-4 hover:bg-gray-50 flex items-center justify-between">
+                    <div 
+                      key={i} 
+                      className="p-4 hover:bg-gray-50 flex items-center justify-between transition-all duration-300 hover:translate-x-1 cursor-pointer"
+                      style={{ animation: animated ? `fadeInRight 0.3s ease-out ${i * 0.1 + 0.7}s both` : "none" }}
+                    >
                       <div>
-                        <p className="text-sm font-medium" style={{ color: COLORS.text }}>{rel.nome}</p>
+                        <p className="text-sm font-medium transition-colors duration-300 hover:text-accent" style={{ color: COLORS.text }}>{rel.nome}</p>
                         <p className="text-xs" style={{ color: COLORS.textLight }}>{rel.descricao}</p>
                       </div>
-                      <ChevronRight size={16} style={{ color: COLORS.textLight }} />
+                      <ChevronRight 
+                        size={16} 
+                        style={{ color: COLORS.textLight }} 
+                        className="transition-all duration-300 group-hover:translate-x-1" 
+                      />
                     </div>
                   ))}
                 </div>

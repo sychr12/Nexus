@@ -20,7 +20,6 @@ public class Foto {
     private Integer ordem; // 1, 2, 3
     
     @Lob
-    @Column(columnDefinition = "LONGBLOB")
     private byte[] conteudo;
     
     private String nomeArquivo;

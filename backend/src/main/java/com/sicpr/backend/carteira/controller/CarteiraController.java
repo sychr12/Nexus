@@ -23,7 +23,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/carteira")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+// @CrossOrigin(origins = "*")  // REMOVIDO - CORS é configurado no WebConfig
 public class CarteiraController {
     
     private final CarteiraService carteiraService;
@@ -58,6 +58,13 @@ public class CarteiraController {
         return ResponseEntity.ok(carteiraService.buscarComFiltros(filtro, page, size));
     }
     
+    @GetMapping("/listar")
+    public ResponseEntity<Page<CarteiraResponseDTO>> listarTodas(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(carteiraService.listarTodas(page, size));
+    }
+    
     @GetMapping("/pdf/{id}")
     public ResponseEntity<byte[]> baixarPdf(@PathVariable Long id) {
         byte[] pdf = carteiraService.buscarPdfPorId(id);
@@ -90,13 +97,6 @@ public class CarteiraController {
     @GetMapping("/usuarios")
     public ResponseEntity<List<String>> buscarUsuarios() {
         return ResponseEntity.ok(carteiraService.buscarUsuariosUnicos());
-    }
-
-    @GetMapping("/listar")
-    public ResponseEntity<Page<CarteiraResponseDTO>> listarTodas(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(carteiraService.listarTodas(page, size));
     }
     
     @GetMapping("/total")

@@ -170,9 +170,9 @@ export default function DownloadButton({ id, numero, unloc, disabled = false }: 
                 style={{ borderColor: COLORS.border, backgroundColor: i % 2 === 0 ? COLORS.card : COLORS.rowAlt }}
               >
                 {entry.status === "ok" ? (
-                  <CheckCircle2 size={13} className="mt-0.5 flex-shrink-0" style={{ color: COLORS.success }} />
+                  <CheckCircle2 size={13} className="mt-0.5 shrink-0" style={{ color: COLORS.success }} />
                 ) : (
-                  <AlertCircle size={13} className="mt-0.5 flex-shrink-0" style={{ color: COLORS.danger }} />
+                  <AlertCircle size={13} className="mt-0.5 shrink-0" style={{ color: COLORS.danger }} />
                 )}
                 <div className="min-w-0 flex-1">
                   <p

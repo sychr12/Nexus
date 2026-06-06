@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { MemorandoForm, Memorando } from "../types/memorando";
 import MemorandoTable from "./MemorandoTable";
 import MemorandoFilters from "./MemorandoFilters";
-import { Building2, Hash, AlignLeft, FileInput } from "lucide-react";
 
 const COLORS = {
   primary: "#1F3A2E",
-  secondary: "#2D5A40",
   accent: "#6B8E23",
   border: "#D8DDD4",
   text: "#1E2A22",
@@ -23,176 +21,128 @@ interface Props {
   isLoading?: boolean;
 }
 
-function PreviewField({
-  label,
-  value,
-  icon,
-  multiline,
-}: {
-  label: string;
-  value: string;
-  icon: ReactNode;
-  multiline?: boolean;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <span style={{ color: COLORS.accent }}>{icon}</span>
-        <span
-          className="text-xs font-bold uppercase tracking-widest"
-          style={{ color: COLORS.accent }}
-        >
-          {label}
-        </span>
-      </div>
-      <p
-        className={`text-sm leading-relaxed pl-5 ${multiline ? "whitespace-pre-wrap" : ""}`}
-        style={{ color: COLORS.text }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-export default function MemorandoPreview({ form, memorandos, isLoading = false }: Props) {
+export default function MemorandoPreview({
+  form,
+  memorandos,
+  isLoading = false,
+}: Props) {
   const [search, setSearch] = useState("");
   const [selectedUnloc, setSelectedUnloc] = useState("");
 
-  const isEmpty = !form.numero && !form.unloc;
-
-  const today = new Date().toLocaleDateString("pt-BR", {
+  const dataAtual = new Date().toLocaleDateString("pt-BR", {
     day: "2-digit",
-    month: "long",
+    month: "2-digit",
     year: "numeric",
   });
 
   return (
-    <div className="space-y-6 font-sans">
-      {/* Document Preview */}
+    <div className="space-y-6">
+      {/* Preview Documento */}
       <div
         className="rounded-3xl border overflow-hidden"
         style={{
           backgroundColor: COLORS.white,
           borderColor: COLORS.border,
-          boxShadow: "0 4px 24px rgba(31,58,46,0.08)",
+          boxShadow: "0 4px 24px rgba(31,58,46,.08)",
         }}
       >
-        {/* Document Header Bar */}
-        <div
-          className="px-8 py-3 flex items-center justify-between"
-          style={{ backgroundColor: COLORS.primary }}
-        >
-          <span className="text-xs font-semibold tracking-widest uppercase text-white opacity-70">
-            Documento Oficial
-          </span>
-          <span className="text-xs text-white opacity-50">{today}</span>
-        </div>
-
-        <div className="px-10 py-8">
-          {/* Document Title Row */}
-          <div className="flex items-start justify-between mb-8 pb-6 border-b" style={{ borderColor: COLORS.border }}>
-            <div>
-              <h1
-                className="text-2xl font-black tracking-tight"
-                style={{ color: COLORS.primary, letterSpacing: "-0.01em" }}
-              >
-                MEMORANDO
-              </h1>
-              <p className="text-sm font-medium mt-0.5" style={{ color: COLORS.textLight }}>
-                Memorando de Saída
-              </p>
-            </div>
-            <div
-              className="px-5 py-2.5 rounded-xl text-white font-bold text-lg"
-              style={{ backgroundColor: COLORS.secondary }}
-            >
-              Nº{" "}
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {form.numero || "---"}
-              </span>
-            </div>
+        {/* Cabeçalho */}
+        <div className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ backgroundColor: COLORS.primary }}>
+          <div>
+            <p className="font-semibold text-white">Pré-visualização do Word</p>
+            <p className="text-xs mt-1 text-white/80">Veja como o memorando ficará no documento final.</p>
           </div>
-
-          {isEmpty ? (
-            <div
-              className="rounded-2xl py-16 flex flex-col items-center justify-center gap-3"
-              style={{ backgroundColor: COLORS.lightGray }}
-            >
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{ backgroundColor: "#E4EAE0" }}
-              >
-                <FileInput size={22} style={{ color: COLORS.textLight }} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: COLORS.textLight }}>
-                Preencha o formulário para visualizar
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {form.unloc && (
-                <PreviewField
-                  label="UNLOC"
-                  value={form.unloc}
-                  icon={<Building2 size={13} />}
-                />
-              )}
-              {form.numero && (
-                <PreviewField
-                  label="Número"
-                  value={form.numero}
-                  icon={<Hash size={13} />}
-                />
-              )}
-              {form.descricao && (
-                <PreviewField
-                  label="Descrição"
-                  value={form.descricao}
-                  icon={<AlignLeft size={13} />}
-                />
-              )}
-              {form.memoEntrada && (
-                <div
-                  className="rounded-xl p-5 border"
-                  style={{ backgroundColor: COLORS.lightGray, borderColor: COLORS.border }}
-                >
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <FileInput size={13} style={{ color: COLORS.accent }} />
-                    <span
-                      className="text-xs font-bold uppercase tracking-widest"
-                      style={{ color: COLORS.accent }}
-                    >
-                      Memo Entrada
-                    </span>
-                  </div>
-                  <p
-                    className="text-sm leading-relaxed whitespace-pre-wrap"
-                    style={{ color: COLORS.text }}
-                  >
-                    {form.memoEntrada}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Document Footer */}
-        {!isEmpty && (
-          <div
-            className="px-10 py-3 border-t flex justify-between items-center"
-            style={{ borderColor: COLORS.border, backgroundColor: COLORS.lightGray }}
-          >
-            <span className="text-xs" style={{ color: COLORS.textLight }}>
-              Pré-visualização — documento não salvo
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-white">
+              Data {dataAtual}
             </span>
-            <div className="w-16 h-0.5 rounded" style={{ backgroundColor: COLORS.border }} />
+            <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-white">
+              UNLOC {form.unloc || "—"}
+            </span>
           </div>
-        )}
+        </div>
+
+        {/* Documento */}
+        <div
+          className="bg-white p-10"
+          style={{
+            minHeight: "720px",
+            lineHeight: 1.9,
+            color: COLORS.text,
+          }}
+        >
+          {/* Número */}
+          <p
+            style={{
+              fontWeight: 700,
+              fontSize: "16px",
+              color: COLORS.text,
+            }}
+          >
+            Memo Nº {form.numero || "(num)"}/2026 CPCPP/GABIN
+          </p>
+
+          <br />
+
+          {/* Data */}
+          <p style={{ color: COLORS.textLight }}>Manaus, {dataAtual}</p>
+
+          <br />
+          <br />
+
+          {/* Destinatários */}
+          <p style={{ color: COLORS.text }}>
+            <strong>DA:</strong> Coordenadoria do Programa Carteira do Produtor Primário
+          </p>
+
+          <p style={{ color: COLORS.text }}>
+            <strong>AO:</strong> Gerente da Unidade Local de{" "}
+            <strong>{form.unloc || "(muni)"}</strong>
+          </p>
+
+          <br />
+          <br />
+
+          {/* Texto */}
+          <p
+            style={{
+              textAlign: "justify",
+              color: COLORS.text,
+            }}
+          >
+            Ao cumprimentá-lo cordialmente, encaminho{" "}
+            <strong>{form.descricao || "(qtda)"}</strong> fichas de inscrição
+            do contribuinte para as providências necessárias.
+          </p>
+
+          <br />
+          <br />
+
+          <div className="rounded-3xl border p-5" style={{ backgroundColor: COLORS.lightGray, borderColor: COLORS.border }}>
+            <p className="text-sm font-semibold mb-2" style={{ color: COLORS.text }}>
+              Referente aos memorandos:
+            </p>
+            <p className="text-sm" style={{ color: COLORS.textLight }}>
+              {form.memoEntrada || "(memos)"}
+            </p>
+          </div>
+
+          <div className="mt-10 text-sm" style={{ color: COLORS.text }}>
+            <p>Atenciosamente,</p>
+            <div className="mt-8 w-full max-w-xs">
+              <div style={{ borderTop: "1px solid #444", marginBottom: "10px" }} />
+              <p className="font-semibold" style={{ color: COLORS.text }}>
+                Aglei Duques Maciel
+              </p>
+              <p className="text-sm" style={{ color: COLORS.textLight }}>
+                Coordenação do CPCPP
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Filtros */}
       <MemorandoFilters
         search={search}
         setSearch={setSearch}
@@ -200,19 +150,30 @@ export default function MemorandoPreview({ form, memorandos, isLoading = false }
         setSelectedUnloc={setSelectedUnloc}
       />
 
-      {/* Table */}
+      {/* Tabela */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold" style={{ color: COLORS.primary }}>
+          <h3
+            className="text-xl font-bold"
+            style={{
+              color: COLORS.primary,
+            }}
+          >
             Memorandos Registrados
           </h3>
+
           <span
             className="px-3 py-1 rounded-full text-xs font-semibold"
-            style={{ backgroundColor: `${COLORS.accent}18`, color: COLORS.accent }}
+            style={{
+              backgroundColor: `${COLORS.accent}18`,
+              color: COLORS.accent,
+            }}
           >
-            {memorandos.length} {memorandos.length === 1 ? "registro" : "registros"}
+            {memorandos.length}{" "}
+            {memorandos.length === 1 ? "registro" : "registros"}
           </span>
         </div>
+
         <MemorandoTable
           memorandos={memorandos}
           isLoading={isLoading}
