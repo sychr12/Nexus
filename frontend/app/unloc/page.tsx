@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, Printer, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Eye, FileText, Paperclip, Plus, Printer, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
 import UnlocSelect from "../components/UnlocSelect";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
@@ -459,18 +459,12 @@ export default function UnlocPage() {
           {campo.label}{campo.obrigatorio ? " *" : ""}
         </span>
         {campo.tipo === "select" ? (
-          <select
-            id={fieldId}
+          <DocumentOptionSelect
             value={value}
-            onChange={(event) => updateValue(event.target.value)}
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
-            style={fieldStyle}
-          >
-            <option value="">Selecione</option>
-            {campo.opcoes?.map((opcao) => (
-              <option key={opcao} value={opcao}>{opcao}</option>
-            ))}
-          </select>
+            onChange={updateValue}
+            options={campo.opcoes || []}
+            placeholder="Selecione"
+          />
         ) : campo.tipo === "textarea" ? (
           <textarea
             id={fieldId}
@@ -1235,6 +1229,105 @@ function groupDocumentFields(fields: CampoDocumento[]) {
     groups.push({ secao, campos: [campo] });
     return groups;
   }, []);
+}
+
+function DocumentOptionSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="flex min-h-[38px] w-full items-center justify-between rounded-md border px-3 py-2 text-sm"
+        style={{
+          backgroundColor: "#FDFDFC",
+          borderColor: isOpen ? COLORS.accent : COLORS.border,
+          color: value ? COLORS.text : COLORS.textLight,
+          outline: "none",
+          boxShadow: isOpen ? `0 0 0 3px ${COLORS.accent}18` : "none",
+          transition: "border-color 0.2s, box-shadow 0.2s",
+        }}
+      >
+        <span className="truncate">{value || placeholder}</span>
+        <ChevronDown
+          size={15}
+          className="shrink-0"
+          style={{
+            color: COLORS.textLight,
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s",
+          }}
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute z-30 mt-1.5 max-h-56 w-full overflow-y-auto rounded-md border"
+          style={{
+            backgroundColor: COLORS.card,
+            borderColor: COLORS.accent,
+            boxShadow: "0 8px 32px rgba(31,58,46,0.14)",
+          }}
+        >
+          {options.map((option) => {
+            const isSelected = option === value;
+
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  onChange(option);
+                  setIsOpen(false);
+                }}
+                className="w-full px-4 py-2.5 text-left text-sm transition-colors"
+                style={{
+                  color: COLORS.text,
+                  backgroundColor: isSelected ? `${COLORS.accent}14` : "transparent",
+                  fontWeight: isSelected ? 600 : 400,
+                }}
+                onMouseEnter={(event) => {
+                  if (!isSelected) {
+                    event.currentTarget.style.backgroundColor = "#F0F4EE";
+                  }
+                }}
+                onMouseLeave={(event) => {
+                  if (!isSelected) {
+                    event.currentTarget.style.backgroundColor = "transparent";
+                  }
+                }}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FacStatusBadge({ processo }: { processo: ProcessoSicpr }) {

@@ -41,7 +41,7 @@ const TOP_ITEMS = [
   { id: "relatorios", label: "Relatórios", icon: PieChart, href: "/relatorios" },
   { id: "unloc", label: "Unloc", icon: Building2, href: "/unloc" },
   { id: "gerente", label: "Gerente UNLOC", icon: UserCheck, href: "/gerente" },
-  { id: "memorandos-assinados", label: "Memorandos Assinados", icon: FileText, href: "/memorandos-assinados" },
+  { id: "memorandos-assinados", label: "Central de Memorandos", icon: FileText, href: "/memorandos-assinados" },
   { id: "memorando", label: "Memorando de Saída", icon: FileText, href: "/memorando" },
   { id: "carteira", label: "Carteira Digital", icon: CreditCard, href: "/carteira" },
   { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
