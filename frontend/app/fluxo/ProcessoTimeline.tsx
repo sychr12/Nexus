@@ -134,7 +134,7 @@ function getTimelineCycles(processo: ProcessoSicpr) {
           `Gerente: ${memorando.gerenteResponsavel || "-"}`,
           `Memorando: ${memorando.numero}`,
           `Lote: ${memorando.quantidade} ${memorando.quantidade === 1 ? "processo" : "processos"}`,
-          "Documentos gerados: Memorando, FAC e Declaração",
+          "Documentos assinados pelo gerente: Memorando e Declaração",
         ],
         dotClass: "bg-emerald-500 ring-emerald-100",
       },

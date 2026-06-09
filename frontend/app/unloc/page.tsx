@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, Printer, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
 import UnlocSelect from "../components/UnlocSelect";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
@@ -15,15 +15,19 @@ import {
   addProcesso,
   atualizarProcessoUnloc,
   encaminharGerente,
+  FAC_STATUS_LABELS,
   formatDateTime,
+  getFacAssinada,
+  getFacStatus,
   getDocumentosGerados,
   getOutrosDocumentos,
   loadProcessos,
+  podeEncaminharGerente,
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr, TipoProcessoSicpr } from "../fluxo/types";
 import { DOCUMENT_MODELS, DETAIL_TABS, PAGE_SIZE, PROCESS_FILTERS, initialForm } from "./config";
-import type { AnexoUpload, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
+import type { AnexoUpload, CampoDocumento, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
 import { fileToAnexo, formatCpf, formatFileSize, onlyDigits } from "./file-utils";
 
 const COLORS = SICPR_COLORS;
@@ -37,6 +41,8 @@ export default function UnlocPage() {
   const [documentosGerados, setDocumentosGerados] = useState<Partial<Record<GeneratedDocKey, Record<string, string>>>>({});
   const [activeDocument, setActiveDocument] = useState<GeneratedDocKey | null>(null);
   const [documentDraft, setDocumentDraft] = useState<Record<string, string>>({});
+  const [documentModalMessage, setDocumentModalMessage] = useState("");
+  const [facAssinada, setFacAssinada] = useState<AnexoUpload | null>(null);
   const [outrosAnexos, setOutrosAnexos] = useState<AnexoUpload[]>([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
@@ -44,6 +50,7 @@ export default function UnlocPage() {
   const [processFilter, setProcessFilter] = useState<ProcessoFilter>("em_elaboracao");
   const [page, setPage] = useState(1);
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoSicpr | null>(null);
+  const [selectedProcessoMessage, setSelectedProcessoMessage] = useState("");
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>("dados");
   const [preview, setPreview] = useState<
     | { tipo: "gerado"; processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }
@@ -131,21 +138,28 @@ export default function UnlocPage() {
       setMessage("Informe um CPF valido com 11 digitos.");
       return;
     }
+    if (!facAssinada) {
+      setMessageType("error");
+      setMessage("Anexe a FAC assinada pelo produtor antes de criar ou salvar o processo.");
+      return;
+    }
 
     if (editingProcessId) {
-      persist(atualizarProcessoUnloc(processos, editingProcessId, username, { ...form, cpf: formatCpf(form.cpf), documentosGerados, outrosDocumentos: outrosAnexos }));
+      persist(atualizarProcessoUnloc(processos, editingProcessId, username, { ...form, cpf: formatCpf(form.cpf), documentosGerados, outrosDocumentos: getDocumentosParaSalvar() }));
       setEditingProcessId(null);
       setForm(initialForm);
       setDocumentosGerados({});
+      setFacAssinada(null);
       setOutrosAnexos([]);
       setMessageType("success");
       setMessage("Correcao salva. Revise o card do processo e reenvie ao gerente quando estiver pronto.");
       return;
     }
 
-    persist(addProcesso(processos, { ...form, cpf: formatCpf(form.cpf), tecnicoResponsavel: username, documentosGerados, outrosDocumentos: outrosAnexos }));
+    persist(addProcesso(processos, { ...form, cpf: formatCpf(form.cpf), tecnicoResponsavel: username, documentosGerados, outrosDocumentos: getDocumentosParaSalvar() }));
     setForm(initialForm);
     setDocumentosGerados({});
+    setFacAssinada(null);
     setOutrosAnexos([]);
     setMessageType("success");
     setMessage("Processo criado em elaboracao.");
@@ -160,8 +174,33 @@ export default function UnlocPage() {
     setMessage(`${anexos.length} anexo(s) adicionado(s).`);
   }
 
+  async function handleFacAssinadaChange(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+
+    const anexo = await fileToAnexo(file);
+    setFacAssinada({
+      ...anexo,
+      nome: "FAC assinada pelo produtor",
+      categoria: "fac_assinada",
+    });
+    setMessageType("success");
+    setMessage("FAC assinada pelo produtor anexada ao processo.");
+  }
+
   function removeAnexo(index: number) {
     setOutrosAnexos((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function removeFacAssinada() {
+    setFacAssinada(null);
+  }
+
+  function getDocumentosParaSalvar() {
+    return [
+      ...(facAssinada ? [facAssinada] : []),
+      ...outrosAnexos,
+    ];
   }
 
   function startEditing(processo: ProcessoSicpr) {
@@ -176,6 +215,16 @@ export default function UnlocPage() {
       fac: processo.documentosGerados?.fac,
       declaracao_produtor: processo.documentosGerados?.declaracao_produtor,
     });
+    const facDocumento = getFacAssinada(processo);
+    setFacAssinada(facDocumento ? {
+      id: facDocumento.id,
+      nome: facDocumento.nome,
+      arquivo: facDocumento.arquivo,
+      conteudo: facDocumento.conteudo,
+      mimeType: facDocumento.mimeType,
+      tamanho: facDocumento.tamanho,
+      categoria: "fac_assinada",
+    } : null);
     setOutrosAnexos(getOutrosDocumentos(processo).map((documento) => ({
       id: documento.id,
       nome: documento.nome,
@@ -183,6 +232,7 @@ export default function UnlocPage() {
       conteudo: documento.conteudo,
       mimeType: documento.mimeType,
       tamanho: documento.tamanho,
+      categoria: documento.categoria,
     })));
     setMessageType("success");
     setMessage("Processo carregado para correcao. Ajuste os dados e salve antes de reenviar.");
@@ -193,6 +243,7 @@ export default function UnlocPage() {
     setEditingProcessId(null);
     setForm(initialForm);
     setDocumentosGerados({});
+    setFacAssinada(null);
     setOutrosAnexos([]);
     setMessage("");
   }
@@ -200,24 +251,175 @@ export default function UnlocPage() {
   function openDocumentModal(tipo: GeneratedDocKey) {
     setActiveDocument(tipo);
     setDocumentDraft(documentosGerados[tipo] || {});
+    setDocumentModalMessage("");
+  }
+
+  function closeDocumentModal() {
+    setActiveDocument(null);
+    setDocumentModalMessage("");
   }
 
   function saveGeneratedDocument() {
     if (!activeDocument) return;
+    const model = DOCUMENT_MODELS.find((documento) => documento.tipo === activeDocument);
+    const missingRequired = model?.campos.find((campo) => campo.obrigatorio && !documentDraft[campo.key]?.trim());
+
+    if (missingRequired) {
+      setDocumentModalMessage(`Preencha o campo obrigatório: ${missingRequired.label}.`);
+      return;
+    }
+
     setDocumentosGerados((current) => ({
       ...current,
       [activeDocument]: documentDraft,
     }));
     setActiveDocument(null);
     setDocumentDraft({});
+    setDocumentModalMessage("");
     setMessageType("success");
-    setMessage("Documento preenchido e pronto para geracao automatica.");
+    setMessage(activeDocument === "fac" ? "FAC gerada. Imprima, colete a assinatura fisica do produtor e anexe a versão assinada." : "Documento preenchido e pronto para geracao automatica.");
+  }
+
+  function printActiveDocument() {
+    if (!activeDocument) return;
+    const source = document.querySelector(".sicpr-print-area .sicpr-print-document");
+    if (!source) return;
+
+    const styles = Array.from(document.querySelectorAll<HTMLLinkElement | HTMLStyleElement>("link[rel='stylesheet'], style"))
+      .map((node) => node.outerHTML)
+      .join("\n");
+
+    const printFrame = document.createElement("iframe");
+    printFrame.title = "FAC - Impressão";
+    printFrame.style.position = "fixed";
+    printFrame.style.right = "0";
+    printFrame.style.bottom = "0";
+    printFrame.style.width = "0";
+    printFrame.style.height = "0";
+    printFrame.style.border = "0";
+    document.body.appendChild(printFrame);
+
+    const printDocument = printFrame.contentDocument || printFrame.contentWindow?.document;
+    if (!printDocument) {
+      printFrame.remove();
+      window.print();
+      return;
+    }
+
+    printDocument.open();
+    printDocument.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>FAC - Impressão</title>
+          ${styles}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 5mm;
+            }
+
+            html,
+            body {
+              width: 210mm;
+              height: 297mm;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+            }
+
+            body {
+              display: flex;
+              justify-content: center;
+              align-items: flex-start;
+              box-sizing: border-box;
+              overflow: hidden;
+            }
+
+            .sicpr-print-document {
+              box-sizing: border-box !important;
+              width: 188mm !important;
+              max-width: 188mm !important;
+              margin: 0 auto !important;
+              background: #ffffff !important;
+              box-shadow: none !important;
+            }
+
+            .sicpr-fac-document {
+              min-height: 0 !important;
+              padding: 2mm !important;
+              transform-origin: top center;
+              zoom: 0.9;
+              break-after: avoid;
+              break-before: avoid;
+              break-inside: avoid;
+              page-break-after: avoid;
+              page-break-before: avoid;
+              page-break-inside: avoid;
+            }
+
+            * {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          </style>
+        </head>
+        <body>
+          ${source.outerHTML}
+          <script>
+            window.addEventListener("load", function () {
+              setTimeout(function () {
+                window.focus();
+                window.print();
+              }, 120);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printDocument.close();
+
+    const removeFrame = () => {
+      setTimeout(() => printFrame.remove(), 300);
+    };
+    printFrame.contentWindow?.addEventListener("afterprint", removeFrame, { once: true });
   }
 
   function handleEncaminhar(id: string) {
-    persist(encaminharGerente(processos, id, username));
+    const processo = processos.find((item) => item.id === id);
+    const facAssinadaAnexada = processo ? Boolean(getFacAssinada(processo)) : false;
+
+    if (!processo || !facAssinadaAnexada || !podeEncaminharGerente(processo)) {
+      const warning = "A FAC assinada pelo produtor ainda não foi anexada ao processo.";
+      if (selectedProcesso?.id === id) {
+        setSelectedProcessoMessage(warning);
+      } else {
+        setMessageType("error");
+        setMessage(warning);
+      }
+      return false;
+    }
+
+    const next = encaminharGerente(processos, id, username);
+    const updated = next.find((item) => item.id === id);
+
+    if (updated?.situacao !== "encaminhado_gerente") {
+      persist(next);
+      const warning = "A FAC assinada pelo produtor ainda não foi anexada ao processo.";
+      if (selectedProcesso?.id === id) {
+        setSelectedProcessoMessage(warning);
+      } else {
+        setMessageType("error");
+        setMessage(warning);
+      }
+      return false;
+    }
+
+    persist(next);
     setMessageType("success");
     setMessage("Processo encaminhado ao gerente com tecnico, unidade, data, hora e tipo registrados.");
+    return true;
   }
 
   const activeModel = activeDocument
@@ -240,7 +442,58 @@ export default function UnlocPage() {
     tecnicoResponsavel: username,
     gerenteResponsavel: "",
     memorandoNumero: "",
+    assinaturaEletronica: undefined,
   };
+  const visibleFieldGroups = groupDocumentFields((activeModel?.campos || []).filter((campo) => !campo.complementar));
+  const complementaryFieldGroups = groupDocumentFields((activeModel?.campos || []).filter((campo) => campo.complementar));
+
+  function renderDocumentField(campo: CampoDocumento) {
+    const fieldId = `document-field-${campo.key}`;
+    const value = documentDraft[campo.key] || "";
+    const fieldStyle = { borderColor: COLORS.border, color: COLORS.text };
+    const updateValue = (nextValue: string) => setDocumentDraft((current) => ({ ...current, [campo.key]: nextValue }));
+
+    return (
+      <label key={campo.key} htmlFor={fieldId} className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>
+          {campo.label}{campo.obrigatorio ? " *" : ""}
+        </span>
+        {campo.tipo === "select" ? (
+          <select
+            id={fieldId}
+            value={value}
+            onChange={(event) => updateValue(event.target.value)}
+            className="w-full rounded-md border bg-white px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
+            style={fieldStyle}
+          >
+            <option value="">Selecione</option>
+            {campo.opcoes?.map((opcao) => (
+              <option key={opcao} value={opcao}>{opcao}</option>
+            ))}
+          </select>
+        ) : campo.tipo === "textarea" ? (
+          <textarea
+            id={fieldId}
+            value={value}
+            onChange={(event) => updateValue(event.target.value)}
+            placeholder={campo.placeholder}
+            rows={3}
+            className="w-full resize-y rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
+            style={fieldStyle}
+          />
+        ) : (
+          <input
+            id={fieldId}
+            value={value}
+            onChange={(event) => updateValue(event.target.value)}
+            placeholder={campo.placeholder}
+            className="w-full rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
+            style={fieldStyle}
+          />
+        )}
+      </label>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
@@ -306,7 +559,7 @@ export default function UnlocPage() {
 
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.6fr]">
               <div className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                <p className="mb-2 text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos do processo</p>
+                <p className="mb-2 text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos gerados pelo sistema</p>
                 <div className="grid gap-2">
                   {[...DOCUMENT_MODELS].sort((a) => (a.tipo === "fac" ? -1 : 1)).map((documento) => {
                     const isFilled = Boolean(documentosGerados[documento.tipo]);
@@ -330,7 +583,7 @@ export default function UnlocPage() {
                           }}
                         >
                           {isFilled && <CheckCircle2 size={12} />}
-                          {isFilled ? "Preenchido" : "Preencher"}
+                          {documento.tipo === "fac" ? (isFilled ? "Gerada" : "Não gerada") : (isFilled ? "Preenchido" : "Preencher")}
                         </span>
                       </button>
                     );
@@ -338,7 +591,42 @@ export default function UnlocPage() {
                 </div>
               </div>
               <div>
-                <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Outros anexos</span>
+                <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos obrigatórios assinados</span>
+                <div className="mb-4 rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]" style={{ borderColor: facAssinada ? COLORS.accent : COLORS.border, color: COLORS.textLight }}>
+                  <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
+                    <UploadCloud size={26} style={{ color: COLORS.primary }} />
+                    <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Anexar FAC assinada pelo produtor</span>
+                    <span className="mt-1 text-xs">Envie a FAC impressa, assinada fisicamente e digitalizada.</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*,.pdf"
+                      onChange={(event) => {
+                        void handleFacAssinadaChange(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+
+                  <div className="mt-3 rounded-md border bg-white px-3 py-2 text-sm" style={{ borderColor: COLORS.border }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block font-semibold" style={{ color: COLORS.text }}>FAC assinada pelo produtor</span>
+                        <span className="block text-xs" style={{ color: facAssinada ? COLORS.primary : COLORS.danger }}>
+                          {facAssinada ? "Assinada e anexada" : "Assinatura pendente"}
+                        </span>
+                      </span>
+                      {facAssinada && (
+                        <button type="button" onClick={removeFacAssinada} className="sicpr-remove-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ color: COLORS.danger }}>
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                    {facAssinada && <p className="mt-2 truncate text-xs" style={{ color: COLORS.textLight }}>{facAssinada.arquivo} · {formatFileSize(facAssinada.tamanho)}</p>}
+                  </div>
+                </div>
+
+                <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos complementares</span>
                 <div
                   className="rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]"
                   style={{ borderColor: COLORS.border, color: COLORS.textLight }}
@@ -478,6 +766,7 @@ export default function UnlocPage() {
                       key={processo.id}
                       onClick={() => {
                         setSelectedProcesso(processo);
+                        setSelectedProcessoMessage("");
                         setActiveDetailTab("dados");
                       }}
                       className="cursor-pointer border-b transition-colors hover:bg-[#F5F7F5]"
@@ -532,10 +821,14 @@ export default function UnlocPage() {
                     <span>Encaminhado: {formatDateTime(processo.encaminhadoGerenteEm)}</span>
                   </div>
 
+                  <div className="mt-3">
+                    <FacStatusBadge processo={processo} />
+                  </div>
+
                   <div className="mt-3 grid gap-3 text-xs lg:grid-cols-2">
                     <div className="rounded-md border p-2" style={{ borderColor: COLORS.border }}>
                       <p className="mb-1 inline-flex items-center gap-1 font-semibold" style={{ color: COLORS.text }}>
-                        <FileText size={13} /> Gerados
+                        <FileText size={13} /> Gerados pelo sistema
                       </p>
                       <div className="grid gap-1">
                         {getDocumentosGerados(processo).map((doc) => (
@@ -554,7 +847,7 @@ export default function UnlocPage() {
                     </div>
                     <div className="rounded-md border p-2" style={{ borderColor: COLORS.border }}>
                       <p className="mb-1 inline-flex items-center gap-1 font-semibold" style={{ color: COLORS.text }}>
-                        <Paperclip size={13} /> Outros
+                        <Paperclip size={13} /> Complementares
                       </p>
                       {getOutrosDocumentos(processo).length > 0 ? (
                         <div className="grid gap-1">
@@ -618,7 +911,7 @@ export default function UnlocPage() {
 
       {selectedProcesso && (
         <div className="fixed inset-0 z-[75] flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedProcesso(null)} />
+          <div className="absolute inset-0 bg-black/45" onClick={() => { setSelectedProcesso(null); setSelectedProcessoMessage(""); }} />
           <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
             <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
               <div>
@@ -631,7 +924,7 @@ export default function UnlocPage() {
                 </div>
                 <p className="text-sm" style={{ color: COLORS.textLight }}>{selectedProcesso.cpf} | {selectedProcesso.unidadeLocal} | {TIPO_PROCESSO_LABELS[selectedProcesso.tipoProcesso]}</p>
               </div>
-              <button type="button" onClick={() => setSelectedProcesso(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
+              <button type="button" onClick={() => { setSelectedProcesso(null); setSelectedProcessoMessage(""); }} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
                 <X size={18} />
               </button>
             </div>
@@ -655,6 +948,14 @@ export default function UnlocPage() {
               </div>
             </div>
 
+            {selectedProcessoMessage && (
+              <div className="border-b px-5 py-3" style={{ borderBottomColor: COLORS.border }}>
+                <div className="rounded-md border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#F59E0B", backgroundColor: "#FFFBEB", color: "#92400E" }}>
+                  {selectedProcessoMessage}
+                </div>
+              </div>
+            )}
+
             <div className="min-h-0 flex-1 overflow-auto p-5">
               {selectedProcesso.ultimaJustificativa && (
                 <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{selectedProcesso.ultimaJustificativa}</p>
@@ -668,6 +969,9 @@ export default function UnlocPage() {
                   <DetailInfoCard label="Data de criação" value={formatDateTime(selectedProcesso.criadoEm)} />
                   <DetailInfoCard label="Encaminhado ao gerente" value={formatDateTime(selectedProcesso.encaminhadoGerenteEm)} />
                   <DetailInfoCard label="Memorando atual" value={selectedProcesso.memorandoNumero || "-"} />
+                  <DetailInfoCard label="Status da FAC" value={FAC_STATUS_LABELS[getFacStatus(selectedProcesso)]} />
+                  <DetailInfoCard label="FAC gerada em" value={formatDateTime(selectedProcesso.facGeradaEm)} />
+                  <DetailInfoCard label="FAC assinada anexada em" value={formatDateTime(selectedProcesso.facAssinadaAnexadaEm)} />
                 </div>
               )}
 
@@ -705,7 +1009,24 @@ export default function UnlocPage() {
                   </div>
                   <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
                     <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
-                      <Paperclip size={15} /> Documentos anexados
+                      <Paperclip size={15} /> Documentos obrigatórios assinados
+                    </p>
+                    {getFacAssinada(selectedProcesso) ? (
+                      <button
+                        type="button"
+                        onClick={() => setPreview({ tipo: "anexo", processo: selectedProcesso, documento: getFacAssinada(selectedProcesso)! })}
+                        className="mb-3 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
+                        style={{ color: COLORS.textLight }}
+                      >
+                        <Eye size={13} style={{ color: COLORS.primary }} />
+                        <span className="min-w-0 truncate">FAC assinada pelo produtor</span>
+                      </button>
+                    ) : (
+                      <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">A FAC assinada pelo produtor ainda não foi anexada.</p>
+                    )}
+
+                    <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
+                      <Paperclip size={15} /> Documentos complementares
                     </p>
                     {getOutrosDocumentos(selectedProcesso).length > 0 ? getOutrosDocumentos(selectedProcesso).map((doc) => (
                       <button
@@ -727,18 +1048,24 @@ export default function UnlocPage() {
             {["em_elaboracao", "devolvido_gerente", "devolvido_analise"].includes(selectedProcesso.situacao) && (
               <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
                 {selectedProcesso.situacao === "em_elaboracao" && (
-                  <button type="button" onClick={() => { handleEncaminhar(selectedProcesso.id); setSelectedProcesso(null); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
-                    <Send size={15} />
-                    Encaminhar ao gerente
-                  </button>
+                  <>
+                    <button type="button" onClick={() => { startEditing(selectedProcesso); setSelectedProcesso(null); setSelectedProcessoMessage(""); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
+                      <RotateCcw size={15} />
+                      Editar processo
+                    </button>
+                    <button type="button" onClick={() => { if (handleEncaminhar(selectedProcesso.id)) { setSelectedProcesso(null); setSelectedProcessoMessage(""); } }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
+                      <Send size={15} />
+                      Encaminhar ao gerente
+                    </button>
+                  </>
                 )}
                 {["devolvido_gerente", "devolvido_analise"].includes(selectedProcesso.situacao) && (
                   <>
-                    <button type="button" onClick={() => { startEditing(selectedProcesso); setSelectedProcesso(null); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
+                    <button type="button" onClick={() => { startEditing(selectedProcesso); setSelectedProcesso(null); setSelectedProcessoMessage(""); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
                       <RotateCcw size={15} />
                       Editar correcao
                     </button>
-                    <button type="button" onClick={() => { handleEncaminhar(selectedProcesso.id); setSelectedProcesso(null); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
+                    <button type="button" onClick={() => { if (handleEncaminhar(selectedProcesso.id)) { setSelectedProcesso(null); setSelectedProcessoMessage(""); } }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
                       <Send size={15} />
                       Reenviar ao gerente
                     </button>
@@ -752,7 +1079,7 @@ export default function UnlocPage() {
 
       {activeDocument && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setActiveDocument(null)} />
+          <div className="absolute inset-0 bg-black/45" onClick={closeDocumentModal} />
           <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
             <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
               <div>
@@ -766,7 +1093,7 @@ export default function UnlocPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setActiveDocument(null)}
+                onClick={closeDocumentModal}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
                 style={{ color: COLORS.textLight }}
               >
@@ -774,25 +1101,47 @@ export default function UnlocPage() {
               </button>
             </div>
 
+            {documentModalMessage && (
+              <div className="border-b px-5 py-3" style={{ borderBottomColor: COLORS.border }}>
+                <div className="rounded-md border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#F59E0B", backgroundColor: "#FFFBEB", color: "#92400E" }}>
+                  {documentModalMessage}
+                </div>
+              </div>
+            )}
+
             <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[390px_minmax(0,1fr)]">
               <div className="min-h-0 overflow-y-auto border-r px-5 py-4" style={{ borderRightColor: COLORS.border }}>
-                <div className="grid gap-4">
-                  {activeModel?.campos.map((campo) => (
-                    <label key={campo.key} className="block">
-                      <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{campo.label}</span>
-                      <input
-                        value={documentDraft[campo.key] || ""}
-                        onChange={(event) => setDocumentDraft((current) => ({ ...current, [campo.key]: event.target.value }))}
-                        placeholder={campo.placeholder}
-                        className="w-full rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
-                        style={{ borderColor: COLORS.border, color: COLORS.text }}
-                      />
-                    </label>
+                <div className="grid gap-5">
+                  {visibleFieldGroups.map((group) => (
+                    <section key={group.secao} className="grid gap-3">
+                      <h3 className="text-xs font-semibold uppercase" style={{ color: COLORS.primary }}>{group.secao}</h3>
+                      <div className="grid gap-3">
+                        {group.campos.map(renderDocumentField)}
+                      </div>
+                    </section>
                   ))}
+
+                  {complementaryFieldGroups.length > 0 && (
+                    <details className="rounded-md border bg-white" style={{ borderColor: COLORS.border }}>
+                      <summary className="cursor-pointer px-3 py-2 text-sm font-semibold" style={{ color: COLORS.text }}>
+                        Informações Complementares
+                      </summary>
+                      <div className="grid gap-5 border-t px-3 py-3" style={{ borderTopColor: COLORS.border }}>
+                        {complementaryFieldGroups.map((group) => (
+                          <section key={group.secao} className="grid gap-3">
+                            <h3 className="text-xs font-semibold uppercase" style={{ color: COLORS.primary }}>{group.secao}</h3>
+                            <div className="grid gap-3">
+                              {group.campos.map(renderDocumentField)}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               </div>
 
-              <div className="min-h-0 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
+              <div className="sicpr-print-area min-h-0 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
                 {previewDocumento && (
                   <GeneratedDocumentPreview
                     processo={previewProcesso}
@@ -806,12 +1155,23 @@ export default function UnlocPage() {
             <div className="flex shrink-0 justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
               <button
                 type="button"
-                onClick={() => setActiveDocument(null)}
+                onClick={closeDocumentModal}
                 className="rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
-                style={{ color: COLORS.textLight }}
+                style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}
               >
                 Cancelar
               </button>
+              {activeDocument === "fac" && (
+                <button
+                  type="button"
+                  onClick={printActiveDocument}
+                  className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
+                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}
+                >
+                  <Printer size={15} />
+                  Imprimir FAC
+                </button>
+              )}
               <button
                 type="button"
                 onClick={saveGeneratedDocument}
@@ -858,6 +1218,38 @@ export default function UnlocPage() {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+function groupDocumentFields(fields: CampoDocumento[]) {
+  return fields.reduce<Array<{ secao: string; campos: CampoDocumento[] }>>((groups, campo) => {
+    const secao = campo.secao || "Dados";
+    const existingGroup = groups.find((group) => group.secao === secao);
+
+    if (existingGroup) {
+      existingGroup.campos.push(campo);
+      return groups;
+    }
+
+    groups.push({ secao, campos: [campo] });
+    return groups;
+  }, []);
+}
+
+function FacStatusBadge({ processo }: { processo: ProcessoSicpr }) {
+  const status = getFacStatus(processo);
+  const isOk = status === "assinada_anexada";
+  const isPending = status === "gerada";
+  const color = isOk ? COLORS.primary : isPending ? "#92400E" : COLORS.textLight;
+  const backgroundColor = isOk ? `${COLORS.accent}18` : isPending ? "#FEF3C7" : "#F3F4F6";
+
+  return (
+    <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: COLORS.border, backgroundColor }}>
+      <p className="font-semibold" style={{ color }}>FAC: {FAC_STATUS_LABELS[status]}</p>
+      <p className="mt-1" style={{ color: COLORS.textLight }}>
+        {isOk ? "FAC gerada e versão assinada anexada." : "A FAC assinada pelo produtor é obrigatória antes do envio ao gerente."}
+      </p>
     </div>
   );
 }

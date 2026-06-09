@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileSignature, FileText, MapPin, RotateCcw, Search, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Edit3, Eye, FileSignature, FileText, MapPin, RotateCcw, Save, Search, UserPlus, X } from "lucide-react";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
 import { AttachmentPreview, DetailInfoCard, SICPR_COLORS, StatCard } from "../fluxo/SharedUi";
 import TopBar from "../sidebar/page";
+import { UNLOC_OPTIONS } from "../lib/unlocs";
 import {
+  GERENTE_STATUS_LABELS,
   SITUACAO_LABELS,
   STATUS_COLORS,
   TIPO_PROCESSO_LABELS,
@@ -14,11 +16,16 @@ import {
   devolverPeloGerente,
   formatDateTime,
   getDocumentosGerados,
+  getGerentesAssinantesDaUnidade,
   getOutrosDocumentos,
+  inativarGerenteUnidade,
+  loadGerentesUnidade,
   loadProcessos,
+  salvarGerenteUnidade,
+  saveGerentesUnidade,
   saveProcessos,
 } from "../fluxo/storage";
-import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
+import type { DocumentoGeradoProcesso, DocumentoProcesso, GerenteUnidade, GerenteUnidadeStatus, ProcessoSicpr } from "../fluxo/types";
 import { GeneratedDocumentPreview } from "./GerenteDocumentPreviews";
 import { getGerenteHistory, getGerenteHistoryStatusClass } from "./history";
 
@@ -33,10 +40,23 @@ const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
   { key: "documentos", label: "Documentos" },
 ];
 
+const emptyGerenteForm = {
+  id: "",
+  nome: "",
+  unidadeLocal: "Manacapuru",
+  cargo: "Gerente da Unidade Local",
+  email: "",
+  telefoneCorporativo: "",
+  telefonePessoal: "",
+  status: "ativo" as GerenteUnidadeStatus,
+};
+
 export default function GerentePage() {
   const router = useRouter();
   const [username, setUsername] = useState("Gerente Unloc");
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
+  const [gerentes, setGerentes] = useState<GerenteUnidade[]>([]);
+  const [gerenteForm, setGerenteForm] = useState(emptyGerenteForm);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
@@ -48,6 +68,9 @@ export default function GerentePage() {
   const [batchReturnOpen, setBatchReturnOpen] = useState(false);
   const [batchJustificativa, setBatchJustificativa] = useState("");
   const [batchError, setBatchError] = useState("");
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [signatureGerente, setSignatureGerente] = useState<GerenteUnidade | null>(null);
+  const [signatureUnidade, setSignatureUnidade] = useState("");
   const [preview, setPreview] = useState<
     | { tipo: "gerado"; processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }
     | { tipo: "anexo"; processo: ProcessoSicpr; documento: DocumentoProcesso }
@@ -65,6 +88,7 @@ export default function GerentePage() {
     const timer = window.setTimeout(() => {
       setUsername(localStorage.getItem("username") || "Gerente Unloc");
       setProcessos(loadProcessos());
+      setGerentes(loadGerentesUnidade());
     }, 0);
     return () => window.clearTimeout(timer);
   }, [router]);
@@ -83,7 +107,24 @@ export default function GerentePage() {
   }, [processos, search]);
   const totalPages = Math.max(1, Math.ceil(pendentes.length / PAGE_SIZE));
   const pagedPendentes = pendentes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const gerenteHistory = useMemo(() => getGerenteHistory(processos, username), [processos, username]);
+  const gerenteHistory = useMemo(() => getGerenteHistory(processos), [processos]);
+  const selectedProcessos = useMemo(
+    () => processos.filter((processo) => selectedIds.includes(processo.id)),
+    [processos, selectedIds],
+  );
+  const signatureSummary = useMemo(() => {
+    const memorando = "Gerado automaticamente";
+    const unidades = Array.from(new Set(selectedProcessos.map((processo) => processo.unidadeLocal)));
+    const produtores = new Set(selectedProcessos.map((processo) => processo.cpf));
+
+    return {
+      memorando,
+      unidades,
+      quantidadeProcessos: selectedProcessos.length,
+      quantidadeProdutores: produtores.size,
+      documentos: ["Memorando", "Declaracoes vinculadas"],
+    };
+  }, [selectedProcessos]);
   const visibleGerenteHistory = showFullHistory ? gerenteHistory : gerenteHistory.slice(0, 10);
   const stats = useMemo(() => {
     const hoje = new Date().toLocaleDateString("pt-BR");
@@ -113,6 +154,11 @@ export default function GerentePage() {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
+  function persistGerentes(next: GerenteUnidade[]) {
+    setGerentes(next);
+    saveGerentesUnidade(next);
+  }
+
   function toggleHistoryMemo(id: string) {
     setExpandedHistoryMemoIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
@@ -123,10 +169,87 @@ export default function GerentePage() {
       setMessage("Selecione ao menos um processo para aprovar e assinar.");
       return;
     }
-    persist(aprovarLoteGerente(processos, selectedIds, username));
+
+    const unidades = signatureSummary.unidades;
+    if (unidades.length !== 1) {
+      setMessageType("error");
+      setMessage("Selecione processos de apenas uma Unidade Local por assinatura.");
+      return;
+    }
+
+    const unidade = unidades[0];
+    const assinantes = getGerentesAssinantesDaUnidade(gerentes, unidade);
+    if (assinantes.length === 0) {
+      setMessageType("error");
+      setMessage("Nao existe gerente ativo vinculado a esta Unidade Local.");
+      return;
+    }
+
+    if (assinantes.length > 1) {
+      setMessageType("error");
+      setMessage("Existe conflito de responsaveis para esta Unidade Local.");
+      return;
+    }
+
+    setSignatureUnidade(unidade);
+    setSignatureGerente(assinantes[0]);
+    setSignatureOpen(true);
+  }
+
+  function confirmSignature() {
+    if (!signatureGerente) return;
+    persist(aprovarLoteGerente(processos, selectedIds, signatureGerente));
     setMessageType("success");
     setMessage(`Lote aprovado, assinado e encaminhado para analise com ${selectedIds.length} processo(s).`);
     setSelectedIds([]);
+    setSignatureOpen(false);
+    setSignatureGerente(null);
+  }
+
+  function saveGerenteForm() {
+    const nome = gerenteForm.nome.trim();
+    const unidadeLocal = gerenteForm.unidadeLocal.trim();
+    const cargo = gerenteForm.cargo.trim();
+
+    if (!nome || !unidadeLocal || !cargo) {
+      setMessageType("error");
+      setMessage("Informe nome, Unidade Local e cargo do gerente.");
+      return;
+    }
+
+    const next = salvarGerenteUnidade(gerentes, {
+      ...gerenteForm,
+      nome,
+      unidadeLocal,
+      cargo,
+      email: gerenteForm.email.trim(),
+      telefoneCorporativo: gerenteForm.telefoneCorporativo.trim(),
+      telefonePessoal: gerenteForm.telefonePessoal.trim(),
+      id: gerenteForm.id || undefined,
+    });
+    persistGerentes(next);
+    setGerenteForm(emptyGerenteForm);
+    setMessageType("success");
+    setMessage("Cadastro do gerente salvo. Registros antigos permanecem preservados.");
+  }
+
+  function editGerente(gerente: GerenteUnidade) {
+    setGerenteForm({
+      id: gerente.id,
+      nome: gerente.nome,
+      unidadeLocal: gerente.unidadeLocal,
+      cargo: gerente.cargo,
+      email: gerente.email,
+      telefoneCorporativo: gerente.telefoneCorporativo,
+      telefonePessoal: gerente.telefonePessoal,
+      status: gerente.status,
+    });
+  }
+
+  function deactivateGerente(id: string) {
+    persistGerentes(inativarGerenteUnidade(gerentes, id));
+    setMessageType("success");
+    setMessage("Gerente inativado com data de encerramento registrada.");
   }
 
   function openBatchReturn() {
@@ -237,6 +360,149 @@ export default function GerentePage() {
             <StatCard label="Devolvidos hoje" value={stats.devolvidosHoje} />
             <StatCard label="Total analisado" value={stats.totalAnalisado} />
           </div>
+
+          <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>Gerentes das Unidades Locais</h2>
+                <p className="text-xs" style={{ color: COLORS.textLight }}>Cadastro administrativo usado para simular e validar a assinatura eletronica.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGerenteForm(emptyGerenteForm)}
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold"
+                style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
+              >
+                <UserPlus size={15} />
+                Novo gerente
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-4 xl:grid-cols-[360px_1fr]">
+              <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="font-semibold" style={{ color: COLORS.text }}>{gerenteForm.id ? "Editar gerente" : "Cadastrar gerente"}</p>
+                  {gerenteForm.id && (
+                    <button type="button" onClick={() => setGerenteForm(emptyGerenteForm)} className="text-xs font-semibold" style={{ color: COLORS.textLight }}>
+                      Limpar
+                    </button>
+                  )}
+                </div>
+                <div className="grid gap-3">
+                  <input
+                    value={gerenteForm.nome}
+                    onChange={(event) => setGerenteForm({ ...gerenteForm, nome: event.target.value })}
+                    placeholder="Nome completo"
+                    className="rounded-md border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: COLORS.border }}
+                  />
+                  <select
+                    value={gerenteForm.unidadeLocal}
+                    onChange={(event) => setGerenteForm({ ...gerenteForm, unidadeLocal: event.target.value })}
+                    className="rounded-md border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: COLORS.border }}
+                  >
+                    {UNLOC_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.municipio}>{option.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={gerenteForm.cargo}
+                    onChange={(event) => setGerenteForm({ ...gerenteForm, cargo: event.target.value })}
+                    placeholder="Cargo"
+                    className="rounded-md border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: COLORS.border }}
+                  />
+                  <input
+                    value={gerenteForm.email}
+                    onChange={(event) => setGerenteForm({ ...gerenteForm, email: event.target.value })}
+                    placeholder="E-mail"
+                    className="rounded-md border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: COLORS.border }}
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <input
+                      value={gerenteForm.telefoneCorporativo}
+                      onChange={(event) => setGerenteForm({ ...gerenteForm, telefoneCorporativo: event.target.value })}
+                      placeholder="Telefone corporativo"
+                      className="rounded-md border px-3 py-2 text-sm outline-none"
+                      style={{ borderColor: COLORS.border }}
+                    />
+                    <input
+                      value={gerenteForm.telefonePessoal}
+                      onChange={(event) => setGerenteForm({ ...gerenteForm, telefonePessoal: event.target.value })}
+                      placeholder="Telefone pessoal"
+                      className="rounded-md border px-3 py-2 text-sm outline-none"
+                      style={{ borderColor: COLORS.border }}
+                    />
+                  </div>
+                  <select
+                    value={gerenteForm.status}
+                    onChange={(event) => setGerenteForm({ ...gerenteForm, status: event.target.value as GerenteUnidadeStatus })}
+                    className="rounded-md border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: COLORS.border }}
+                  >
+                    <option value="ativo">Ativo</option>
+                    <option value="respondendo">Respondendo</option>
+                    <option value="inativo">Inativo</option>
+                  </select>
+                  <button onClick={saveGerenteForm} className="sicpr-action-button inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
+                    <Save size={15} />
+                    Salvar cadastro
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
+                      <th className="px-3 py-2">Gerente</th>
+                      <th className="px-3 py-2">Unidade</th>
+                      <th className="px-3 py-2">Contato</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Acoes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gerentes.map((gerente) => (
+                      <tr key={gerente.id} className="border-b" style={{ borderBottomColor: COLORS.border }}>
+                        <td className="px-3 py-3">
+                          <span className="block font-semibold" style={{ color: COLORS.text }}>{gerente.nome}</span>
+                          <span className="block text-xs" style={{ color: COLORS.textLight }}>{gerente.cargo}</span>
+                        </td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{gerente.unidadeLocal}</td>
+                        <td className="px-3 py-3 text-xs" style={{ color: COLORS.textLight }}>
+                          <span className="block">{gerente.email || "-"}</span>
+                          <span className="block">{gerente.telefoneCorporativo || gerente.telefonePessoal || "-"}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset" style={{ backgroundColor: gerente.status === "inativo" ? "#F4F4F5" : "#ECFDF3", color: gerente.status === "inativo" ? COLORS.textLight : "#027A48", borderColor: COLORS.border }}>
+                            {GERENTE_STATUS_LABELS[gerente.status]}
+                          </span>
+                          {gerente.encerradoEm && <span className="mt-1 block text-xs" style={{ color: COLORS.textLight }}>Encerrado em {formatDateTime(gerente.encerradoEm)}</span>}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => editGerente(gerente)} className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}>
+                              <Edit3 size={13} />
+                              Editar
+                            </button>
+                            {gerente.status !== "inativo" && (
+                              <button type="button" onClick={() => deactivateGerente(gerente.id)} className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.danger }}>
+                                <X size={13} />
+                                Inativar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
 
           <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
@@ -358,6 +624,16 @@ export default function GerentePage() {
                             Motivo: {item.motivo}
                           </span>
                         )}
+                        {item.codigoValidacao && (
+                          <span className="text-sm font-semibold" style={{ color: COLORS.primary }}>
+                            Codigo de validacao: {item.codigoValidacao}
+                          </span>
+                        )}
+                        {item.documentosAssinados?.length ? (
+                          <span className="text-xs" style={{ color: COLORS.textLight }}>
+                            Documentos: {item.documentosAssinados.join(", ")}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.textLight }}>
@@ -402,6 +678,55 @@ export default function GerentePage() {
           </section>
         </div>
       </main>
+
+      {signatureOpen && signatureGerente && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-5">
+          <div className="absolute inset-0 bg-black/45" onClick={() => setSignatureOpen(false)} />
+          <section className="relative w-full max-w-2xl rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
+              <div>
+                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Confirmar assinatura eletronica</p>
+                <h2 className="mt-1 text-base font-semibold" style={{ color: COLORS.primary }}>Assinar lote de documentos oficiais</h2>
+              </div>
+              <button type="button" onClick={() => setSignatureOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid gap-4 px-5 py-4 sm:grid-cols-2">
+              <DetailInfoCard label="Gerente" value={signatureGerente.nome} />
+              <DetailInfoCard label="Unidade Local" value={signatureUnidade} />
+              <DetailInfoCard label="Memorando" value={signatureSummary.memorando} />
+              <DetailInfoCard label="Status do responsavel" value={GERENTE_STATUS_LABELS[signatureGerente.status]} />
+              <DetailInfoCard label="Quantidade de processos" value={String(signatureSummary.quantidadeProcessos)} />
+              <DetailInfoCard label="Quantidade de produtores" value={String(signatureSummary.quantidadeProdutores)} />
+            </div>
+
+            <div className="px-5 pb-4">
+              <div className="rounded-md border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
+                <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.text }}>Documentos que serao assinados</p>
+                <div className="flex flex-wrap gap-2">
+                  {signatureSummary.documentos.map((documento) => (
+                    <span key={documento} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: COLORS.card, color: COLORS.primary, border: `1px solid ${COLORS.border}` }}>
+                      {documento}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
+              <button type="button" onClick={() => setSignatureOpen(false)} className="rounded-md px-3 py-2 text-sm font-semibold" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={confirmSignature} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
+                <FileSignature size={15} />
+                Assinar documentos
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {batchReturnOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-5">

@@ -2,6 +2,32 @@ import { GeneratedDocumentPreview as DocumentTemplatePreview } from "../fluxo/Do
 import { TIPO_PROCESSO_LABELS } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, ProcessoSicpr } from "../fluxo/types";
 
+const formatSignatureDate = (value?: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return `${date.toLocaleDateString("pt-BR")} às ${date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+};
+
+function gerenteCargoLabel(assinatura: NonNullable<ProcessoSicpr["assinaturaEletronica"]>) {
+  if (assinatura.gerenteStatus === "respondendo") {
+    return `Responsável pela Unidade Local de ${assinatura.unidadeLocal}`;
+  }
+
+  const cargo = assinatura.gerenteCargo || "Gerente da Unidade Local";
+  const cargoNormalizado = cargo.trim().replace(/\s+/g, " ");
+
+  if (/unidade local de/i.test(cargoNormalizado) || /unloc/i.test(cargoNormalizado)) {
+    return cargoNormalizado;
+  }
+
+  if (/unidade local$/i.test(cargoNormalizado)) {
+    return `${cargoNormalizado} de ${assinatura.unidadeLocal}`;
+  }
+
+  return `${cargoNormalizado} da Unidade Local de ${assinatura.unidadeLocal}`;
+}
+
 export function GeneratedDocumentPreview({ processo, documento }: { processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }) {
   if (documento.tipo === "fac" || documento.tipo === "declaracao_produtor") {
     return <DocumentTemplatePreview processo={processo} documento={documento} />;
@@ -51,6 +77,7 @@ export function GeneratedDocumentPreview({ processo, documento }: { processo: Pr
           <p className="text-xs text-gray-500">{processo.gerenteResponsavel || "Aguardando assinatura"}</p>
         </div>
       </div>
+      <SignatureBlock processo={processo} />
     </div>
   );
 }
@@ -71,6 +98,7 @@ function FormularioPreview({ processo }: { processo: ProcessoSicpr }) {
         <p><strong>Tecnico responsavel:</strong> {processo.tecnicoResponsavel}</p>
         <p><strong>Gerente responsavel:</strong> {processo.gerenteResponsavel || "Aguardando assinatura"}</p>
       </div>
+      <SignatureBlock processo={processo} />
     </div>
   );
 }
@@ -121,11 +149,64 @@ function MemorandoPreview({ processo }: { processo: ProcessoSicpr }) {
         </section>
       ))}
       <p className="mt-8">Cordialmente,</p>
-      <div className="mx-auto mt-20 w-80 border-t border-black pt-2 text-center">
-        <p className="font-semibold uppercase">{gerente}</p>
-        <p>Gerente da Unloc {unidadeLocal}</p>
-      </div>
+      <ElectronicSignatureSeal processo={processo} fallbackGerente={gerente} className="mx-auto mt-16 w-80" />
+      <SignatureBlock processo={processo} />
       <MemorandoTimbradoFooter />
+    </div>
+  );
+}
+
+function SignatureBlock({ processo }: { processo: ProcessoSicpr }) {
+  const assinatura = processo.assinaturaEletronica;
+  if (!assinatura) return null;
+
+  return (
+    <div className="mt-8 rounded border border-[#9AA89E] bg-[#F8FBF8] p-3 text-[11px] leading-5">
+      <p className="font-bold uppercase tracking-wide text-[#245C3A]">Detalhes da assinatura</p>
+      <p><strong>Data da assinatura:</strong> {formatSignatureDate(assinatura.assinadaEm)}</p>
+      <p><strong>Código de validação:</strong> {assinatura.codigoValidacao}</p>
+      <p><strong>Status:</strong> Documento aprovado e assinado eletronicamente.</p>
+    </div>
+  );
+}
+
+function ElectronicSignatureSeal({
+  processo,
+  fallbackGerente,
+  className = "",
+}: {
+  processo: ProcessoSicpr;
+  fallbackGerente: string;
+  className?: string;
+}) {
+  const assinatura = processo.assinaturaEletronica;
+  if (!assinatura) {
+    return (
+      <div className={`text-center leading-5 ${className}`}>
+        <div className="mx-auto w-44 border-t border-black pt-2">{fallbackGerente}</div>
+        <p className="mt-1 text-[11px] text-gray-700">Visto/Gerente da Unidade Local</p>
+      </div>
+    );
+  }
+
+  const nome = assinatura?.gerenteNome || fallbackGerente;
+  const cargo = gerenteCargoLabel(assinatura);
+  const dataAssinatura = formatSignatureDate(assinatura.assinadaEm);
+
+  return (
+    <div className={`text-center leading-5 ${className}`}>
+      <div className="mx-auto mb-2 inline-flex rounded border border-[#6F8F77] bg-[#F2F8F3] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#245C3A]">
+        Assinado eletronicamente
+      </div>
+      <p className="font-semibold">{nome}</p>
+      <p className="text-[11px] text-gray-700">{cargo}</p>
+      {dataAssinatura && <p className="mt-1 text-[10px] text-gray-600">{dataAssinatura}</p>}
+      {assinatura && (
+        <div className="mx-auto mt-2 w-fit rounded border border-[#9AA89E] bg-white px-2.5 py-1 text-[10px] font-bold tracking-wide text-[#1F3F2C]">
+          <span className="block text-[8px] uppercase text-[#5C6F62]">Código de validação</span>
+          {assinatura.codigoValidacao}
+        </div>
+      )}
     </div>
   );
 }

@@ -133,3 +133,52 @@ input.login-autofill:autofill {
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff !important;
 }
+
+.sicpr-print-clone {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 7mm;
+  }
+
+  body.sicpr-printing-document {
+    background: #ffffff !important;
+  }
+
+  body.sicpr-printing-document > :not(.sicpr-print-clone) {
+    display: none !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-print-document {
+    box-sizing: border-box !important;
+    width: 196mm !important;
+    max-width: 196mm !important;
+    min-height: 0 !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-fac-document {
+    aspect-ratio: auto !important;
+    width: 188mm !important;
+    max-width: 188mm !important;
+    padding: 2mm !important;
+    transform-origin: top center;
+    zoom: 0.9;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

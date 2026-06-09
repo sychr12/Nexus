@@ -18,16 +18,17 @@ export type GerenteHistoryMemorando = {
   quantidade: number;
   produtores: GerenteHistoryProdutor[];
   motivo?: string;
+  codigoValidacao?: string;
+  documentosAssinados?: string[];
 };
 
-export function getGerenteHistory(processos: ProcessoSicpr[], username: string): GerenteHistoryMemorando[] {
+export function getGerenteHistory(processos: ProcessoSicpr[]): GerenteHistoryMemorando[] {
   const grupos = new Map<string, GerenteHistoryMemorando>();
 
   processos.forEach((processo) => {
     processo.historico
       .filter((item) =>
-        item.usuario === username &&
-        (item.acao === "Aprovado e assinado pelo gerente" || item.acao === "Devolvido pelo gerente"),
+        item.acao === "Aprovado e assinado pelo gerente" || item.acao === "Devolvido pelo gerente",
       )
       .forEach((item) => {
         const tipo: GerenteHistoryStatus = item.acao === "Devolvido pelo gerente" ? "devolvido" : "aprovado";
@@ -56,6 +57,8 @@ export function getGerenteHistory(processos: ProcessoSicpr[], username: string):
           quantidade: processo.memorandoQuantidade || produtores.length,
           produtores,
           motivo: tipo === "devolvido" ? item.observacao : undefined,
+          codigoValidacao: processo.assinaturaEletronica?.codigoValidacao,
+          documentosAssinados: processo.assinaturaEletronica?.documentosAssinados.map((documento) => documento.nome),
         });
       });
   });
