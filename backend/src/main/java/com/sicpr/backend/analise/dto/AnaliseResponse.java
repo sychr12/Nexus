@@ -25,8 +25,6 @@ public class AnaliseResponse {
 
     private String localidade;
 
-    private String emailOrigem;
-
     private String prioridade;
 
     // recebido / em_analise / finalizado

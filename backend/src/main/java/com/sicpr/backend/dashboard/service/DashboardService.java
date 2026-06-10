@@ -36,7 +36,6 @@ public class DashboardService {
         int totalLancamentos = obterTotalLancamentos();
         int totalMemorandos = obterTotalMemorandos();
         int totalCartoes = obterTotalCartoes();
-        int totalEmails = obterTotalEmails();
         
         String ultimoAcesso = userRepository.findAll().stream()
                 .filter(u -> u.getUltimoLogin() != null)
@@ -52,7 +51,6 @@ public class DashboardService {
                 .totalLancamentos(totalLancamentos)
                 .totalMemorandos(totalMemorandos)
                 .totalCartoes(totalCartoes)
-                .totalEmails(totalEmails)
                 .ultimoAcesso(ultimoAcesso)
                 .build();
     }
@@ -83,15 +81,6 @@ public class DashboardService {
         }
     }
     
-    private int obterTotalEmails() {
-        try {
-            Query query = entityManager.createNativeQuery("SELECT COUNT(*) FROM emails");
-            return ((Number) query.getSingleResult()).intValue();
-        } catch (Exception e) {
-            return 532;
-        }
-    }
-    
     public List<TopCategoriaDTO> obterTopCategorias() {
         List<TopCategoriaDTO> categorias = new ArrayList<>();
         categorias.add(TopCategoriaDTO.builder().nome("Combustível").total(36).build());
@@ -107,7 +96,6 @@ public class DashboardService {
         relatorios.add(RelatorioDTO.builder().nome("Memorando por status").descricao("Memorando").build());
         relatorios.add(RelatorioDTO.builder().nome("Cartões emitidos").descricao("Cartões emitidos").build());
         relatorios.add(RelatorioDTO.builder().nome("Relatório Financeiro").descricao("Resumo financeiro").build());
-        relatorios.add(RelatorioDTO.builder().nome("Relatório de E-mails").descricao("E-mails enviados").build());
         return relatorios;
     }
     
@@ -116,7 +104,6 @@ public class DashboardService {
         notificacoes.add(NotificacaoDTO.builder().titulo("Memorando MEM-2024-0001").mensagem("Novo memorando criado").dataHora("Há 5 minutos").lida(false).build());
         notificacoes.add(NotificacaoDTO.builder().titulo("Novo lançamento adicional").mensagem("Lançamento registrado").dataHora("Há 1 hora").lida(false).build());
         notificacoes.add(NotificacaoDTO.builder().titulo("Cartão emitido com sucesso").mensagem("Cartão emitido").dataHora("Há 2 horas").lida(true).build());
-        notificacoes.add(NotificacaoDTO.builder().titulo("E-mail enviado para SEFAZ").mensagem("E-mail enviado").dataHora("Há 3 horas").lida(true).build());
         notificacoes.add(NotificacaoDTO.builder().titulo("Backup realizado com sucesso").mensagem("Backup concluído").dataHora("Há 5 horas").lida(true).build());
         return notificacoes;
     }

@@ -53,7 +53,6 @@ public class UserService {
     public User update(Long id, User userUpdate) {
         User existing = findById(id);
         existing.setNomeCompleto(userUpdate.getNomeCompleto());
-        existing.setEmail(userUpdate.getEmail());
         existing.setTelefone(userUpdate.getTelefone());
         existing.setPerfil(userUpdate.getPerfil());
         if (userUpdate.getPassword() != null && !userUpdate.getPassword().isEmpty()) {

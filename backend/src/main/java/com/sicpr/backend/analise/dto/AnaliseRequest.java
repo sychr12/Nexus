@@ -16,8 +16,6 @@ public class AnaliseRequest {
 
     private String localidade;
 
-    private String emailOrigem;
-
     // urgente / normal
     private String prioridade;
 

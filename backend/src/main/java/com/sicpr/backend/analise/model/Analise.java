@@ -31,9 +31,6 @@ public class Analise {
     // Município/localidade
     private String localidade;
 
-    // Email origem
-    private String emailOrigem;
-
     // urgente / normal
     private String prioridade;
 

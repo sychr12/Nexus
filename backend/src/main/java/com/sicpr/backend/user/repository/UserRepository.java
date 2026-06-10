@@ -10,7 +10,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     
     // Métodos removidos porque os campos não existem no User
-    // Optional<User> findByEmail(String email);
     // boolean existsByUsername(String username);
     // void incrementarTentativasFalhas(...)
 }

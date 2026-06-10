@@ -55,11 +55,6 @@ public class SecurityConfig {
                     "/api/auth/ping"
                 ).permitAll()
 
-                // EMAIL
-                .requestMatchers(
-                    "/api/email/**"
-                ).authenticated()
-
                 // CARTEIRAS
                 .requestMatchers(
                     "/api/carteira/**"
@@ -83,6 +78,11 @@ public class SecurityConfig {
                 // ENCAMINHAMENTOS DE ANALISE
                 .requestMatchers(
                     "/api/encaminhamentos-analise/**"
+                ).authenticated()
+
+                // FLUXO SICPR
+                .requestMatchers(
+                    "/api/fluxo/**"
                 ).authenticated()
 
                 // DASHBOARD

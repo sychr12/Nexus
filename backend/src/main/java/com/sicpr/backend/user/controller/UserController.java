@@ -39,7 +39,6 @@ public class UserController {
         User user = User.builder()
                 .username(request.getUsername())
                 .password(request.getPassword())
-                .email(request.getEmail())
                 .nomeCompleto(request.getNomeCompleto())
                 .telefone(request.getTelefone())
                 .perfil(request.getPerfil())
@@ -52,7 +51,6 @@ public class UserController {
     public UserResponse update(@PathVariable Long id, @RequestBody UserRequest request) {
         User user = User.builder()
                 .nomeCompleto(request.getNomeCompleto())
-                .email(request.getEmail())
                 .telefone(request.getTelefone())
                 .perfil(request.getPerfil())
                 .password(request.getPassword())
@@ -83,7 +81,6 @@ public class UserController {
     record UserResponse(
             Long id,
             String username,
-            String email,
             String nomeCompleto,
             String telefone,
             String perfil,
@@ -91,7 +88,7 @@ public class UserController {
     ) {
         static UserResponse from(User u) {
             return new UserResponse(
-                    u.getId(), u.getUsername(), u.getEmail(),
+                    u.getId(), u.getUsername(),
                     u.getNomeCompleto(), u.getTelefone(),
                     u.getPerfil(), u.getStatus()
             );
