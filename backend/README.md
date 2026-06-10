@@ -16,7 +16,7 @@ CREATE DATABASE sistemacpp;
 Edite `src/main/resources/application.properties`:
 
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/sistemacpp
+spring.datasource.url=jdbc:postgresql://localhost:5432/sicpr
 spring.datasource.username=postgres
 spring.datasource.password=123456
 ```
