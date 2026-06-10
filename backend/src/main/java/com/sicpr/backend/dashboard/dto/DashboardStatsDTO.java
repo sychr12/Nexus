@@ -16,6 +16,5 @@ public class DashboardStatsDTO {
     private int totalLancamentos;
     private int totalMemorandos;
     private int totalCartoes;
-    private int totalEmails;
     private String ultimoAcesso;
 }

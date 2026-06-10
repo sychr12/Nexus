@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Menu, Bell, User, LogOut, PieChart as PieChartIcon, Activity, FileText, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 import {
   LineChart,
@@ -21,6 +20,7 @@ import StatsCards from "./components/StatsCards";
 import UsersOnline from "./components/UsersOnline";
 import RecentActivities from "./components/RecentActivities";
 import { dashboardApi } from "./lib/api";
+import { useAuthSession } from "../hooks/useAuthSession";
 import {
   DashboardStats,
   UsuarioAtivo,
@@ -103,7 +103,7 @@ const COLORS = {
 const CAT_COLORS = ["#6B9D4A", "#4C6A4B", "#2D452F", "#8DB87C"];
 
 export default function DashboardPage() {
-  const router = useRouter();
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [usuarios, setUsuarios] = useState<UsuarioAtivo[]>([]);
   const [atividades, setAtividades] = useState<AtividadeRecente[]>([]);
@@ -113,7 +113,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [animated, setAnimated] = useState(false);
-  const [username, setUsername] = useState("Usuário");
 
   const [lineChartData, setLineChartData] = useState([
     { mes: "Jan", receita: 42000, despesa: 28000 },
@@ -140,22 +139,7 @@ export default function DashboardPage() {
       document.head.appendChild(style);
     }
 
-    // Pega o username do localStorage
-    const userStr = localStorage.getItem("user");
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        setUsername(user.username || user.nomeCompleto || "Usuário");
-      } catch {
-        setUsername("Usuário");
-      }
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     loadAll();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     
@@ -163,7 +147,7 @@ export default function DashboardPage() {
     setTimeout(() => setAnimated(true), 100);
     
     return () => clearInterval(timer);
-  }, []);
+  }, [ready]);
 
   async function loadAll() {
     try {
@@ -193,13 +177,6 @@ export default function DashboardPage() {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("username");
-    router.push("/login");
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
@@ -210,7 +187,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       {/* Conteúdo principal com paddingTop para compensar o TopBar */}
       <main className="px-4 sm:px-6 lg:px-8 py-8" style={{ paddingTop: "70px" }}>

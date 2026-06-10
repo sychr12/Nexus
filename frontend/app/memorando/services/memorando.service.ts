@@ -1,46 +1,31 @@
-import API_URL from "../lib/api";
+import { apiFetch, apiJson, throwIfNotOk } from "../../lib/http";
 import { Memorando } from "../types/memorando";
 
+type CreateMemorandoPayload = {
+  numero: string;
+  descricao: string;
+  data: string;
+  unloc: string;
+  municipio?: string;
+  memoEntrada?: string;
+};
+
 export async function listarMemorandos(): Promise<Memorando[]> {
-  const response = await fetch(
-    `${API_URL}/memorandos`,
-    {
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Erro ao listar memorandos");
-  }
-
-  return response.json();
+  return apiJson<Memorando[]>("/memorandos", { cache: "no-store" }, "Erro ao listar memorandos");
 }
 
-export async function criarMemorando(data: any) {
-  const response = await fetch(
-    `${API_URL}/memorandos`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Erro ao criar memorando");
-  }
-
-  return response.json();
+export async function criarMemorando(data: CreateMemorandoPayload): Promise<Memorando> {
+  return apiJson<Memorando>("/memorandos", { method: "POST", body: data }, "Erro ao criar memorando");
 }
 
 export async function downloadMemorando(
   id: number
 ) {
+  const response = await apiFetch(`/memorandos/${id}/download`);
+  await throwIfNotOk(response, "Erro ao baixar memorando");
 
-  window.open(
-    `${API_URL}/memorandos/${id}/download`,
-    "_blank"
-  );
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

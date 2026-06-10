@@ -2,6 +2,7 @@ package com.sicpr.backend.inscricao.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 
@@ -21,6 +22,8 @@ public class Inscricao {
     private String cpf;
     private String municipio;
     private String memorando;
+    private String latitude;
+    private String longitude;
     private String tipo;
     @Column(name = "criado_em", updatable = false)
     private LocalDateTime criadoEm;

@@ -87,13 +87,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- JavaMail (IMAP) - PARA DOWNLOAD DE EMAILS -->
-        <dependency>
-            <groupId>com.sun.mail</groupId>
-            <artifactId>javax.mail</artifactId>
-            <version>1.6.2</version>
-        </dependency>
-
         <!-- Apache POI (Excel) -->
         <dependency>
             <groupId>org.apache.poi</groupId>

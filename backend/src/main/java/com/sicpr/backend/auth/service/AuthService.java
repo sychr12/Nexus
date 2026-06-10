@@ -55,6 +55,6 @@ public class AuthService {
         userService.registrarUltimoLogin(user.getUsername());
 
         String token = jwtService.generateToken(user.getUsername());
-        return new AuthResponse(token);
+        return new AuthResponse(token, user.getUsername(), user.getPerfil());
     }
 }

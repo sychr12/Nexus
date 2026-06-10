@@ -32,21 +32,78 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
 
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))  // Adicione esta linha
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
 
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/email/**").permitAll()
-                .requestMatchers("/api/carteiras/**").permitAll()
-                .requestMatchers("/api/memorandos/**").permitAll()
-                .requestMatchers("/api/inscricoes/**").permitAll()
-                .requestMatchers("/error").permitAll()
-                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+
+                // OPTIONS
+                .requestMatchers(
+                    HttpMethod.OPTIONS,
+                    "/**"
+                ).permitAll()
+
+                // AUTH
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/auth/login"
+                ).permitAll()
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/auth/ping"
+                ).permitAll()
+
+                // CARTEIRAS
+                .requestMatchers(
+                    "/api/carteira/**"
+                ).authenticated()
+
+                // MEMORANDOS
+                .requestMatchers(
+                    "/api/memorandos/**"
+                ).authenticated()
+
+                // INSCRICOES
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/inscricoes"
+                ).permitAll()
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/inscricoes"
+                ).permitAll()
+
+                // ENCAMINHAMENTOS DE ANALISE
+                .requestMatchers(
+                    "/api/encaminhamentos-analise/**"
+                ).authenticated()
+
+                // FLUXO SICPR
+                .requestMatchers(
+                    "/api/fluxo/**"
+                ).authenticated()
+
+                // DASHBOARD
+                .requestMatchers(
+                    "/api/dashboard/**"
+                ).authenticated()
+
+                // ERRO
+                .requestMatchers(
+                    "/error"
+                ).permitAll()
+
+                // SWAGGER
+                .requestMatchers(
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/v3/api-docs/**"
+                ).permitAll()
+
+                // RESTANTE
                 .anyRequest().authenticated()
             )
 
@@ -58,14 +115,28 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:3000", "http://localhost:*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:3000",
+            "http://localhost:*"
+        ));
+
+        configuration.setAllowedMethods(Arrays.asList(
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "OPTIONS"
+        ));
+
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 

@@ -22,6 +22,10 @@ public class InscricaoResponse {
 
     private String memorando;
 
+    private String latitude;
+
+    private String longitude;
+
     private String tipo;
 
     private LocalDateTime criadoEm;

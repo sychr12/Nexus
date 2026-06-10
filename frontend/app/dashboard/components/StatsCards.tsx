@@ -1,12 +1,11 @@
 "use client";
 
-import { DollarSign, FileText, CreditCard, Mail } from 'lucide-react';
+import { DollarSign, FileText, CreditCard } from 'lucide-react';
 
 interface DashboardStats {
   totalLancamentos: number;
   totalMemorandos: number;
   totalCartoes: number;
-  totalEmails: number;
 }
 
 interface StatsCardsProps {
@@ -39,18 +38,10 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       bg: 'bg-emerald-50',
       icon: CreditCard,
     },
-    {
-      title: 'E-mails Emitidos',
-      value: stats.totalEmails,
-      subtitle: 'últimos 30 dias',
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-      icon: Mail,
-    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {cards.map((card, index) => {
         const Icon = card.icon;
         return (

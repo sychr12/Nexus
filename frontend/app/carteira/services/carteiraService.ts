@@ -1,5 +1,5 @@
 // frontend/app/carteira/services/carteiraService.ts
-import API_URL from "../lib/api";
+import { apiFetch, getAuthHeaders, getAuthToken, throwIfNotOk } from "../../lib/http";
 import {
   CarteiraResponse,
   CarteiraRequest,
@@ -11,27 +11,8 @@ import {
   CarteiraForm,
 } from "../types/carteira";
 
-function getAuthToken(): string | null {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("token");
-  }
-  return null;
-}
-
 function getHeaders(): HeadersInit {
-  const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-async function throwOnError(response: Response) {
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(text || `HTTP ${response.status}`);
-  }
-  return response;
+  return getAuthHeaders({ "Content-Type": "application/json" });
 }
 
 // ============ CARTEIRA DIGITAL - PRODUTOR RURAL ============
@@ -59,16 +40,12 @@ export async function cadastrarCarteira(data: CarteiraRequest): Promise<Carteira
     });
   }
 
-  const token = getAuthToken();
-  const response = await fetch(`${API_URL}/carteira`, {
+  const response = await apiFetch("/carteira", {
     method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     body: formData,
   });
 
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
@@ -77,11 +54,11 @@ export async function listarCarteiras(
   page: number = 0,
   size: number = 10
 ): Promise<PageResponse<CarteiraResponse>> {
-  const response = await fetch(`${API_URL}/carteira/listar?page=${page}&size=${size}`, {
+  const response = await apiFetch(`/carteira/listar?page=${page}&size=${size}`, {
     method: "GET",
     headers: getHeaders(),
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
@@ -97,35 +74,35 @@ export async function buscarCarteirasComFiltros(
   params.append("page", page.toString());
   params.append("size", size.toString());
 
-  const response = await fetch(`${API_URL}/carteira/buscar?${params.toString()}`, {
+  const response = await apiFetch(`/carteira/buscar?${params.toString()}`, {
     method: "GET",
     headers: getHeaders(),
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
 export async function buscarCarteiraPorId(id: number): Promise<CarteiraResponse> {
-  const response = await fetch(`${API_URL}/carteira/${id}`, {
+  const response = await apiFetch(`/carteira/${id}`, {
     method: "GET",
     headers: getHeaders(),
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
 export async function buscarPorCpf(cpf: string): Promise<CarteiraResponse> {
-  const response = await fetch(`${API_URL}/carteira/cpf/${cpf}`, {
+  const response = await apiFetch(`/carteira/cpf/${cpf}`, {
     method: "GET",
     headers: getHeaders(),
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
 export async function baixarPdf(id: number, nome: string): Promise<void> {
   const token = getAuthToken();
-  const response = await fetch(`${API_URL}/carteira/pdf/${id}`, {
+  const response = await apiFetch(`/carteira/pdf/${id}`, {
     method: "GET",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -149,24 +126,38 @@ export async function baixarPdf(id: number, nome: string): Promise<void> {
 
 export async function visualizarPdf(id: number): Promise<void> {
   const token = getAuthToken();
-  window.open(`${API_URL}/carteira/visualizar/${id}?token=${token}`, "_blank");
+  const response = await apiFetch(`/carteira/visualizar/${id}`, {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Erro ao visualizar PDF");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function buscarUsuariosUnicos(): Promise<string[]> {
-  const response = await fetch(`${API_URL}/carteira/usuarios`, {
+  const response = await apiFetch("/carteira/usuarios", {
     method: "GET",
     headers: getHeaders(),
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
 export async function contarTotalCarteiras(): Promise<number> {
-  const response = await fetch(`${API_URL}/carteira/total`, {
+  const response = await apiFetch("/carteira/total", {
     method: "GET",
     headers: getHeaders(),
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
@@ -198,15 +189,11 @@ export async function enviarBatchFiles(files: File[]): Promise<BatchResult> {
     formData.append("files", file);
   });
   
-  const token = getAuthToken();
-  const response = await fetch(`${API_URL}/carteira/batch/upload`, {
+  const response = await apiFetch("/carteira/batch/upload", {
     method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     body: formData,
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 
@@ -215,15 +202,11 @@ export async function enviarBatchZip(file: File): Promise<BatchResult> {
   const formData = new FormData();
   formData.append("file", file);
   
-  const token = getAuthToken();
-  const response = await fetch(`${API_URL}/carteira/batch/zip`, {
+  const response = await apiFetch("/carteira/batch/zip", {
     method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     body: formData,
   });
-  await throwOnError(response);
+  await throwIfNotOk(response);
   return response.json();
 }
 

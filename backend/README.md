@@ -49,7 +49,8 @@ backend/
 **Requisição:**
 ```json
 {
-  "email": "teste@email.com"
+  "username": "usuario",
+  "password": "senha"
 }
 ```
 
@@ -82,12 +83,6 @@ Authorization: Bearer jwt_token_aqui
 ```bash
 mvn clean install
 ```
-
-## ⚠️ Observação
-
-O login atual é simplificado (não valida senha). Apenas o email é necessário.
-
----
 
 **Autor:** Luiz
 ```

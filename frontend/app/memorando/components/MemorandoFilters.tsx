@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronDown, Search, X, MapPin } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { ChevronDown, MapPin, Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { filterUnlocOptions, UNLOC_OPTIONS } from "../../lib/unlocs";
 
 const COLORS = {
   primary: "#2D452F",
@@ -14,28 +15,6 @@ const COLORS = {
   borderFocus: "#6B9D4A",
   hoverBg: "#F0F4EE",
   inputBg: "#FAFBF9",
-};
-
-const UNLOC_CODES: Record<string, string> = {
-  "Alvarães": "ALV", "Amaturá": "AMT", "Anamã": "ANA", "Anori": "ANO",
-  "Apuí": "APU", "Atalaia do Norte": "ATN", "Autazes": "AUT", "Barcelos": "BAR",
-  "Barreirinha": "BRR", "Benjamin Constant": "BCT", "Beruri": "BER",
-  "Boa Vista do Ramos": "BVR", "Boca do Acre": "BAC", "Borba": "BOR",
-  "Caapiranga": "CAP", "Canutama": "CAN", "Carauari": "CAR", "Careiro": "CAI",
-  "Careiro da Várzea": "CAV", "Coari": "COA", "Codajás": "COD",
-  "Eirunepé": "EIR", "Envira": "ENV", "Fonte Boa": "FBO", "Guajará": "GUA",
-  "Humaitá": "HUM", "Ipixuna": "IPI", "Iranduba": "IRA", "Itacoatiara": "ITA",
-  "Itamarati": "ITM", "Itapiranga": "ITP", "Japurá": "JAP", "Juruá": "JUR",
-  "Jutaí": "JUT", "Lábrea": "LAB", "Manacapuru": "MAN", "Manaquiri": "MAQ",
-  "Manaus": "MAO", "Manicoré": "MCO", "Maraã": "MAR", "Maués": "MAU",
-  "Nhamundá": "NHA", "Nova Olinda do Norte": "NON", "Novo Airão": "NAI",
-  "Novo Aripuanã": "NAR", "Parintins": "PAR", "Pauini": "PAU",
-  "Presidente Figueiredo": "PFIG", "Rio Preto da Eva": "RPE",
-  "Santa Isabel do Rio Negro": "SIRN", "Santo Antônio do Içá": "SAI",
-  "São Gabriel da Cachoeira": "SGC", "São Paulo de Olivença": "SPOL",
-  "São Sebastião do Uatumã": "SSU", "Silves": "SIL", "Tabatinga": "TAB",
-  "Tapauá": "TAP", "Tefé": "TEF", "Tonantins": "TON", "Uarini": "UAR",
-  "Urucará": "URC", "Urucurituba": "URU",
 };
 
 interface Props {
@@ -58,27 +37,15 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
         setUnlocSearch("");
       }
     }
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const allOptions = Object.entries(UNLOC_CODES).map(([municipio, sigla]) => ({
-    label: `${sigla} — ${municipio}`,
-    value: sigla,
-    municipio,
-  }));
-
-  const filteredOptions = allOptions.filter(
-    (o) =>
-      unlocSearch === "" ||
-      o.municipio.toLowerCase().includes(unlocSearch.toLowerCase()) ||
-      o.value.toLowerCase().includes(unlocSearch.toLowerCase())
-  );
-
+  const filteredOptions = filterUnlocOptions(unlocSearch);
   const selectedLabel = selectedUnloc
-    ? allOptions.find((o) => o.value === selectedUnloc)?.label
+    ? UNLOC_OPTIONS.find((option) => option.value === selectedUnloc)?.label
     : null;
-
   const hasAnyFilter = search !== "" || selectedUnloc !== "";
 
   return (
@@ -96,7 +63,10 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
         </span>
         {hasAnyFilter && (
           <button
-            onClick={() => { setSearch(""); setSelectedUnloc(""); }}
+            onClick={() => {
+              setSearch("");
+              setSelectedUnloc("");
+            }}
             className="flex items-center gap-1 text-xs font-medium transition-opacity hover:opacity-70"
             style={{ color: COLORS.accent }}
           >
@@ -106,7 +76,6 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
         )}
       </div>
 
-      {/* Search input */}
       <div className="relative">
         <Search
           size={14}
@@ -141,10 +110,12 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
         )}
       </div>
 
-      {/* UNLOC Dropdown */}
       <div className="relative" ref={dropdownRef}>
         <button
-          onClick={() => { setIsUnlocOpen(!isUnlocOpen); setUnlocSearch(""); }}
+          onClick={() => {
+            setIsUnlocOpen(!isUnlocOpen);
+            setUnlocSearch("");
+          }}
           className="w-full rounded-xl px-4 py-2.5 border text-sm flex items-center justify-between"
           style={{
             backgroundColor: COLORS.inputBg,
@@ -155,14 +126,17 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
             transition: "border-color 0.2s, box-shadow 0.2s",
           }}
         >
-          <span className="flex items-center gap-2">
-            <MapPin size={13} style={{ color: selectedUnloc ? COLORS.accent : COLORS.textLight }} />
-            {selectedLabel || "Todos os municípios"}
+          <span className="flex min-w-0 items-center gap-2">
+            <MapPin size={13} className="shrink-0" style={{ color: selectedUnloc ? COLORS.accent : COLORS.textLight }} />
+            <span className="truncate">{selectedLabel || "Todos os municípios"}</span>
           </span>
           <div className="flex items-center gap-1.5">
             {selectedUnloc && (
               <span
-                onClick={(e) => { e.stopPropagation(); setSelectedUnloc(""); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedUnloc("");
+                }}
                 className="p-0.5 rounded hover:opacity-70 transition-opacity"
                 style={{ color: COLORS.textLight }}
               >
@@ -205,9 +179,12 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
                 autoFocus
               />
             </div>
-            {/* "All" option */}
             <button
-              onClick={() => { setSelectedUnloc(""); setIsUnlocOpen(false); setUnlocSearch(""); }}
+              onClick={() => {
+                setSelectedUnloc("");
+                setIsUnlocOpen(false);
+                setUnlocSearch("");
+              }}
               className="w-full text-left px-4 py-2.5 text-sm font-medium border-b"
               style={{
                 color: !selectedUnloc ? COLORS.accent : COLORS.textLight,
@@ -226,7 +203,11 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
                 filteredOptions.map((option) => (
                   <button
                     key={option.value}
-                    onClick={() => { setSelectedUnloc(option.value); setIsUnlocOpen(false); setUnlocSearch(""); }}
+                    onClick={() => {
+                      setSelectedUnloc(option.value);
+                      setIsUnlocOpen(false);
+                      setUnlocSearch("");
+                    }}
                     className="w-full text-left px-4 py-2.5 text-sm transition-colors"
                     style={{
                       color: COLORS.text,
@@ -234,12 +215,14 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
                       fontWeight: selectedUnloc === option.value ? 600 : 400,
                     }}
                     onMouseEnter={(e) => {
-                      if (selectedUnloc !== option.value)
-                        (e.currentTarget as HTMLElement).style.backgroundColor = COLORS.hoverBg;
+                      if (selectedUnloc !== option.value) {
+                        e.currentTarget.style.backgroundColor = COLORS.hoverBg;
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      if (selectedUnloc !== option.value)
-                        (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                      if (selectedUnloc !== option.value) {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }
                     }}
                   >
                     <span style={{ color: COLORS.accent, fontWeight: 700, marginRight: 6 }}>

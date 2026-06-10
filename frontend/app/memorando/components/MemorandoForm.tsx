@@ -1,32 +1,16 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
-import {
-  ChevronDown,
-  FileText,
-  MapPin,
-  Hash,
-  AlignLeft,
-  CheckCircle2,
-  AlertCircle
-} from "lucide-react";
-
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertCircle, AlignLeft, CheckCircle2, FileText, Hash, MapPin } from "lucide-react";
+import UnlocSelect from "../../components/UnlocSelect";
+import { getUnlocByCode } from "../../lib/unlocs";
 import { MemorandoForm as MemorandoFormType } from "../types/memorando";
 import { criarMemorando } from "../services/memorando.service";
-
-// ============================================
-// CONSTANTES E ESTILOS GLOBAIS
-// ============================================
 
 const KEYFRAMES = `
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px) scaleY(0.95); }
-  to { opacity: 1; transform: translateY(0) scaleY(1); }
 }
 
 @keyframes shake {
@@ -52,72 +36,7 @@ const COLORS = {
   hoverBg: "#F0F4EE"
 };
 
-const UNLOC_CODES: Record<string, string> = {
-  "Alvarães": "ALV",
-  "Amaturá": "AMT",
-  "Anamã": "ANA",
-  "Anori": "ANO",
-  "Apuí": "APU",
-  "Atalaia do Norte": "ATN",
-  "Autazes": "AUT",
-  "Barcelos": "BAR",
-  "Barreirinha": "BRR",
-  "Benjamin Constant": "BCT",
-  "Beruri": "BER",
-  "Boa Vista do Ramos": "BVR",
-  "Boca do Acre": "BAC",
-  "Borba": "BOR",
-  "Caapiranga": "CAP",
-  "Canutama": "CAN",
-  "Carauari": "CAR",
-  "Careiro": "CAI",
-  "Careiro da Várzea": "CAV",
-  "Coari": "COA",
-  "Codajás": "COD",
-  "Eirunepé": "EIR",
-  "Envira": "ENV",
-  "Fonte Boa": "FBO",
-  "Guajará": "GUA",
-  "Humaitá": "HUM",
-  "Ipixuna": "IPI",
-  "Iranduba": "IRA",
-  "Itacoatiara": "ITA",
-  "Itamarati": "ITM",
-  "Itapiranga": "ITP",
-  "Japurá": "JAP",
-  "Juruá": "JUR",
-  "Jutaí": "JUT",
-  "Lábrea": "LAB",
-  "Manacapuru": "MAN",
-  "Manaquiri": "MAQ",
-  "Manaus": "MAO",
-  "Manicoré": "MCO",
-  "Maraã": "MAR",
-  "Maués": "MAU",
-  "Nhamundá": "NHA",
-  "Nova Olinda do Norte": "NON",
-  "Novo Airão": "NAI",
-  "Novo Aripuanã": "NAR",
-  "Parintins": "PAR",
-  "Pauini": "PAU",
-  "Presidente Figueiredo": "PFIG",
-  "Rio Preto da Eva": "RPE",
-  "Santa Isabel do Rio Negro": "SIRN",
-  "Santo Antônio do Içá": "SAI",
-  "São Gabriel da Cachoeira": "SGC",
-  "São Paulo de Olivença": "SPOL",
-  "São Sebastião do Uatumã": "SSU",
-  "Silves": "SIL",
-  "Tabatinga": "TAB",
-  "Tapauá": "TAP",
-  "Tefé": "TEF",
-  "Tonantins": "TON",
-  "Uarini": "UAR",
-  "Urucará": "URC",
-  "Urucurituba": "URU"
-};
-
-const initialForm = {
+const initialForm: MemorandoFormType = {
   numero: "",
   descricao: "",
   unloc: "",
@@ -132,15 +51,16 @@ interface FieldProps {
   label: string;
   icon: ReactNode;
   required?: boolean;
+  error?: boolean;
   children: ReactNode;
 }
 
-function Field({ label, icon, required, children }: FieldProps) {
+function Field({ label, icon, required, error, children }: FieldProps) {
   return (
     <div className="space-y-2" style={{ animation: "fadeUp .4s ease" }}>
       <label
         className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]"
-        style={{ color: COLORS.textLight }}
+        style={{ color: error ? COLORS.danger : COLORS.textLight }}
       >
         {icon}
         {label}
@@ -161,15 +81,7 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [isUnlocOpen, setIsUnlocOpen] = useState(false);
-  const [unlocSearch, setUnlocSearch] = useState("");
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // ============================================
-  // EFECTOS
-  // ============================================
 
   useEffect(() => {
     if (!document.getElementById("memo-keyframes")) {
@@ -180,30 +92,9 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
     }
   }, []);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsUnlocOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // ============================================
-  // FUNÇÕES AUXILIARES
-  // ============================================
-
   const getMunicipioName = (code: string): string => {
     if (!code) return "";
-    const entry = Object.entries(UNLOC_CODES).find(([, sigla]) => sigla === code);
-    return entry ? entry[0] : code;
-  };
-
-  const getMunicipioLabel = (code: string): string => {
-    const municipio = getMunicipioName(code);
-    return municipio ? `${municipio} (${code})` : "";
+    return getUnlocByCode(code)?.municipio || code;
   };
 
   const formatDateBR = (date: Date): string => {
@@ -234,26 +125,21 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
     setForm({ ...form, [field]: value });
   };
 
-  const fieldStyle = (name: string) => ({
-    background: COLORS.inputBg,
-    borderColor: focusedField === name ? COLORS.borderFocus : COLORS.border,
-    boxShadow: focusedField === name ? `0 0 0 3px ${COLORS.accent}22` : "none",
+  const fieldStyle = (name: string, hasError = false) => ({
+    backgroundColor: COLORS.inputBg,
+    borderColor: hasError
+      ? COLORS.danger
+      : focusedField === name
+        ? COLORS.borderFocus
+        : COLORS.border,
     color: COLORS.text,
-    transition: ".25s"
+    outline: "none",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+    boxShadow: focusedField === name ? `0 0 0 3px ${COLORS.accent}18` : "none",
   });
 
-  const filteredOptions = Object.entries(UNLOC_CODES)
-    .map(([municipio, sigla]) => ({ municipio, value: sigla }))
-    .filter(option => 
-      option.municipio.toLowerCase().includes(unlocSearch.toLowerCase())
-    );
-
-  // ============================================
-  // HANDLERS
-  // ============================================
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
     if (!validateForm()) return;
 
@@ -278,11 +164,8 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
     }
   };
 
-  const selectedMunicipio = getMunicipioLabel(form.unloc);
-
-  // ============================================
-  // RENDER
-  // ============================================
+  const numeroError = !!error && !form.numero.trim();
+  const unlocError = !!error && !form.unloc.trim();
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -295,7 +178,10 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
           boxShadow: "0 24px 60px rgba(15, 23, 42, 0.08)",
         }}
       >
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 pb-2 border-b" style={{ borderColor: COLORS.border }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: COLORS.primary }}>
+            <FileText size={18} color="white" />
+          </div>
           <div>
             <p className="text-xl font-semibold" style={{ color: COLORS.text }}>
               Novo Memorando
@@ -343,141 +229,77 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
         )}
 
         <div className="grid gap-4">
-          <Field label="Número" icon={<Hash size={13} />} required>
+          <Field label="Número" icon={<Hash size={12} />} required error={numeroError}>
             <input
+              type="text"
+              placeholder="Ex: 001/2026"
               value={form.numero}
-              onChange={(e) => handleChange("numero", e.target.value)}
+              onChange={(event) => handleChange("numero", event.target.value)}
               onFocus={() => setFocusedField("numero")}
               onBlur={() => setFocusedField(null)}
-              className="w-full px-4 py-3 rounded-2xl border"
-              style={fieldStyle("numero")}
-              placeholder="Ex: 045/2026"
+              className="w-full rounded-xl px-4 py-3 border text-sm"
+              style={fieldStyle("numero", numeroError)}
+              disabled={isLoading}
             />
           </Field>
 
-          {/* Campo UNLOC */}
-          <Field label="UNLOC" required icon={<MapPin size={13} />}>
-            <div className="relative z-50" ref={dropdownRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsUnlocOpen(!isUnlocOpen);
-                  setUnlocSearch("");
-                }}
-                className="w-full rounded-2xl px-4 py-3 border flex justify-between items-center"
-                style={{
-                  ...fieldStyle("unloc"),
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-              >
-                <span className={selectedMunicipio ? "text-base" : "text-sm text-[#94A08D]"}>
-                  {selectedMunicipio || "Selecione município"}
-                </span>
-                <ChevronDown
-                  size={16}
-                  style={{
-                    transform: isUnlocOpen ? "rotate(180deg)" : "",
-                    transition: ".3s",
-                  }}
-                />
-              </button>
-
-              {/* Dropdown de Municípios */}
-              {isUnlocOpen && (
-                <div
-                  className="absolute top-full left-0 z-50 w-full mt-2 rounded-2xl border"
-                  style={{
-                    background: "#fff",
-                    borderColor: COLORS.border,
-                    boxShadow: "0 20px 48px rgba(15, 23, 42, 0.12)",
-                    overflow: "hidden",
-                    animation: "slideDown .2s ease",
-                  }}
-                >
-                  <div className="p-3 border-b" style={{ borderColor: COLORS.border }}>
-                    <input
-                      value={unlocSearch}
-                      onChange={(e) => setUnlocSearch(e.target.value)}
-                      placeholder="Buscar município..."
-                      className="w-full rounded-xl border px-3 py-2 text-sm"
-                      style={{ borderColor: COLORS.border }}
-                    />
-                  </div>
-
-                  <div style={{ maxHeight: 240, overflowY: "auto" }}>
-                    {filteredOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          handleChange("unloc", option.value);
-                          setIsUnlocOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-3 transition-colors"
-                        style={{ color: COLORS.text, backgroundColor: "transparent" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = COLORS.hoverBg;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="inline-flex items-center justify-center rounded-full px-2 py-1 text-[11px] font-semibold"
-                            style={{
-                              color: COLORS.accent,
-                              backgroundColor: `${COLORS.accent}20`,
-                            }}
-                          >
-                            {option.value}
-                          </span>
-                          <span>{option.municipio}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+          <Field label="UNLOC" icon={<MapPin size={12} />} required error={unlocError}>
+            <UnlocSelect
+              value={form.unloc}
+              onChange={(value) => handleChange("unloc", value)}
+              placeholder="Selecione o município"
+              error={unlocError}
+              disabled={isLoading}
+              colors={COLORS}
+            />
           </Field>
 
-          {/* Campo Descrição */}
-          <Field label="Descrição" icon={<AlignLeft size={13} />}>
+          <Field label="Descrição" icon={<AlignLeft size={12} />}>
             <textarea
-              rows={3}
+              placeholder="Descreva o objetivo do memorando..."
               value={form.descricao}
-              onChange={(e) => handleChange("descricao", e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border resize-none"
+              onChange={(event) => handleChange("descricao", event.target.value)}
+              onFocus={() => setFocusedField("descricao")}
+              onBlur={() => setFocusedField(null)}
+              rows={3}
+              className="w-full rounded-xl px-4 py-3 border text-sm resize-none"
               style={fieldStyle("descricao")}
+              disabled={isLoading}
             />
           </Field>
 
-          {/* Campo Memo Entrada */}
-          <Field label="Memo Entrada" icon={<FileText size={13} />}>
+          <Field label="Memo Entrada" icon={<FileText size={12} />}>
             <textarea
-              rows={5}
+              placeholder="Conteúdo do memo de entrada..."
               value={form.memoEntrada}
-              onChange={(e) => handleChange("memoEntrada", e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border resize-none"
+              onChange={(event) => handleChange("memoEntrada", event.target.value)}
+              onFocus={() => setFocusedField("memoEntrada")}
+              onBlur={() => setFocusedField(null)}
+              rows={6}
+              className="w-full rounded-xl px-4 py-3 border text-sm resize-none"
               style={fieldStyle("memoEntrada")}
+              disabled={isLoading}
             />
           </Field>
 
-          {/* Botão Submit */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 rounded-xl text-white font-bold transition-transform duration-200"
+            className="w-full py-3.5 rounded-xl font-semibold text-sm text-white transition-all duration-200"
             style={{
-              background: isLoading ? "#7B8B72" : COLORS.primary,
-              opacity: isLoading ? 0.75 : 1,
+              backgroundColor: isLoading ? COLORS.textLight : COLORS.primary,
               cursor: isLoading ? "not-allowed" : "pointer",
-              transform: isLoading ? "none" : "translateY(0)",
+              letterSpacing: "0.03em",
+              opacity: isLoading ? 0.75 : 1,
+            }}
+            onMouseEnter={(event) => {
+              if (!isLoading) event.currentTarget.style.backgroundColor = COLORS.accent;
+            }}
+            onMouseLeave={(event) => {
+              if (!isLoading) event.currentTarget.style.backgroundColor = COLORS.primary;
             }}
           >
-            {isLoading ? "Criando..." : "Criar Memorando"}
+            {isLoading ? "Criando memorando..." : "Criar Memorando"}
           </button>
         </div>
       </div>

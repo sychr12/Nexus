@@ -76,7 +76,7 @@ public class BatchCarteiraService {
                 processarPdfArquivo(file, cpf, usuario);
                 resultado.setSucessos(resultado.getSucessos() + 1);
                 addDetalhe(resultado, nomeArquivo, cpf, true, "Processado com sucesso");
-                log.info("Processado: {} - CPF: {}", nomeArquivo, cpf);
+                log.info("Processado: {} - CPF: {}", nomeArquivo, mascararCpf(cpf));
             } catch (Exception e) {
                 resultado.setErros(resultado.getErros() + 1);
                 addDetalhe(resultado, nomeArquivo, cpf, false, "Erro: " + e.getMessage());
@@ -161,13 +161,13 @@ public class BatchCarteiraService {
      * Processa um único arquivo PDF
      */
     private void processarPdfArquivo(MultipartFile file, String cpf, String usuario) throws Exception {
-        log.info("Processando PDF para CPF: {}", cpf);
+        log.info("Processando PDF para CPF: {}", mascararCpf(cpf));
         
         // 1. Consultar SEFAZ para obter os dados do produtor
         var dadosSefaz = sefazService.consultarPorCpf(cpf);
         
         if (dadosSefaz == null || dadosSefaz.getNome() == null) {
-            throw new RuntimeException("Produtor não encontrado na SEFAZ para CPF: " + cpf);
+            throw new RuntimeException("Produtor nao encontrado na SEFAZ para CPF: " + mascararCpf(cpf));
         }
         
         // 2. Verificar se já existe uma carteira para este CPF (opcional - atualizar)
@@ -176,10 +176,10 @@ public class BatchCarteiraService {
         CarteiraDigital carteira;
         if (existente.isPresent()) {
             carteira = existente.get();
-            log.info("Atualizando carteira existente para CPF: {}", cpf);
+            log.info("Atualizando carteira existente para CPF: {}", mascararCpf(cpf));
         } else {
             carteira = new CarteiraDigital();
-            log.info("Criando nova carteira para CPF: {}", cpf);
+            log.info("Criando nova carteira para CPF: {}", mascararCpf(cpf));
         }
         
         // 3. Preencher dados da carteira
@@ -209,7 +209,7 @@ public class BatchCarteiraService {
         // 5. Salvar no banco
         carteiraRepository.save(carteira);
         
-        log.info("Carteira salva com ID: {} para CPF: {}", carteira.getId(), cpf);
+        log.info("Carteira salva com ID: {} para CPF: {}", carteira.getId(), mascararCpf(cpf));
     }
     
     /**
@@ -226,6 +226,14 @@ public class BatchCarteiraService {
             return apenasDigitos;
         }
         return null;
+    }
+
+    private String mascararCpf(String cpf) {
+        if (cpf == null || cpf.length() != 11) {
+            return "***";
+        }
+
+        return cpf.substring(0, 3) + ".***.***-" + cpf.substring(9);
     }
     
     private void addDetalhe(BatchResultDTO resultado, String arquivo, String cpf, boolean sucesso, String mensagem) {

@@ -44,7 +44,7 @@ public class SefazService {
             throw new IllegalArgumentException("CPF inválido para consulta SEFAZ");
         }
         
-        log.info("Consultando SEFAZ para CPF: {}", cpfLimpo);
+        log.info("Consultando SEFAZ para CPF: {}", mascararCpf(cpfLimpo));
         
         // TODO: Implementar integração real com SEFAZ quando disponível
         return simularConsultaSefaz(cpfLimpo);
@@ -68,6 +68,14 @@ public class SefazService {
         dados.setCnae2("0151201");
         dados.setNumcontrole("CTRL-001");
         return dados;
+    }
+
+    private String mascararCpf(String cpf) {
+        if (cpf == null || cpf.length() != 11) {
+            return "***";
+        }
+
+        return cpf.substring(0, 3) + ".***.***-" + cpf.substring(9);
     }
     
     // Método mantido para uso futuro quando integrar com SEFAZ real

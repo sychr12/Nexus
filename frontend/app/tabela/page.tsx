@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { 
   Bell, 
   BrushCleaning,
   Search, 
   ChevronLeft, 
   ChevronRight,
-  Download,
   Eye,
   EyeOff,
   FileText,
@@ -19,6 +17,8 @@ import {
   X
 } from "lucide-react";
 import TopBar from "../sidebar/page";
+import { useAuthSession } from "../hooks/useAuthSession";
+import { apiJson } from "../lib/http";
 
 // Paleta de cores
 const COLORS = {
@@ -31,6 +31,8 @@ const COLORS = {
   text: "#1A2E1B",
   textLight: "#6B7C6A",
   border: "#E2E8E0",
+  borderFocus: "#6B9D4A",
+  inputBg: "#FAFBF9",
   danger: "#B42318",
 };
 
@@ -53,7 +55,7 @@ const getInscricaoDate = (item: Inscricao) => {
 };
 
 export default function TabelaPage() {
-  const router = useRouter();
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
   const [dados, setDados] = useState<Inscricao[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -64,44 +66,17 @@ export default function TabelaPage() {
   const [visibleRows, setVisibleRows] = useState<Set<number>>(new Set());
   const [selectedDetails, setSelectedDetails] = useState<Inscricao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [username, setUsername] = useState("Usuário");
   const itemsPerPage = 10;
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    const usernameTimer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Usuário");
-    }, 0);
+    if (!ready) return;
     carregarDados();
-    return () => window.clearTimeout(usernameTimer);
-  }, [router]);
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  } 
+  }, [ready]);
 
   async function carregarDados() {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:8080/api/inscricoes/web", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Erro ao buscar inscrições");
-      }
-
-      const data = await response.json();
+      const data = await apiJson<Inscricao[]>("/inscricoes/web", undefined, "Erro ao buscar inscricoes");
       setDados(data);
       setErro("");
     } catch (error) {
@@ -187,14 +162,11 @@ export default function TabelaPage() {
     return date.toLocaleDateString("pt-BR");
   };
 
-  const formatarDataHora = (valor?: string | null) => {
+  const formatarHora = (valor?: string | null) => {
     if (!valor) return "-";
     const date = new Date(valor);
     if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+    return date.toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -256,9 +228,16 @@ export default function TabelaPage() {
     return tipoNormalizado ? labels[tipoNormalizado] || tipo || "-" : "-";
   };
 
+  const filterFieldClass = "rounded-xl border py-3 text-sm outline-none transition-all focus:ring-4 focus:ring-[#6B9D4A]/10";
+  const filterFieldStyle = {
+    backgroundColor: COLORS.inputBg,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+  };
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       <main className="px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
@@ -271,17 +250,6 @@ export default function TabelaPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-all hover:shadow-md"
-                style={{ 
-                  color: COLORS.primary, 
-                  backgroundColor: COLORS.card, 
-                  border: `1px solid ${COLORS.border}` 
-                }}
-              >
-                <Download size={16} />
-                Exportar
-              </button>
             </div>
           </div>
 
@@ -308,32 +276,22 @@ export default function TabelaPage() {
                         setSearchTerm(e.target.value);
                         setCurrentPage(1);
                       }}
-                      className="w-full pl-9 pr-3 py-2 rounded-md text-sm focus:outline-none transition-all"
-                      style={{ 
-                        border: `1px solid ${COLORS.border}`,
-                        color: COLORS.text,
-                        backgroundColor: COLORS.background
-                      }}
-                      onFocus={(e) => e.target.style.outline = `2px solid ${COLORS.accent}`}
-                      onBlur={(e) => e.target.style.outline = "none"}
+                      className={`${filterFieldClass} w-full pl-10 pr-4`}
+                      style={filterFieldStyle}
                     />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="relative">
-                      <Filter size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <Filter size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
                       <select
                         value={periodFilter}
                         onChange={(e) => {
                           setPeriodFilter(e.target.value as PeriodFilter);
-                          setCurrentPage(1);
+                          setCurrentPage(2);
                         }}
-                        className="pl-9 pr-8 py-2 rounded-md text-xs font-medium focus:outline-none"
-                        style={{
-                          border: `1px solid ${COLORS.border}`,
-                          color: COLORS.text,
-                          backgroundColor: COLORS.card,
-                        }}
+                        className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
+                        style={filterFieldStyle}
                       >
                         <option value="todos">Todos os períodos</option>
                         <option value="90">Últimos 90 dias</option>
@@ -341,19 +299,15 @@ export default function TabelaPage() {
                     </div>
 
                     <div className="relative">
-                      <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <CalendarDays size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
                       <select
                         value={yearFilter}
                         onChange={(e) => {
                           setYearFilter(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="pl-9 pr-8 py-2 rounded-md text-xs font-medium focus:outline-none"
-                        style={{
-                          border: `1px solid ${COLORS.border}`,
-                          color: COLORS.text,
-                          backgroundColor: COLORS.card,
-                        }}
+                        className={`${filterFieldClass} pl-10 pr-5 text-xs font-semibold`}
+                        style={filterFieldStyle}
                       >
                         <option value="todos">Todos os anos</option>
                         {availableYears.map((year) => (
@@ -363,19 +317,15 @@ export default function TabelaPage() {
                     </div>
 
                     <div className="relative">
-                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
                       <select
                         value={municipioFilter}
                         onChange={(e) => {
                           setMunicipioFilter(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="pl-9 pr-8 py-2 rounded-md text-xs font-medium focus:outline-none"
-                        style={{
-                          border: `1px solid ${COLORS.border}`,
-                          color: COLORS.text,
-                          backgroundColor: COLORS.card,
-                        }}
+                        className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
+                        style={filterFieldStyle}
                       >
                         <option value="todos">Todas as localidades</option>
                         {availableMunicipios.map((municipio) => (
@@ -389,11 +339,11 @@ export default function TabelaPage() {
                       onClick={togglePageVisibility}
                       disabled={!hasPageRows}
                       title={arePageRowsVisible ? "Ocultar CPF e memorando" : "Mostrar CPF e memorando"}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-[46px] items-center gap-2 rounded-xl border px-4 text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-4 focus:ring-[#6B9D4A]/10 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{
                         color: arePageRowsVisible ? "#FFFFFF" : COLORS.primary,
-                        backgroundColor: arePageRowsVisible ? COLORS.accent : COLORS.card,
-                        border: `1px solid ${arePageRowsVisible ? COLORS.accent : COLORS.border}`,
+                        backgroundColor: arePageRowsVisible ? COLORS.accent : COLORS.inputBg,
+                        borderColor: arePageRowsVisible ? COLORS.accent : COLORS.border,
                       }}
                     >
                       {arePageRowsVisible ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -405,8 +355,12 @@ export default function TabelaPage() {
                         type="button"
                         onClick={limparFiltros}
                         title="Limpar filtros"
-                        className="group relative inline-flex h-9 w-23 items-center justify-center overflow-hidden rounded-md text-xs font-medium transition-colors duration-200"
-                        style={{ color: COLORS.danger, border: "1px solid #FECDCA", backgroundColor: "#FEF3F2" }}
+                        className="group relative inline-flex min-h-[46px] w-[104px] items-center justify-center overflow-hidden rounded-xl border text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#B42318]/10"
+                        style={{
+                          color: COLORS.danger,
+                          border: "1px solid #FECDCA",
+                          backgroundColor: "#FEF3F2",
+                        }}
                         onMouseEnter={(event) => {
                           event.currentTarget.style.color = "#FFFFFF";
                           event.currentTarget.style.borderColor = COLORS.danger;
@@ -615,7 +569,8 @@ export default function TabelaPage() {
             <div className="max-h-[75vh] overflow-y-auto p-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[
-                  ["Criado em", formatarDataHora(selectedDetails.criadoEm)],
+                  ["Data", formatarData(selectedDetails.criadoEm)],
+                  ["Hora", formatarHora(selectedDetails.criadoEm)],
                   ["Nome", selectedDetails.nome],
                   ["CPF", selectedDetails.cpf],
                   ["Localidade", selectedDetails.municipio],

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import MemorandoForm from "./components/MemorandoForm";
 import MemorandoPreview from "./components/MemorandoPreview";
 import TopBar from "../sidebar/page";
+import { useAuthSession } from "../hooks/useAuthSession";
 import {
   MemorandoForm as MemorandoFormType,
   Memorando,
@@ -49,14 +49,13 @@ const initialForm: MemorandoFormType = {
 };
 
 export default function MemorandoPage() {
-  const router = useRouter();
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
 
   const [form, setForm] = useState<MemorandoFormType>(initialForm);
   const [memorandos, setMemorandos] = useState<Memorando[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [username, setUsername] = useState("Usuário");
 
   useEffect(() => {
     if (!document.getElementById("kf-page")) {
@@ -70,21 +69,6 @@ export default function MemorandoPage() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          setUsername(user.username || user.nomeCompleto || "Usuário");
-        } catch {
-          setUsername(localStorage.getItem("username") || "Usuário");
-        }
-      } else {
-        setUsername(localStorage.getItem("username") || "Usuário");
-      }
-    }
-  }, []);
 
   const carregarMemorandos = async () => {
     try {
@@ -100,15 +84,9 @@ export default function MemorandoPage() {
   };
 
   useEffect(() => {
+    if (!ready) return;
     carregarMemorandos();
-  }, []);
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("user");
-    router.push("/login");
-  }
+  }, [ready]);
 
   return (
     <div
@@ -119,7 +97,7 @@ export default function MemorandoPage() {
         transition: "opacity .3s ease",
       }}
     >
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       <main style={{ paddingTop: "70px", minHeight: "100vh" }}>
         <div className="px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto">

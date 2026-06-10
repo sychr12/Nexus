@@ -6,27 +6,12 @@ import {
   Relatorio,
   Notificacao 
 } from './types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
-
-const getToken = () => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('token');
-  }
-  return null;
-};
-
-const headers = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${getToken()}`,
-});
+import { apiJson } from '../../lib/http';
 
 export const dashboardApi = {
   async getStats(): Promise<DashboardStats> {
     try {
-      const res = await fetch(`${API_URL}/dashboard/stats`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro');
-      return res.json();
+      return await apiJson<DashboardStats>('/dashboard/stats');
     } catch {
       return {
         usuariosOnline: 3,
@@ -35,7 +20,6 @@ export const dashboardApi = {
         totalLancamentos: 1248,
         totalMemorandos: 342,
         totalCartoes: 210,
-        totalEmails: 532,
         ultimoAcesso: new Date().toLocaleString('pt-BR')
       };
     }
@@ -43,9 +27,7 @@ export const dashboardApi = {
 
   async getUsuariosAtivos(): Promise<UsuarioAtivo[]> {
     try {
-      const res = await fetch(`${API_URL}/dashboard/usuarios-ativos`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro');
-      return res.json();
+      return await apiJson<UsuarioAtivo[]>('/dashboard/usuarios-ativos');
     } catch {
       return [
         { username: 'admin', nome: 'Administrador', perfil: 'ADMIN', ultimoAcesso: new Date().toISOString(), tempoOnline: 'Agora' },
@@ -57,9 +39,7 @@ export const dashboardApi = {
 
   async getAtividadesRecentes(): Promise<AtividadeRecente[]> {
     try {
-      const res = await fetch(`${API_URL}/dashboard/atividades`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro');
-      return res.json();
+      return await apiJson<AtividadeRecente[]>('/dashboard/atividades');
     } catch {
       return [
         { tipo: 'RELATORIO', usuario: 'João', descricao: 'Gerou relatório de lançamentos', dataHora: new Date().toISOString(), icone: '' },
@@ -71,9 +51,7 @@ export const dashboardApi = {
 
   async getTopCategorias(): Promise<TopCategoria[]> {
     try {
-      const res = await fetch(`${API_URL}/dashboard/categorias`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro');
-      return res.json();
+      return await apiJson<TopCategoria[]>('/dashboard/categorias');
     } catch {
       return [
         { nome: 'Combustível', total: 36 },
@@ -86,9 +64,7 @@ export const dashboardApi = {
 
   async getRelatorios(): Promise<Relatorio[]> {
     try {
-      const res = await fetch(`${API_URL}/dashboard/relatorios`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro');
-      return res.json();
+      return await apiJson<Relatorio[]>('/dashboard/relatorios');
     } catch {
       return [
         { nome: 'Relatório de Lançamentos', descricao: 'Lançamentos por período' },
@@ -101,9 +77,7 @@ export const dashboardApi = {
 
   async getNotificacoes(): Promise<Notificacao[]> {
     try {
-      const res = await fetch(`${API_URL}/dashboard/notificacoes`, { headers: headers() });
-      if (!res.ok) throw new Error('Erro');
-      return res.json();
+      return await apiJson<Notificacao[]>('/dashboard/notificacoes');
     } catch {
       return [
         { titulo: 'Memorando MEM-2024-0001', mensagem: 'Novo memorando criado', dataHora: 'Há 5 minutos', lida: false },

@@ -4,5 +4,18 @@
     "java.debug.settings.onBuildFailureProceed": true,
     "chat.tools.terminal.autoApprove": {
         "306..380": true
-    }
+    },
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "SICPR",
+            "database": "sicpr",
+            "username": "postgres",
+            "password": "120506"
+        }
+    ]
 }

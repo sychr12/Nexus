@@ -21,7 +21,6 @@ public class SwaggerConfig {
                 .description("API do Sistema SICPR - Sistema de Controle de Acesso")
                 .contact(new Contact()
                     .name("SICPR")
-                    .email("suporte@sicpr.com")
                     .url("https://sicpr.com"))
                 .license(new License()
                     .name("Apache 2.0")
