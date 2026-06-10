@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
 import TopBar from "../sidebar/page";
@@ -14,6 +13,7 @@ import {
   loadProcessos,
 } from "../fluxo/storage";
 import type { ProcessoSicpr } from "../fluxo/types";
+import { useAuthSession } from "../hooks/useAuthSession";
 
 const COLORS = {
   primary: "#2D452F",
@@ -26,37 +26,25 @@ const COLORS = {
 };
 
 export default function DevolucaoPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("Usuario");
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     const timer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Usuario");
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [ready]);
 
   const devolvidos = useMemo(
     () => processos.filter((processo) => processo.situacao === "devolvido_gerente" || processo.situacao === "devolvido_analise"),
     [processos],
   );
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  }
-
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <div>

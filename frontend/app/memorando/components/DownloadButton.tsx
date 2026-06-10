@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Download, Loader2, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { apiFetch } from "../../lib/http";
 import { downloadMemorando } from "../services/memorando.service";
 
 const COLORS = {
@@ -202,11 +203,7 @@ export default function DownloadButton({ id, numero, unloc, disabled = false }: 
 
 async function fetchBlob(id: number): Promise<Blob | null> {
   try {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") ?? "" : "";
-    const response = await fetch(`${apiBase}/api/memorandos/${id}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await apiFetch(`/memorandos/${id}/download`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.blob();
   } catch {

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, User as UserIcon, Mail, Phone, Key, Briefcase, Shield, Crown, User, Building2 } from 'lucide-react';
+import { X, User as UserIcon, Phone, Key, Briefcase, Shield, Crown, User, Building2 } from 'lucide-react';
 
 const COLORS = {
   primary: "#1F3A2E",
@@ -25,7 +25,6 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
   const [formData, setFormData] = useState({
     username: user?.username || '',
     nomeCompleto: user?.nomeCompleto || '',
-    email: user?.email || '',
     telefone: user?.telefone || '',
     password: '',
     confirmPassword: '',
@@ -43,9 +42,6 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
 
     if (!formData.username) newErrors.username = 'Usuário é obrigatório';
     if (!formData.nomeCompleto) newErrors.nomeCompleto = 'Nome completo é obrigatório';
-    if (!formData.email) newErrors.email = 'E-mail é obrigatório';
-    if (formData.email && !formData.email.includes('@')) newErrors.email = 'E-mail inválido';
-
     if (!user) {
       if (!formData.password) newErrors.password = 'Senha é obrigatória';
       if (formData.password !== formData.confirmPassword) {
@@ -70,7 +66,6 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
         ? {
             username: formData.username,
             nomeCompleto: formData.nomeCompleto,
-            email: formData.email,
             telefone: formData.telefone,
             perfil: formData.perfil,
             status: formData.status,
@@ -80,7 +75,6 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
         : {
             username: formData.username,
             nomeCompleto: formData.nomeCompleto,
-            email: formData.email,
             telefone: formData.telefone,
             password: formData.password,
             perfil: formData.perfil,
@@ -179,27 +173,6 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
                 }}
               />
               {errors.nomeCompleto && <p className="text-xs mt-1" style={{ color: COLORS.danger }}>{errors.nomeCompleto}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: COLORS.primary }}>
-                E-mail *
-              </label>
-              <div className="relative">
-                <Mail size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border focus:outline-none focus:ring-2"
-                  style={{ 
-                    backgroundColor: COLORS.rowAlt,
-                    borderColor: errors.email ? COLORS.danger : COLORS.border,
-                    color: COLORS.primary,
-                  }}
-                />
-              </div>
-              {errors.email && <p className="text-xs mt-1" style={{ color: COLORS.danger }}>{errors.email}</p>}
             </div>
 
             <div>

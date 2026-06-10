@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, History, Info, MapPin, RotateCcw, Search, Send, X } from "lucide-react";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { ProcessoTimeline } from "../fluxo/ProcessoTimeline";
@@ -19,6 +18,7 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
+import { useAuthSession } from "../hooks/useAuthSession";
 
 const COLORS = {
   primary: "#2D452F",
@@ -43,8 +43,7 @@ const FILTERS: { id: LancamentoFilter; label: string }[] = [
 ];
 
 export default function LancamentosPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("Lancamento");
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Lancamento" });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
@@ -63,17 +62,12 @@ export default function LancamentosPage() {
   >(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     const timer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Lancamento");
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [ready]);
 
   const processosLancamento = useMemo(
     () => processos.filter((processo) => processo.situacao === "aprovado_lancamento" || processo.situacao === "concluido"),
@@ -123,12 +117,6 @@ export default function LancamentosPage() {
     saveProcessos(next);
   }
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  }
-
   function applyFilter(next: LancamentoFilter) {
     setFilter(next);
     setPage(1);
@@ -162,7 +150,7 @@ export default function LancamentosPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

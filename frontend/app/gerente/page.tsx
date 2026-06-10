@@ -1,23 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Edit3, Eye, FileSignature, FileText, MapPin, RotateCcw, Save, Search, UserPlus, X } from "lucide-react";
-import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Edit3, FileSignature, MapPin, RotateCcw, Save, Search, UserPlus, X } from "lucide-react";
 import { AttachmentPreview, DetailInfoCard, SICPR_COLORS, StatCard } from "../fluxo/SharedUi";
 import TopBar from "../sidebar/page";
 import { UNLOC_OPTIONS } from "../lib/unlocs";
 import {
   GERENTE_STATUS_LABELS,
-  SITUACAO_LABELS,
-  STATUS_COLORS,
   TIPO_PROCESSO_LABELS,
   aprovarLoteGerente,
   devolverPeloGerente,
   formatDateTime,
-  getDocumentosGerados,
   getGerentesAssinantesDaUnidade,
-  getOutrosDocumentos,
   inativarGerenteUnidade,
   loadGerentesUnidade,
   loadProcessos,
@@ -26,34 +20,28 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, GerenteUnidade, GerenteUnidadeStatus, ProcessoSicpr } from "../fluxo/types";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { GeneratedDocumentPreview } from "./GerenteDocumentPreviews";
+import GerenteProcessDetailsModal from "./GerenteProcessDetailsModal";
 import { getGerenteHistory, getGerenteHistoryStatusClass } from "./history";
+import type { DetailTab } from "./types";
 
 const COLORS = SICPR_COLORS;
 
 const PAGE_SIZE = 50;
-type DetailTab = "dados" | "historico" | "documentos";
-
-const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
-  { key: "dados", label: "Dados" },
-  { key: "historico", label: "Histórico" },
-  { key: "documentos", label: "Documentos" },
-];
 
 const emptyGerenteForm = {
   id: "",
   nome: "",
   unidadeLocal: "Manacapuru",
   cargo: "Gerente da Unidade Local",
-  email: "",
   telefoneCorporativo: "",
   telefonePessoal: "",
   status: "ativo" as GerenteUnidadeStatus,
 };
 
 export default function GerentePage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("Gerente Unloc");
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Gerente Unloc" });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [gerentes, setGerentes] = useState<GerenteUnidade[]>([]);
   const [gerenteForm, setGerenteForm] = useState(emptyGerenteForm);
@@ -80,18 +68,13 @@ export default function GerentePage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     const timer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Gerente Unloc");
       setProcessos(loadProcessos());
       setGerentes(loadGerentesUnidade());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [ready]);
 
   const pendentes = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -142,12 +125,6 @@ export default function GerentePage() {
   function persist(next: ProcessoSicpr[]) {
     setProcessos(next);
     saveProcessos(next);
-  }
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
   }
 
   function toggle(id: string) {
@@ -222,7 +199,6 @@ export default function GerentePage() {
       nome,
       unidadeLocal,
       cargo,
-      email: gerenteForm.email.trim(),
       telefoneCorporativo: gerenteForm.telefoneCorporativo.trim(),
       telefonePessoal: gerenteForm.telefonePessoal.trim(),
       id: gerenteForm.id || undefined,
@@ -239,7 +215,6 @@ export default function GerentePage() {
       nome: gerente.nome,
       unidadeLocal: gerente.unidadeLocal,
       cargo: gerente.cargo,
-      email: gerente.email,
       telefoneCorporativo: gerente.telefoneCorporativo,
       telefonePessoal: gerente.telefonePessoal,
       status: gerente.status,
@@ -304,7 +279,7 @@ export default function GerentePage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <div className="space-y-3">
@@ -413,13 +388,6 @@ export default function GerentePage() {
                     className="rounded-md border px-3 py-2 text-sm outline-none"
                     style={{ borderColor: COLORS.border }}
                   />
-                  <input
-                    value={gerenteForm.email}
-                    onChange={(event) => setGerenteForm({ ...gerenteForm, email: event.target.value })}
-                    placeholder="E-mail"
-                    className="rounded-md border px-3 py-2 text-sm outline-none"
-                    style={{ borderColor: COLORS.border }}
-                  />
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                     <input
                       value={gerenteForm.telefoneCorporativo}
@@ -473,7 +441,6 @@ export default function GerentePage() {
                         </td>
                         <td className="px-3 py-3" style={{ color: COLORS.text }}>{gerente.unidadeLocal}</td>
                         <td className="px-3 py-3 text-xs" style={{ color: COLORS.textLight }}>
-                          <span className="block">{gerente.email || "-"}</span>
                           <span className="block">{gerente.telefoneCorporativo || gerente.telefonePessoal || "-"}</span>
                         </td>
                         <td className="px-3 py-3">
@@ -780,130 +747,20 @@ export default function GerentePage() {
       )}
 
       {selectedProcesso && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedProcesso(null)} />
-          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Detalhes do processo</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>{selectedProcesso.produtor}</h2>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[selectedProcesso.situacao]}`}>
-                    {SITUACAO_LABELS[selectedProcesso.situacao]}
-                  </span>
-                </div>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>{selectedProcesso.cpf} | {selectedProcesso.unidadeLocal} | {TIPO_PROCESSO_LABELS[selectedProcesso.tipoProcesso]}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedProcesso(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="border-b px-5 pt-3" style={{ borderBottomColor: COLORS.border }}>
-              <div className="flex flex-wrap gap-2">
-                {DETAIL_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveDetailTab(tab.key)}
-                    className="rounded-t-md px-3 py-2 text-sm font-semibold transition-colors"
-                    style={{
-                      backgroundColor: activeDetailTab === tab.key ? COLORS.background : "transparent",
-                      color: activeDetailTab === tab.key ? COLORS.primary : COLORS.textLight,
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto p-5">
-              {activeDetailTab === "dados" && (
-                <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <DetailInfoCard label="Status" value={SITUACAO_LABELS[selectedProcesso.situacao]} badgeClass={STATUS_COLORS[selectedProcesso.situacao]} />
-                    <DetailInfoCard label="Técnico responsável" value={selectedProcesso.tecnicoResponsavel} />
-                    <DetailInfoCard label="UNLOC" value={selectedProcesso.unidadeLocal} />
-                    <DetailInfoCard label="Encaminhado ao gerente" value={formatDateTime(selectedProcesso.encaminhadoGerenteEm)} />
-                    <DetailInfoCard label="Formulário" value={selectedProcesso.formulario} />
-                    <DetailInfoCard label="Outros anexos" value={String(getOutrosDocumentos(selectedProcesso).length)} />
-                  </div>
-
-                  <textarea
-                    value={justificativas[selectedProcesso.id] || ""}
-                    onChange={(event) => setJustificativas({ ...justificativas, [selectedProcesso.id]: event.target.value })}
-                    placeholder="Justificativa obrigatória para devolução: documento ilegível, faltando, dados incorretos..."
-                    rows={3}
-                    className="w-full rounded-md border px-3 py-2 text-sm outline-none"
-                    style={{ borderColor: COLORS.border }}
-                  />
-                </div>
-              )}
-
-              {activeDetailTab === "historico" && (
-                <div className="grid gap-4">
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-3 font-semibold" style={{ color: COLORS.text }}>Resumo do histórico</p>
-                    <HistoricoResumo processo={selectedProcesso} />
-                  </div>
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-4 font-semibold" style={{ color: COLORS.text }}>Timeline do processo</p>
-                    <ProcessoTimeline processo={selectedProcesso} />
-                  </div>
-                </div>
-              )}
-
-              {activeDetailTab === "documentos" && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
-                      <FileText size={15} /> Documentos gerados automaticamente
-                    </p>
-                    {getDocumentosGerados(selectedProcesso).map((doc) => (
-                      <button
-                        key={doc.arquivo}
-                        type="button"
-                        onClick={() => setPreview({ tipo: "gerado", processo: selectedProcesso, documento: doc })}
-                        className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                        style={{ color: COLORS.textLight }}
-                      >
-                        <Eye size={13} style={{ color: COLORS.primary }} />
-                        <span className="min-w-0 truncate">{doc.nome}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-2 font-semibold" style={{ color: COLORS.text }}>Documentos anexados</p>
-                    {getOutrosDocumentos(selectedProcesso).length > 0 ? getOutrosDocumentos(selectedProcesso).map((doc) => (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        onClick={() => setPreview({ tipo: "anexo", processo: selectedProcesso, documento: doc })}
-                        className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                        style={{ color: COLORS.textLight }}
-                      >
-                        <Eye size={13} style={{ color: COLORS.primary }} />
-                        <span className="min-w-0 truncate">{doc.arquivo}</span>
-                      </button>
-                    )) : <p className="text-sm" style={{ color: COLORS.textLight }}>Sem anexos extras</p>}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
-              <button type="button" onClick={() => toggle(selectedProcesso.id)} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: selectedIds.includes(selectedProcesso.id) ? COLORS.accent : COLORS.primary }}>
-                <CheckCircle2 size={15} />
-                {selectedIds.includes(selectedProcesso.id) ? "Selecionado" : "Selecionar para lote"}
-              </button>
-              <button type="button" onClick={() => devolverSelected(selectedProcesso.id)} className="sicpr-danger-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.danger }}>
-                <RotateCcw size={15} />
-                Devolver
-              </button>
-            </div>
-          </section>
-        </div>
+        <GerenteProcessDetailsModal
+          processo={selectedProcesso}
+          activeTab={activeDetailTab}
+          selected={selectedIds.includes(selectedProcesso.id)}
+          justificativa={justificativas[selectedProcesso.id] || ""}
+          onTabChange={setActiveDetailTab}
+          onClose={() => setSelectedProcesso(null)}
+          onJustificativaChange={(value) =>
+            setJustificativas({ ...justificativas, [selectedProcesso.id]: value })
+          }
+          onToggleSelected={toggle}
+          onDevolver={devolverSelected}
+          onPreview={setPreview}
+        />
       )}
 
       {preview && (

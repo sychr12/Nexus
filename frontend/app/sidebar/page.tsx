@@ -8,7 +8,6 @@ import {
   FileText,
   DollarSign,
   CreditCard,
-  Mail,
   PieChart,
   BarChart3,
   LogOut,
@@ -17,7 +16,6 @@ import {
   Menu,
   X,
   Home,
-  Plus,
   Search,
   Paperclip,
   Key,
@@ -44,15 +42,14 @@ const TOP_ITEMS = [
   { id: "memorandos-assinados", label: "Central de Memorandos", icon: FileText, href: "/memorandos-assinados" },
   { id: "memorando", label: "Memorando de Saída", icon: FileText, href: "/memorando" },
   { id: "carteira", label: "Carteira Digital", icon: CreditCard, href: "/carteira" },
-  { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
+  // Aba Adicionar pausada temporariamente.
+  // { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
   { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
-  { id: "emails", label: "E-mails", icon: Mail, href: "/email" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
   { id: "Gerenciamento de Usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
-  { id: "notificacao", label: "Notificação", icon: Bell, href: "/notificacao" },
 ];
 
 interface TopBarProps {

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 import TopBar from "../sidebar/page";
+import { useAuthSession } from "../hooks/useAuthSession";
 import FormularioCarteira from "./components/FormularioCarteira";
 import CardPreview from "./components/CardPreview";
 import ModalBatchUpload from "./components/ModalBatchUpload";
@@ -97,14 +97,13 @@ const initialForm: CarteiraRequest = {
 };
 
 export default function CarteiraDigitalPage() {
-  const router = useRouter();
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
   const [form, setForm] = useState<CarteiraRequest>(initialForm);
   const [carteiras, setCarteiras] = useState<CarteiraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [username, setUsername] = useState("Usuário");
   const [animated, setAnimated] = useState(false);
 
   useEffect(() => {
@@ -128,28 +127,9 @@ export default function CarteiraDigitalPage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-    }
+    if (!ready) return;
     carregarCarteiras();
-  }, [router]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          setUsername(user.username || user.nomeCompleto || "Usuário");
-        } catch {
-          setUsername(localStorage.getItem("username") || "Usuário");
-        }
-      } else {
-        setUsername(localStorage.getItem("username") || "Usuário");
-      }
-    }
-  }, []);
+  }, [ready]);
 
   const handleSubmit = async (data: CarteiraRequest) => {
     try {
@@ -175,16 +155,10 @@ export default function CarteiraDigitalPage() {
     setForm(data);
   };
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("user");
-    router.push("/login");
-  }
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       <main style={{ paddingTop: "70px", minHeight: "100vh" }}>
         <div className="px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto">

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { Eye, FileText, History, Link2, Paperclip, Search, X } from "lucide-react";
 import TopBar from "../sidebar/page";
+import { useAuthSession } from "../hooks/useAuthSession";
 import {
   SITUACAO_LABELS,
   STATUS_COLORS,
@@ -74,8 +74,7 @@ type MemorandoResumo = MemorandoProcessoRegistro & {
 };
 
 export default function MemorandosAssinadosPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("Gerente UNLOC");
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Gerente UNLOC" });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemorandoCentralStatus>("todos");
@@ -83,17 +82,12 @@ export default function MemorandosAssinadosPage() {
   const [selected, setSelected] = useState<MemorandoResumo | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     const timer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Gerente UNLOC");
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [ready]);
 
   const memorandos = useMemo(() => buildMemorandos(processos), [processos]);
   const statusCounts = useMemo(() => {
@@ -136,12 +130,6 @@ export default function MemorandosAssinadosPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  }
-
   function applyStatusFilter(nextStatus: MemorandoCentralStatus) {
     setStatusFilter(nextStatus);
     setPage(1);
@@ -149,7 +137,7 @@ export default function MemorandosAssinadosPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

@@ -36,7 +36,6 @@ export type GerenteUnidade = {
   nome: string;
   unidadeLocal: string;
   cargo: string;
-  email: string;
   telefoneCorporativo: string;
   telefonePessoal: string;
   status: GerenteUnidadeStatus;
@@ -62,7 +61,6 @@ export type AssinaturaEletronica = {
   gerenteNome: string;
   gerenteCargo: string;
   gerenteStatus: GerenteUnidadeStatus;
-  gerenteEmail: string;
   gerenteTelefoneCorporativo: string;
   gerenteTelefonePessoal: string;
   unidadeLocal: string;

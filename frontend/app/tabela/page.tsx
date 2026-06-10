@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { 
   Bell, 
   BrushCleaning,
@@ -18,6 +17,8 @@ import {
   X
 } from "lucide-react";
 import TopBar from "../sidebar/page";
+import { useAuthSession } from "../hooks/useAuthSession";
+import { apiJson } from "../lib/http";
 
 // Paleta de cores
 const COLORS = {
@@ -54,7 +55,7 @@ const getInscricaoDate = (item: Inscricao) => {
 };
 
 export default function TabelaPage() {
-  const router = useRouter();
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
   const [dados, setDados] = useState<Inscricao[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -65,44 +66,17 @@ export default function TabelaPage() {
   const [visibleRows, setVisibleRows] = useState<Set<number>>(new Set());
   const [selectedDetails, setSelectedDetails] = useState<Inscricao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [username, setUsername] = useState("Usuário");
   const itemsPerPage = 10;
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    const usernameTimer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Usuário");
-    }, 0);
+    if (!ready) return;
     carregarDados();
-    return () => window.clearTimeout(usernameTimer);
-  }, [router]);
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  } 
+  }, [ready]);
 
   async function carregarDados() {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"}/inscricoes/web`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Erro ao buscar inscrições");
-      }
-
-      const data = await response.json();
+      const data = await apiJson<Inscricao[]>("/inscricoes/web", undefined, "Erro ao buscar inscricoes");
       setDados(data);
       setErro("");
     } catch (error) {
@@ -263,7 +237,7 @@ export default function TabelaPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       <main className="px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">

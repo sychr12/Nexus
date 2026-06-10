@@ -80,7 +80,6 @@ export interface MemorandoAnalise {
   motivo: MotivoMemorando;
   titulo: string;
   localidade: string;
-  emailOrigem: string;
   recebidoEm: string;
   prioridade: Priority;
   status: MemoStatus;

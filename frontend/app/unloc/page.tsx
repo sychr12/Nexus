@@ -1,12 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronDown, Eye, FileText, Paperclip, Plus, Printer, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
 import UnlocSelect from "../components/UnlocSelect";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
-import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
-import { AttachmentPreview, DetailInfoCard, FilterStatCard as StatCard, SICPR_COLORS } from "../fluxo/SharedUi";
+import { AttachmentPreview, FilterStatCard as StatCard, SICPR_COLORS } from "../fluxo/SharedUi";
 import TopBar from "../sidebar/page";
 import {
   SITUACAO_LABELS,
@@ -15,10 +13,8 @@ import {
   addProcesso,
   atualizarProcessoUnloc,
   encaminharGerente,
-  FAC_STATUS_LABELS,
   formatDateTime,
   getFacAssinada,
-  getFacStatus,
   getDocumentosGerados,
   getOutrosDocumentos,
   loadProcessos,
@@ -26,15 +22,18 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr, TipoProcessoSicpr } from "../fluxo/types";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { DOCUMENT_MODELS, DETAIL_TABS, PAGE_SIZE, PROCESS_FILTERS, initialForm } from "./config";
-import type { AnexoUpload, CampoDocumento, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
+import type { AnexoUpload, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
 import { fileToAnexo, formatCpf, formatFileSize, onlyDigits } from "./file-utils";
+import { FacStatusBadge } from "./UnlocUi";
+import UnlocDocumentModal from "./UnlocDocumentModal";
+import UnlocProcessDetailsModal from "./UnlocProcessDetailsModal";
 
 const COLORS = SICPR_COLORS;
 
 export default function UnlocPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("Tecnico UNLOC");
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Tecnico UNLOC" });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingProcessId, setEditingProcessId] = useState<string | null>(null);
@@ -59,17 +58,12 @@ export default function UnlocPage() {
   >(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     const timer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Tecnico UNLOC");
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [ready]);
 
   const meusProcessos = useMemo(
     () =>
@@ -112,12 +106,6 @@ export default function UnlocPage() {
   function persist(next: ProcessoSicpr[]) {
     setProcessos(next);
     saveProcessos(next);
-  }
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
   }
 
   function applyProcessFilter(filter: ProcessoFilter) {
@@ -425,6 +413,7 @@ export default function UnlocPage() {
   const activeModel = activeDocument
     ? DOCUMENT_MODELS.find((documento) => documento.tipo === activeDocument)
     : null;
+  const documentModel = activeModel ?? null;
   const previewDocumento: DocumentoGeradoProcesso | null = activeModel
     ? {
         nome: activeModel.nome,
@@ -444,54 +433,9 @@ export default function UnlocPage() {
     memorandoNumero: "",
     assinaturaEletronica: undefined,
   };
-  const visibleFieldGroups = groupDocumentFields((activeModel?.campos || []).filter((campo) => !campo.complementar));
-  const complementaryFieldGroups = groupDocumentFields((activeModel?.campos || []).filter((campo) => campo.complementar));
-
-  function renderDocumentField(campo: CampoDocumento) {
-    const fieldId = `document-field-${campo.key}`;
-    const value = documentDraft[campo.key] || "";
-    const fieldStyle = { borderColor: COLORS.border, color: COLORS.text };
-    const updateValue = (nextValue: string) => setDocumentDraft((current) => ({ ...current, [campo.key]: nextValue }));
-
-    return (
-      <label key={campo.key} htmlFor={fieldId} className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>
-          {campo.label}{campo.obrigatorio ? " *" : ""}
-        </span>
-        {campo.tipo === "select" ? (
-          <DocumentOptionSelect
-            value={value}
-            onChange={updateValue}
-            options={campo.opcoes || []}
-            placeholder="Selecione"
-          />
-        ) : campo.tipo === "textarea" ? (
-          <textarea
-            id={fieldId}
-            value={value}
-            onChange={(event) => updateValue(event.target.value)}
-            placeholder={campo.placeholder}
-            rows={3}
-            className="w-full resize-y rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
-            style={fieldStyle}
-          />
-        ) : (
-          <input
-            id={fieldId}
-            value={value}
-            onChange={(event) => updateValue(event.target.value)}
-            placeholder={campo.placeholder}
-            className="w-full rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
-            style={fieldStyle}
-          />
-        )}
-      </label>
-    );
-  }
-
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
@@ -904,280 +848,34 @@ export default function UnlocPage() {
       </main>
 
       {selectedProcesso && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => { setSelectedProcesso(null); setSelectedProcessoMessage(""); }} />
-          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Detalhes do processo</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>{selectedProcesso.produtor}</h2>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[selectedProcesso.situacao]}`}>
-                    {SITUACAO_LABELS[selectedProcesso.situacao]}
-                  </span>
-                </div>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>{selectedProcesso.cpf} | {selectedProcesso.unidadeLocal} | {TIPO_PROCESSO_LABELS[selectedProcesso.tipoProcesso]}</p>
-              </div>
-              <button type="button" onClick={() => { setSelectedProcesso(null); setSelectedProcessoMessage(""); }} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="border-b px-5 pt-3" style={{ borderBottomColor: COLORS.border }}>
-              <div className="flex flex-wrap gap-2">
-                {DETAIL_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveDetailTab(tab.key)}
-                    className="rounded-t-md px-3 py-2 text-sm font-semibold transition-colors"
-                    style={{
-                      backgroundColor: activeDetailTab === tab.key ? COLORS.background : "transparent",
-                      color: activeDetailTab === tab.key ? COLORS.primary : COLORS.textLight,
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {selectedProcessoMessage && (
-              <div className="border-b px-5 py-3" style={{ borderBottomColor: COLORS.border }}>
-                <div className="rounded-md border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#F59E0B", backgroundColor: "#FFFBEB", color: "#92400E" }}>
-                  {selectedProcessoMessage}
-                </div>
-              </div>
-            )}
-
-            <div className="min-h-0 flex-1 overflow-auto p-5">
-              {selectedProcesso.ultimaJustificativa && (
-                <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{selectedProcesso.ultimaJustificativa}</p>
-              )}
-
-              {activeDetailTab === "dados" && (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <DetailInfoCard label="Status" value={SITUACAO_LABELS[selectedProcesso.situacao]} badgeClass={STATUS_COLORS[selectedProcesso.situacao]} />
-                  <DetailInfoCard label="Técnico responsável" value={selectedProcesso.tecnicoResponsavel} />
-                  <DetailInfoCard label="Gerente responsável" value={selectedProcesso.gerenteResponsavel || "-"} />
-                  <DetailInfoCard label="Data de criação" value={formatDateTime(selectedProcesso.criadoEm)} />
-                  <DetailInfoCard label="Encaminhado ao gerente" value={formatDateTime(selectedProcesso.encaminhadoGerenteEm)} />
-                  <DetailInfoCard label="Memorando atual" value={selectedProcesso.memorandoNumero || "-"} />
-                  <DetailInfoCard label="Status da FAC" value={FAC_STATUS_LABELS[getFacStatus(selectedProcesso)]} />
-                  <DetailInfoCard label="FAC gerada em" value={formatDateTime(selectedProcesso.facGeradaEm)} />
-                  <DetailInfoCard label="FAC assinada anexada em" value={formatDateTime(selectedProcesso.facAssinadaAnexadaEm)} />
-                </div>
-              )}
-
-              {activeDetailTab === "historico" && (
-                <div className="grid gap-4">
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-3 font-semibold" style={{ color: COLORS.text }}>Resumo do histórico</p>
-                    <HistoricoResumo processo={selectedProcesso} />
-                  </div>
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-4 font-semibold" style={{ color: COLORS.text }}>Timeline do processo</p>
-                    <ProcessoTimeline processo={selectedProcesso} />
-                  </div>
-                </div>
-              )}
-
-              {activeDetailTab === "documentos" && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
-                      <FileText size={15} /> Documentos gerados automaticamente
-                    </p>
-                    {getDocumentosGerados(selectedProcesso).map((doc) => (
-                      <button
-                        key={doc.arquivo}
-                        type="button"
-                        onClick={() => setPreview({ tipo: "gerado", processo: selectedProcesso, documento: doc })}
-                        className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                        style={{ color: COLORS.textLight }}
-                      >
-                        <Eye size={13} style={{ color: COLORS.primary }} />
-                        <span className="min-w-0 truncate">{doc.nome}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                    <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
-                      <Paperclip size={15} /> Documentos obrigatórios assinados
-                    </p>
-                    {getFacAssinada(selectedProcesso) ? (
-                      <button
-                        type="button"
-                        onClick={() => setPreview({ tipo: "anexo", processo: selectedProcesso, documento: getFacAssinada(selectedProcesso)! })}
-                        className="mb-3 flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                        style={{ color: COLORS.textLight }}
-                      >
-                        <Eye size={13} style={{ color: COLORS.primary }} />
-                        <span className="min-w-0 truncate">FAC assinada pelo produtor</span>
-                      </button>
-                    ) : (
-                      <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">A FAC assinada pelo produtor ainda não foi anexada.</p>
-                    )}
-
-                    <p className="mb-2 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
-                      <Paperclip size={15} /> Documentos complementares
-                    </p>
-                    {getOutrosDocumentos(selectedProcesso).length > 0 ? getOutrosDocumentos(selectedProcesso).map((doc) => (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        onClick={() => setPreview({ tipo: "anexo", processo: selectedProcesso, documento: doc })}
-                        className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                        style={{ color: COLORS.textLight }}
-                      >
-                        <Eye size={13} style={{ color: COLORS.primary }} />
-                        <span className="min-w-0 truncate">{doc.arquivo}</span>
-                      </button>
-                    )) : <p className="text-sm" style={{ color: COLORS.textLight }}>Sem anexos extras</p>}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {["em_elaboracao", "devolvido_gerente", "devolvido_analise"].includes(selectedProcesso.situacao) && (
-              <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
-                {selectedProcesso.situacao === "em_elaboracao" && (
-                  <>
-                    <button type="button" onClick={() => { startEditing(selectedProcesso); setSelectedProcesso(null); setSelectedProcessoMessage(""); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
-                      <RotateCcw size={15} />
-                      Editar processo
-                    </button>
-                    <button type="button" onClick={() => { if (handleEncaminhar(selectedProcesso.id)) { setSelectedProcesso(null); setSelectedProcessoMessage(""); } }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
-                      <Send size={15} />
-                      Encaminhar ao gerente
-                    </button>
-                  </>
-                )}
-                {["devolvido_gerente", "devolvido_analise"].includes(selectedProcesso.situacao) && (
-                  <>
-                    <button type="button" onClick={() => { startEditing(selectedProcesso); setSelectedProcesso(null); setSelectedProcessoMessage(""); }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
-                      <RotateCcw size={15} />
-                      Editar correcao
-                    </button>
-                    <button type="button" onClick={() => { if (handleEncaminhar(selectedProcesso.id)) { setSelectedProcesso(null); setSelectedProcessoMessage(""); } }} className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.accent }}>
-                      <Send size={15} />
-                      Reenviar ao gerente
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </section>
-        </div>
+        <UnlocProcessDetailsModal
+          processo={selectedProcesso}
+          message={selectedProcessoMessage}
+          activeTab={activeDetailTab}
+          onTabChange={setActiveDetailTab}
+          onClose={() => {
+            setSelectedProcesso(null);
+            setSelectedProcessoMessage("");
+          }}
+          onEdit={startEditing}
+          onEncaminhar={handleEncaminhar}
+          onPreview={setPreview}
+        />
       )}
 
       {activeDocument && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={closeDocumentModal} />
-          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Geracao automatica</p>
-                <h2 className="mt-1 text-lg font-semibold" style={{ color: COLORS.primary }}>
-                  {activeModel?.nome}
-                </h2>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>
-                  Preencha os dados necessarios. O sistema usara essas informacoes para montar o documento.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeDocumentModal}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
-                style={{ color: COLORS.textLight }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {documentModalMessage && (
-              <div className="border-b px-5 py-3" style={{ borderBottomColor: COLORS.border }}>
-                <div className="rounded-md border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#F59E0B", backgroundColor: "#FFFBEB", color: "#92400E" }}>
-                  {documentModalMessage}
-                </div>
-              </div>
-            )}
-
-            <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[390px_minmax(0,1fr)]">
-              <div className="min-h-0 overflow-y-auto border-r px-5 py-4" style={{ borderRightColor: COLORS.border }}>
-                <div className="grid gap-5">
-                  {visibleFieldGroups.map((group) => (
-                    <section key={group.secao} className="grid gap-3">
-                      <h3 className="text-xs font-semibold uppercase" style={{ color: COLORS.primary }}>{group.secao}</h3>
-                      <div className="grid gap-3">
-                        {group.campos.map(renderDocumentField)}
-                      </div>
-                    </section>
-                  ))}
-
-                  {complementaryFieldGroups.length > 0 && (
-                    <details className="rounded-md border bg-white" style={{ borderColor: COLORS.border }}>
-                      <summary className="cursor-pointer px-3 py-2 text-sm font-semibold" style={{ color: COLORS.text }}>
-                        Informações Complementares
-                      </summary>
-                      <div className="grid gap-5 border-t px-3 py-3" style={{ borderTopColor: COLORS.border }}>
-                        {complementaryFieldGroups.map((group) => (
-                          <section key={group.secao} className="grid gap-3">
-                            <h3 className="text-xs font-semibold uppercase" style={{ color: COLORS.primary }}>{group.secao}</h3>
-                            <div className="grid gap-3">
-                              {group.campos.map(renderDocumentField)}
-                            </div>
-                          </section>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              </div>
-
-              <div className="sicpr-print-area min-h-0 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
-                {previewDocumento && (
-                  <GeneratedDocumentPreview
-                    processo={previewProcesso}
-                    documento={previewDocumento}
-                    dados={documentDraft}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="flex shrink-0 justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
-              <button
-                type="button"
-                onClick={closeDocumentModal}
-                className="rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
-                style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}
-              >
-                Cancelar
-              </button>
-              {activeDocument === "fac" && (
-                <button
-                  type="button"
-                  onClick={printActiveDocument}
-                  className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
-                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}
-                >
-                  <Printer size={15} />
-                  Imprimir FAC
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={saveGeneratedDocument}
-                className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white"
-                style={{ backgroundColor: COLORS.primary }}
-              >
-                <Save size={15} />
-                Gerar documento
-              </button>
-            </div>
-          </section>
-        </div>
+        <UnlocDocumentModal
+          activeDocument={activeDocument}
+          activeModel={documentModel}
+          documentDraft={documentDraft}
+          message={documentModalMessage}
+          previewDocumento={previewDocumento}
+          previewProcesso={previewProcesso}
+          onDraftChange={setDocumentDraft}
+          onClose={closeDocumentModal}
+          onPrint={printActiveDocument}
+          onSave={saveGeneratedDocument}
+        />
       )}
 
       {preview && (
@@ -1216,133 +914,3 @@ export default function UnlocPage() {
   );
 }
 
-function groupDocumentFields(fields: CampoDocumento[]) {
-  return fields.reduce<Array<{ secao: string; campos: CampoDocumento[] }>>((groups, campo) => {
-    const secao = campo.secao || "Dados";
-    const existingGroup = groups.find((group) => group.secao === secao);
-
-    if (existingGroup) {
-      existingGroup.campos.push(campo);
-      return groups;
-    }
-
-    groups.push({ secao, campos: [campo] });
-    return groups;
-  }, []);
-}
-
-function DocumentOptionSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: string[];
-  placeholder: string;
-}) {
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (!dropdownRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        className="flex min-h-[38px] w-full items-center justify-between rounded-md border px-3 py-2 text-sm"
-        style={{
-          backgroundColor: "#FDFDFC",
-          borderColor: isOpen ? COLORS.accent : COLORS.border,
-          color: value ? COLORS.text : COLORS.textLight,
-          outline: "none",
-          boxShadow: isOpen ? `0 0 0 3px ${COLORS.accent}18` : "none",
-          transition: "border-color 0.2s, box-shadow 0.2s",
-        }}
-      >
-        <span className="truncate">{value || placeholder}</span>
-        <ChevronDown
-          size={15}
-          className="shrink-0"
-          style={{
-            color: COLORS.textLight,
-            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s",
-          }}
-        />
-      </button>
-
-      {isOpen && (
-        <div
-          className="absolute z-30 mt-1.5 max-h-56 w-full overflow-y-auto rounded-md border"
-          style={{
-            backgroundColor: COLORS.card,
-            borderColor: COLORS.accent,
-            boxShadow: "0 8px 32px rgba(31,58,46,0.14)",
-          }}
-        >
-          {options.map((option) => {
-            const isSelected = option === value;
-
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => {
-                  onChange(option);
-                  setIsOpen(false);
-                }}
-                className="w-full px-4 py-2.5 text-left text-sm transition-colors"
-                style={{
-                  color: COLORS.text,
-                  backgroundColor: isSelected ? `${COLORS.accent}14` : "transparent",
-                  fontWeight: isSelected ? 600 : 400,
-                }}
-                onMouseEnter={(event) => {
-                  if (!isSelected) {
-                    event.currentTarget.style.backgroundColor = "#F0F4EE";
-                  }
-                }}
-                onMouseLeave={(event) => {
-                  if (!isSelected) {
-                    event.currentTarget.style.backgroundColor = "transparent";
-                  }
-                }}
-              >
-                {option}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FacStatusBadge({ processo }: { processo: ProcessoSicpr }) {
-  const status = getFacStatus(processo);
-  const isOk = status === "assinada_anexada";
-  const isPending = status === "gerada";
-  const color = isOk ? COLORS.primary : isPending ? "#92400E" : COLORS.textLight;
-  const backgroundColor = isOk ? `${COLORS.accent}18` : isPending ? "#FEF3C7" : "#F3F4F6";
-
-  return (
-    <div className="rounded-md border px-3 py-2 text-xs" style={{ borderColor: COLORS.border, backgroundColor }}>
-      <p className="font-semibold" style={{ color }}>FAC: {FAC_STATUS_LABELS[status]}</p>
-      <p className="mt-1" style={{ color: COLORS.textLight }}>
-        {isOk ? "FAC gerada e versão assinada anexada." : "A FAC assinada pelo produtor é obrigatória antes do envio ao gerente."}
-      </p>
-    </div>
-  );
-}

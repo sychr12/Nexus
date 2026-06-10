@@ -40,7 +40,7 @@ export default function UserFilters({ filters, setFilters }: UserFiltersProps) {
               type="text"
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Nome, usuário ou e-mail..."
+              placeholder="Nome ou usuário..."
               className="w-full pl-10 pr-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-opacity-20"
               style={{ 
                 backgroundColor: COLORS.rowAlt, 

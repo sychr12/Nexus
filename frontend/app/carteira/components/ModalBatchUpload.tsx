@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { X, Upload, FileText, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import API_URL from "../lib/api";
+import { apiFetch, throwIfNotOk } from "../../lib/http";
 
 interface BatchResult {
   batchId: string;
@@ -76,20 +76,12 @@ export default function ModalBatchUpload({ isOpen, onClose, onSuccess }: ModalBa
     setError(null);
     setResult(null);
 
-    const token = localStorage.getItem("token");
-
     try {
-      const response = await fetch(`${API_URL}/carteira${endpoint}`, {
+      const response = await apiFetch(`/carteira${endpoint}`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
-
-      if (!response.ok) {
-        throw new Error(`Erro: ${response.status}`);
-      }
+      await throwIfNotOk(response);
 
       const data = await response.json();
       setResult(data);

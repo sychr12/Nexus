@@ -5,7 +5,6 @@ export interface DashboardStats {
   totalLancamentos: number;
   totalMemorandos: number;
   totalCartoes: number;
-  totalEmails: number;
   ultimoAcesso: string;
 }
 

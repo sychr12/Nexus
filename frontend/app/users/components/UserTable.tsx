@@ -1,7 +1,7 @@
 'use client';
 
 import type { User } from '../types/user';
-import { Edit, Trash2, ToggleLeft, ToggleRight, Shield, Crown, User as UserIcon, Mail, Phone } from 'lucide-react';
+import { Edit, Trash2, ToggleLeft, ToggleRight, Shield, Crown, User as UserIcon, Phone } from 'lucide-react';
 
 const COLORS = {
   primary: "#1F3A2E",
@@ -94,9 +94,6 @@ export default function UserTable({ users, isLoading, onEdit, onDelete, onToggle
                 Usuário
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: COLORS.textLight }}>
-                Contato
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: COLORS.textLight }}>
                 Perfil
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: COLORS.textLight }}>
@@ -135,20 +132,6 @@ export default function UserTable({ users, isLoading, onEdit, onDelete, onToggle
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm" style={{ color: COLORS.primary }}>
-                      <Mail size={14} style={{ color: COLORS.textLight }} />
-                      {user.email}
-                    </div>
-                    {user.telefone && (
-                      <div className="flex items-center gap-2 text-sm" style={{ color: COLORS.primary }}>
-                        <Phone size={14} style={{ color: COLORS.textLight }} />
-                        {user.telefone}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4">
                   <span
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
                     style={{ backgroundColor: `${getPerfilColor(user.perfil)}15`, color: getPerfilColor(user.perfil) }}
@@ -158,6 +141,12 @@ export default function UserTable({ users, isLoading, onEdit, onDelete, onToggle
                   </span>
                   {user.cargo && (
                     <p className="text-xs mt-1" style={{ color: COLORS.textLight }}>{user.cargo}</p>
+                  )}
+                  {user.telefone && (
+                    <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: COLORS.textLight }}>
+                      <Phone size={12} />
+                      {user.telefone}
+                    </p>
                   )}
                 </td>
                 <td className="px-6 py-4">

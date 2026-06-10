@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, MapPin, RotateCcw, Search, UserRound, X } from "lucide-react";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { HistoricoResumo, ProcessoTimeline } from "../fluxo/ProcessoTimeline";
@@ -19,6 +18,7 @@ import {
   saveProcessos,
 } from "../fluxo/storage";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "../fluxo/types";
+import { useAuthSession } from "../hooks/useAuthSession";
 import { getMemorandoStatus } from "./helpers";
 
 const COLORS = SICPR_COLORS;
@@ -50,8 +50,7 @@ const DETAIL_TABS: { key: DetailTab; label: string }[] = [
 ];
 
 export default function AnalisesPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState("Analista");
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Analista" });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [search, setSearch] = useState("");
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
@@ -71,17 +70,12 @@ export default function AnalisesPage() {
   >(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!ready) return;
     const timer = window.setTimeout(() => {
-      setUsername(localStorage.getItem("username") || "Analista");
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [router]);
+  }, [ready]);
 
   const processosFiltrados = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -134,12 +128,6 @@ export default function AnalisesPage() {
     saveProcessos(next);
   }
 
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  }
-
   function aprovar(id: string) {
     if (!isAnaliseOperacional(id)) {
       setModalError("Este processo já saiu da etapa de Análise e está disponível apenas para consulta.");
@@ -190,7 +178,7 @@ export default function AnalisesPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
       <main className="px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

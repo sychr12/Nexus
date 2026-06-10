@@ -9,7 +9,7 @@ import UserFilters from './components/UserFilters';
 import UserStats from './components/UserStats';
 import { Plus } from 'lucide-react';
 import TopBar from "../sidebar/page";
-import { useRouter } from 'next/navigation';
+import { useAuthSession } from '../hooks/useAuthSession';
 
 // Animações CSS
 const animations = `
@@ -90,7 +90,7 @@ const COLORS = {
 };
 
 export default function UsersPage() {
-  const router = useRouter();
+  const { username, logout, ready } = useAuthSession({ defaultUsername: 'Usuario' });
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,7 +111,6 @@ export default function UsersPage() {
     status: '',
   });
 
-  const [username, setUsername] = useState('');
   const [animated, setAnimated] = useState(false);
 
   useEffect(() => {
@@ -125,21 +124,11 @@ export default function UsersPage() {
     setAnimated(true);
   }, []);
 
-  useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        setUsername(user.username || user.nomeCompleto || 'Usuário');
-      } catch {
-        setUsername('Usuário');
-      }
-    }
-  }, []);
 
   useEffect(() => {
+    if (!ready) return;
     loadUsers();
-  }, []);
+  }, [ready]);
 
   useEffect(() => {
     applyFilters();
@@ -166,8 +155,7 @@ export default function UsersPage() {
       filtered = filtered.filter(
         (user) =>
           user.nomeCompleto.toLowerCase().includes(filters.search!.toLowerCase()) ||
-          user.username.toLowerCase().includes(filters.search!.toLowerCase()) ||
-          user.email.toLowerCase().includes(filters.search!.toLowerCase())
+          user.username.toLowerCase().includes(filters.search!.toLowerCase())
       );
     }
 
@@ -232,15 +220,10 @@ export default function UsersPage() {
     return await handleCreateUser(id, userData);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/login');
-  };
 
   return (
     <>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
       <main style={{ backgroundColor: COLORS.rowAlt, paddingTop: '70px', minHeight: '100vh' }}>
         <div className="px-6 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-5">

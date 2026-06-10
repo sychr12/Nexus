@@ -2,7 +2,6 @@
 export interface User {
   id: number;
   username: string;
-  email: string;
   nomeCompleto: string;
   telefone: string;
   perfil: 'ADMIN' | 'CHEFE' | 'USUARIO';
@@ -20,7 +19,6 @@ export interface User {
 export interface UserRequest {
   username: string;
   password: string;
-  email: string;
   nomeCompleto: string;
   telefone: string;
   perfil: string;

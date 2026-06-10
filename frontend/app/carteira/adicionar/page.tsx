@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import TopBar from "../../sidebar/page";
+import { useAuthSession } from "../../hooks/useAuthSession";
 import FormularioCarteira from "../components/FormularioCarteira";
 import { cadastrarCarteira } from "../services/carteiraService";
 import { CarteiraRequest } from "../types/carteira";
@@ -16,27 +16,11 @@ const COLORS = {
 };
 
 export default function AdicionarCarteiraPage() {
-  const router = useRouter();
+  const { username, logout } = useAuthSession({ defaultUsername: "Usuario" });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-    }
-  }, [router]);
-
-  const username = typeof window !== "undefined"
-    ? localStorage.getItem("username") || "Usuário"
-    : "Usuário";
-
-  function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    router.push("/login");
-  }
 
   async function handleSubmit(data: CarteiraRequest) {
     try {
@@ -56,7 +40,7 @@ export default function AdicionarCarteiraPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <TopBar onLogout={logout} username={username} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">

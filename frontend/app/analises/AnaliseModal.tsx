@@ -7,7 +7,6 @@ import {
   Eye,
   FileText,
   Inbox,
-  Mail,
   RotateCcw,
   Send,
   X,
@@ -123,7 +122,7 @@ export default function AnaliseModal({
 
         <div className="flex flex-wrap gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
           {[
-            { id: "resumo", label: "Resumo", icon: Mail },
+            { id: "resumo", label: "Resumo", icon: CheckCircle2 },
             { id: "memorando", label: "Memorando", icon: FileText },
             { id: "processos", label: "Processos", icon: Inbox },
             { id: "decisao", label: "Decisao", icon: Send },
@@ -162,18 +161,6 @@ export default function AnaliseModal({
                   <InfoBox label="Identificados" value={String(selectedMemorando.processos.length)} />
                   <InfoBox label="Lancamentos" value={String(summary.lancamentos)} />
                   <InfoBox label="Devolucoes" value={String(summary.devolucoes)} />
-                </div>
-
-                <div className="rounded-md border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                  <div className="flex gap-3">
-                    <Mail size={18} style={{ color: COLORS.primary }} />
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: COLORS.text }}>{selectedMemorando.emailOrigem}</p>
-                      <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
-                        O memorando funciona como container principal. O status e automatico; a decisao acontece no memorando ou em cada produtor.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}

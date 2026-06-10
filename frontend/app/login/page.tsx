@@ -4,30 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, LockKeyhole, LogIn, ShieldCheck, Sprout, UserRound } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
-
-async function login(username: string, password: string): Promise<{ token: string; username?: string; perfil?: string; role?: string }> {
-  const response = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-
-  if (!response.ok) {
-    let errorMessage = "Usuário ou senha inválidos";
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.message || errorData.error || errorMessage;
-    } catch {
-      const textError = await response.text();
-      if (textError) errorMessage = textError;
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
-}
+import { login as loginRequest, storeAuthSession } from "../lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,13 +20,8 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const data = await login(username, password);
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("username", data.username || username);
-      if (data.perfil || data.role) {
-        localStorage.setItem("perfil", data.perfil || data.role || "USUARIO");
-        localStorage.setItem("role", data.role || data.perfil || "USUARIO");
-      }
+      const data = await loginRequest(username, password);
+      storeAuthSession(data, username);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao conectar com o servidor.");
