@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -21,9 +21,14 @@ import {
   Key,
   Building2,
   UserCheck,
+  ChevronLeft,
+  Mail,
+  PlusCircle,
+  RotateCcw,
+  MessageCircle,
 } from "lucide-react";
 
-// Paleta de cores da sua imagem
+// Paleta de cores
 const COLORS = {
   primary: "#2D452F",
   secondary: "#4C6A4B",
@@ -33,7 +38,8 @@ const COLORS = {
   textLight: "#A8C4A0",
 };
 
-const TOP_ITEMS = [
+// LISTA COMPLETA DE ITENS DO MENU - TODAS AS ABAS
+const MENU_ITEMS = [
   { id: "home", label: "Home", icon: Home, href: "/" },
   { id: "dashboard", label: "Dashboard / KPIs", icon: LayoutDashboard, href: "/dashboard" },
   { id: "relatorios", label: "Relatórios", icon: PieChart, href: "/relatorios" },
@@ -42,279 +48,298 @@ const TOP_ITEMS = [
   { id: "memorandos-assinados", label: "Central de Memorandos", icon: FileText, href: "/memorandos-assinados" },
   { id: "memorando", label: "Memorando de Saída", icon: FileText, href: "/memorando" },
   { id: "carteira", label: "Carteira Digital", icon: CreditCard, href: "/carteira" },
-  // Aba Adicionar pausada temporariamente.
-  // { id: "adicionar", label: "Adicionar", icon: Plus, href: "/adicionar" },
+  { id: "adicionar", label: "Adicionar", icon: PlusCircle, href: "/adicionar" },
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
   { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
   { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
+  { id: "devolucao", label: "Devolução", icon: RotateCcw, href: "/devolucao" },
+  { id: "email", label: "E-mails", icon: Mail, href: "/email" },
+  { id: "mensagens", label: "Mensagens", icon: MessageCircle, href: "/mensagens" },
   { id: "senha", label: "Senha", icon: Key, href: "/senha" },
-  { id: "Gerenciamento de Usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
+  { id: "usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
 ];
 
-interface TopBarProps {
+interface SidebarProps {
   onLogout: () => void;
   username: string;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 // Animações CSS
 const animations = `
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 @keyframes slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
 }
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-@keyframes shine {
-  to {
-    background-position: 200% center;
-  }
-}
-
-@keyframes glow {
-  0% {
-    box-shadow: 0 0 0px rgba(107, 157, 74, 0);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(107, 157, 74, 0.5);
-  }
-  100% {
-    box-shadow: 0 0 0px rgba(107, 157, 74, 0);
-  }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 `;
 
-export default function TopBar({ onLogout, username }: TopBarProps) {
-  const router = useRouter();
-  const activePath = usePathname();
+export default function Sidebar({ onLogout, username, onCollapsedChange }: SidebarProps) {
+  const [collapsed, setCollapsedState] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
-  const [animated, setAnimated] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Função para alterar o estado collapsed e notificar o pai
+  const setCollapsed = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    setCollapsedState((prev) => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      onCollapsedChange?.(newValue);
+      return newValue;
+    });
+  }, [onCollapsedChange]);
 
   useEffect(() => {
-    // Adiciona estilos de animação
-    if (!document.getElementById("topbar-animations")) {
+    setMounted(true);
+    // Recuperar estado salvo do localStorage
+    const saved = localStorage.getItem("sidebar-collapsed");
+    if (saved !== null) {
+      const savedValue = saved === "true";
+      setCollapsedState(savedValue);
+      onCollapsedChange?.(savedValue);
+    }
+  }, [onCollapsedChange]);
+
+  // Salvar estado no localStorage quando mudar
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem("sidebar-collapsed", String(collapsed));
+    }
+  }, [collapsed, mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    setCurrentTime(new Date());
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    
+    if (!document.getElementById("sidebar-animations")) {
       const style = document.createElement("style");
-      style.id = "topbar-animations";
+      style.id = "sidebar-animations";
       style.textContent = animations;
       document.head.appendChild(style);
     }
-
-    const initialTimer = window.setTimeout(() => setCurrentTime(new Date()), 0);
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     
-    // Ativa animações após montagem
-    setTimeout(() => setAnimated(true), 100);
-    
-    return () => {
-      window.clearTimeout(initialTimer);
-      clearInterval(timer);
-    };
-  }, []);
+    return () => clearInterval(timer);
+  }, [mounted]);
 
-  const handleNavigation = (href: string) => {
-    router.push(href);
+  const handleNavigation = useCallback((href: string) => {
+    if (!mounted) return;
+    try {
+      router.push(href);
+    } catch (error) {
+      window.location.href = href;
+    }
     setMobileMenuOpen(false);
-  };
+  }, [router, mounted]);
+
+  const handleLogout = useCallback(() => {
+    if (!mounted) return;
+    onLogout();
+  }, [onLogout, mounted]);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed(prev => !prev);
+  }, [setCollapsed]);
+
+  // Renderizar placeholder durante SSR
+  if (!mounted) {
+    return (
+      <div className="hidden lg:block fixed left-0 top-0 bottom-0 w-[72px] lg:w-[260px] bg-[#2D452F]" />
+    );
+  }
 
   return (
     <>
-      <header 
-        className="fixed top-0 left-0 right-0 z-50 shadow-lg" 
-        style={{ 
-          backgroundColor: COLORS.primary,
-          animation: animated ? "fadeInDown 0.6s ease-out" : "none"
-        }}
-      >
-        {/* Logo e informações do usuário */}
-        <div className="px-6 py-2 border-b" style={{ borderBottomColor: COLORS.secondary }}>
-          <div className="flex items-center justify-between">
-            {/* Logo com animação */}
-            <div className="flex items-center gap-0" style={{ animation: animated ? "slideInLeft 0.5s ease-out" : "none" }}>
-              <div className="relative h-16 w-20 overflow-hidden rounded-xl lg:h-20 lg:w-30">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 shadow-lg" style={{ backgroundColor: COLORS.primary }}>
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="relative h-10 w-10">
+              {!imgError ? (
                 <Image
                   src="/sicpr-badge.png"
                   alt="Logo SICPR"
-                  width={1536}
-                  height={1024}
+                  width={40}
+                  height={40}
+                  className="h-full w-full object-contain"
+                  onError={() => setImgError(true)}
                   priority
-                  className="absolute left-1/2 top-1/2 w-32 -translate-x-1/2 -translate-y-1/2 object-contain lg:w-44 transition-transform duration-300 hover:scale-110"
-                  style={{ filter: "brightness(0) saturate(100%) invert(54%) sepia(33%) saturate(707%) hue-rotate(50deg) brightness(94%) contrast(88%) drop-shadow(0 4px 8px rgba(0,0,0,0.18))" }}
                 />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-white">SICPR</h1>
-                <p className="text-xs" style={{ color: COLORS.light }}>Sistema Integrado de Controle</p>
-              </div>
-            </div>
-
-            {/* Desktop - Info com animação */}
-            <div className="hidden lg:flex items-center gap-4" style={{ animation: animated ? "slideInRight 0.5s ease-out" : "none" }}>
-              <div 
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-300 hover:scale-105" 
-                style={{ backgroundColor: COLORS.secondary }}
-              >
-                <span className="text-xs text-white transition-colors duration-300">
-                  {currentTime ? currentTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "--/--/----"}
-                </span>
-                <span className="text-xs text-white/50">•</span>
-                <span className="text-xs text-white font-mono">
-                  {currentTime ? currentTime.toLocaleTimeString("pt-BR") : "--:--:--"}
-                </span>
-              </div>
-
-              <button 
-                className="relative p-2 rounded-lg hover:bg-white/10 transition-all duration-300 hover:scale-110"
-                style={{ animation: animated ? "pulse 2s infinite" : "none" }}
-              >
-                <Bell size={18} className="text-white" />
-              </button>
-
-              <div className="flex items-center gap-3 pl-3 border-l border-white/20">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-white transition-colors duration-300 hover:text-accent">{username}</p>
-                  <p className="text-xs" style={{ color: COLORS.light }}>Administrador</p>
+              ) : (
+                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">S</span>
                 </div>
-                <div 
-                  className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all duration-300 hover:scale-110 hover:shadow-lg" 
-                  style={{ backgroundColor: COLORS.accent }}
-                >
-                  <User size={16} className="text-white" />
-                </div>
-              </div>
-
-              <button
-                onClick={onLogout}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-all duration-300 hover:scale-105"
-              >
-                <LogOut size={16} />
-                <span>Sair</span>
-              </button>
+              )}
             </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-white hover:bg-white/10 transition-all duration-300 hover:scale-110"
-            >
-              {mobileMenuOpen ? <X size={24} className="animate-spin" /> : <Menu size={24} />}
-            </button>
+            <h1 className="text-lg font-bold text-white">SICPR</h1>
           </div>
-        </div>
-
-        {/* Abas - Desktop com animação */}
-        <div className="hidden lg:block px-6 py-1">
-          <div className="flex items-center justify-center">
-            <nav className="flex items-center justify-center gap-1 flex-wrap" style={{ animation: animated ? "fadeIn 0.8s ease-out" : "none" }}>
-              {TOP_ITEMS.map((item, index) => {
-                const Icon = item.icon;
-                const isActive = activePath === item.href;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleNavigation(item.href)}
-                    className={`
-                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-300 whitespace-nowrap
-                      ${isActive 
-                        ? "text-white shadow-sm" 
-                        : "text-white/70 hover:text-white hover:bg-white/10"
-                      }
-                    `}
-                    style={{
-                      backgroundColor: isActive ? COLORS.accent : "transparent",
-                      animation: animated ? `fadeIn 0.4s ease-out ${index * 0.02}s both` : "none",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                  >
-                    <Icon size={12} className="transition-transform duration-300 group-hover:scale-110" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
+          <button 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)} 
+            className="p-2 rounded-lg text-white hover:bg-white/10 transition-all"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </header>
 
-      {/* Menu Mobile Dropdown com animação */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 z-40" style={{ top: '81px', animation: "fadeInDown 0.3s ease-out" }}>
-          <div className="absolute inset-0 bg-black/50 animate-fadeIn" onClick={() => setMobileMenuOpen(false)} />
-          <div 
-            className="absolute top-0 left-0 right-0 max-h-[calc(100vh-81px)] overflow-y-auto" 
-            style={{ 
-              backgroundColor: COLORS.primary,
-              animation: "slideInLeft 0.3s ease-out"
-            }}
+      {/* Desktop Sidebar */}
+      <aside 
+        className={`
+          hidden lg:flex lg:flex-col fixed left-0 top-0 bottom-0 z-50 
+          transition-all duration-300 shadow-2xl
+          ${collapsed ? 'w-[72px]' : 'w-[260px]'}
+        `} 
+        style={{ backgroundColor: COLORS.primary }}
+      >
+        {/* Logo Area */}
+        <div className={`py-6 ${collapsed ? 'px-2' : 'px-4'} border-b`} style={{ borderBottomColor: COLORS.secondary }}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+            <div className={`flex items-center gap-2 overflow-hidden ${collapsed ? 'justify-center w-full' : ''}`}>
+              {/* Logo - Tamanho ajustado para collapsed */}
+              <div className={`relative ${collapsed ? 'h-13 w-60' : 'h-12 w-14'} flex-shrink-0`}>
+                {!imgError ? (
+                  <Image
+                    src="/sicpr-badge.png"
+                    alt="Logo SICPR"
+                    width={collapsed ? 40 : 76}
+                    height={collapsed ? 40 : 57}
+                    className="h-full w-full object-contain"
+                    onError={() => setImgError(true)}
+                    priority
+                  />
+                ) : (
+                  <div className={`${collapsed ? 'h-8 w-8' : 'h-12 w-14'} rounded-lg bg-white/20 flex items-center justify-center`}>
+                    <span className={`text-white font-bold ${collapsed ? 'text-sm' : 'text-xl'}`}>S</span>
+                  </div>
+                )}
+              </div>
+              {!collapsed && (
+                <div className="flex-shrink-0">
+                  <h1 className="text-xl font-bold text-white">SICPR</h1>
+                  <p className="text-xs" style={{ color: COLORS.light }}>Sistema Integrado</p>
+                </div>
+              )}
+            </div>
+            {!collapsed && (
+              <button 
+                onClick={toggleCollapsed} 
+                className="p-1.5 rounded-lg text-white hover:bg-white/10 transition-all flex-shrink-0"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+          </div>
+          {/* Botão recolher quando está colapsado - aparece no hover */}
+          {collapsed && (
+            <button 
+              onClick={toggleCollapsed} 
+              className="absolute -right-3 top-20 p-1 rounded-full bg-white shadow-md text-gray-700 hover:bg-gray-100 transition-all"
+            >
+              <ChevronLeft size={14} className="rotate-180" />
+            </button>
+          )}
+        </div>
+
+        {/* User Info */}
+        <div className={`py-4 ${collapsed ? 'px-2' : 'px-4'} border-b`} style={{ borderBottomColor: COLORS.secondary }}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className={`${collapsed ? 'w-7 h-7' : 'w-9 h-9'} rounded-full flex items-center justify-center shadow-md transition-all hover:scale-105 flex-shrink-0`} style={{ backgroundColor: COLORS.accent }}>
+              <User size={collapsed ? 14 : 16} className="text-white" />
+            </div>
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{username}</p>
+                <p className="text-xs" style={{ color: COLORS.light }}>Administrador</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation - Scrollable */}
+        <nav className="flex-1 py-4 overflow-y-auto">
+          <div className={`space-y-1 ${collapsed ? 'px-1' : 'px-3'}`}>
+            {MENU_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavigation(item.href)}
+                  className={`
+                    w-full flex items-center gap-3 rounded-lg transition-all duration-300
+                    ${collapsed ? 'justify-center py-2 px-0' : 'py-2.5 px-3'}
+                    ${isActive 
+                      ? 'text-white shadow-sm' 
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }
+                  `}
+                  style={{ backgroundColor: isActive ? COLORS.accent : 'transparent' }}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon size={collapsed ? 18 : 18} className="flex-shrink-0" />
+                  {!collapsed && <span className="text-sm font-medium truncate">{item.label}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Footer */}
+        <div className={`py-4 ${collapsed ? 'px-2' : 'px-4'} border-t`} style={{ borderTopColor: COLORS.secondary }}>
+          {!collapsed && (
+            <div className="mb-3 px-1">
+              <div className="flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ backgroundColor: COLORS.secondary }}>
+                <span className="text-xs text-white">
+                  {currentTime ? currentTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "--/--"}
+                </span>
+                <span className="text-xs text-white font-mono">
+                  {currentTime ? currentTime.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          <button
+            onClick={handleLogout}
+            className={`
+              w-full flex items-center gap-3 rounded-lg transition-all duration-300 hover:scale-105
+              ${collapsed ? 'justify-center py-2 px-0' : 'py-2 px-3'}
+              text-red-300 hover:bg-red-500/20 hover:text-red-200
+            `}
+            title={collapsed ? "Sair" : undefined}
           >
+            <LogOut size={collapsed ? 18 : 18} className="flex-shrink-0" />
+            {!collapsed && <span className="text-sm">Sair</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Menu Dropdown */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-40" style={{ top: '57px' }}>
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+          <div className="absolute top-0 left-0 right-0 max-h-[calc(100vh-57px)] overflow-y-auto" style={{ backgroundColor: COLORS.primary }}>
             <div className="p-4 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110" 
-                  style={{ backgroundColor: COLORS.accent }}
-                >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: COLORS.accent }}>
                   <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-white">{username}</p>
                   <p className="text-xs text-white/60">Administrador</p>
                 </div>
-                <button
-                  onClick={onLogout}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-300 transition-all duration-300 hover:scale-105 hover:bg-red-500/30"
+                <button 
+                  onClick={handleLogout} 
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-red-500/20 text-red-300 transition-all hover:bg-red-500/30"
                 >
                   <LogOut size={16} />
                   Sair
@@ -322,32 +347,20 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
               </div>
             </div>
             <nav className="p-4 space-y-1">
-              {TOP_ITEMS.map((item, index) => {
+              {MENU_ITEMS.map((item) => {
                 const Icon = item.icon;
-                const isActive = activePath === item.href;
+                const isActive = pathname === item.href;
                 return (
                   <button
                     key={item.id}
                     onClick={() => handleNavigation(item.href)}
                     className={`
                       w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
-                      ${isActive 
-                        ? "text-white" 
-                        : "text-white/70 hover:text-white hover:bg-white/10"
-                      }
+                      ${isActive ? 'text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}
                     `}
-                    style={{
-                      backgroundColor: isActive ? COLORS.accent : "transparent",
-                      animation: `fadeIn 0.3s ease-out ${index * 0.03}s both`
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateX(5px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateX(0)";
-                    }}
+                    style={{ backgroundColor: isActive ? COLORS.accent : 'transparent' }}
                   >
-                    <Icon size={20} className="transition-transform duration-300" />
+                    <Icon size={20} />
                     <span className="text-sm font-medium">{item.label}</span>
                   </button>
                 );
@@ -356,8 +369,6 @@ export default function TopBar({ onLogout, username }: TopBarProps) {
           </div>
         </div>
       )}
-
-      <div className="h-[104px] lg:h-[154px]" />
     </>
   );
 }

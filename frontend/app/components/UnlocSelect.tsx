@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, MapPin } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown, MapPin, X } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   filterUnlocOptions,
   getUnlocByCode,
@@ -46,12 +46,14 @@ export default function UnlocSelect({
   const palette = { ...DEFAULT_COLORS, ...colors };
   const isCompact = size === "compact";
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
+  // Fechar dropdown ao clicar fora
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (!dropdownRef.current?.contains(event.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setSearch("");
       }
@@ -61,23 +63,54 @@ export default function UnlocSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Focar no input de busca quando abrir
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isOpen]);
+
   const selectedOption = valueMode === "code"
     ? getUnlocByCode(value)
     : getUnlocByMunicipio(value);
+  
   const filteredOptions = filterUnlocOptions(search);
 
+  const handleSelect = useCallback((optionValue: string) => {
+    onChange(optionValue);
+    setIsOpen(false);
+    setSearch("");
+  }, [onChange]);
+
+  const handleClear = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange("");
+    setIsOpen(false);
+    setSearch("");
+  }, [onChange]);
+
+  const toggleDropdown = useCallback(() => {
+    if (disabled) return;
+    setIsOpen(prev => !prev);
+    if (isOpen) {
+      setSearch("");
+    }
+  }, [disabled, isOpen]);
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative w-full" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => {
-          if (disabled) return;
-          setIsOpen((current) => !current);
-          setSearch("");
-        }}
-        className={`w-full border text-sm flex items-center justify-between ${
-          isCompact ? "rounded-md px-3 py-2" : "rounded-xl px-4 py-3"
-        }`}
+        onClick={toggleDropdown}
+        className={`
+          w-full border text-sm flex items-center justify-between
+          transition-all duration-200
+          ${isCompact ? "rounded-md px-3 py-2" : "rounded-xl px-4 py-3"}
+          ${disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"}
+          hover:shadow-sm
+        `}
         style={{
           backgroundColor: palette.inputBg,
           borderColor: error
@@ -90,37 +123,50 @@ export default function UnlocSelect({
           color: selectedOption ? palette.text : palette.textLight,
           outline: "none",
           boxShadow: isOpen ? `0 0 0 3px ${palette.accent}18` : "none",
-          transition: "border-color 0.2s, box-shadow 0.2s",
-          cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.7 : 1,
           minHeight: isCompact ? 38 : undefined,
         }}
         disabled={disabled}
       >
-        <span className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2 flex-1">
           <MapPin
             size={13}
             className="shrink-0"
             style={{ color: selectedOption ? palette.accent : palette.textLight }}
           />
-          <span className="truncate">{selectedOption?.label || placeholder}</span>
+          <span className="truncate flex-1 text-left">
+            {selectedOption?.label || placeholder}
+          </span>
         </span>
-        <ChevronDown
-          size={15}
-          className="shrink-0"
-          style={{
-            color: palette.textLight,
-            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s",
-          }}
-        />
+        
+        <div className="flex items-center gap-1 shrink-0">
+          {selectedOption && !disabled && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+              aria-label="Limpar seleção"
+            >
+              <X size={14} style={{ color: palette.textLight }} />
+            </button>
+          )}
+          <ChevronDown
+            size={15}
+            className="shrink-0 transition-transform duration-200"
+            style={{
+              color: palette.textLight,
+              transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          />
+        </div>
       </button>
 
       {isOpen && (
         <div
-          className={`absolute z-20 w-full mt-1.5 border overflow-hidden ${
-            isCompact ? "rounded-md" : "rounded-xl"
-          }`}
+          className={`
+            absolute z-50 w-full mt-1.5 border overflow-hidden
+            ${isCompact ? "rounded-md" : "rounded-xl"}
+            animate-in fade-in duration-200
+          `}
           style={{
             backgroundColor: palette.card,
             borderColor: palette.borderFocus,
@@ -129,18 +175,21 @@ export default function UnlocSelect({
         >
           <div className="p-2 border-b" style={{ borderColor: palette.border }}>
             <input
+              ref={searchInputRef}
               type="text"
               placeholder={searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className={`w-full px-3 py-2 text-sm border ${isCompact ? "rounded-md" : "rounded-lg"}`}
+              className={`
+                w-full px-3 py-2 text-sm border outline-none
+                focus:ring-1 focus:ring-green-500
+                ${isCompact ? "rounded-md" : "rounded-lg"}
+              `}
               style={{
                 backgroundColor: "#F5F7F3",
                 borderColor: palette.border,
                 color: palette.text,
-                outline: "none",
               }}
-              autoFocus
             />
           </div>
 
@@ -158,12 +207,8 @@ export default function UnlocSelect({
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => {
-                      onChange(optionValue);
-                      setIsOpen(false);
-                      setSearch("");
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+                    onClick={() => handleSelect(optionValue)}
+                    className="w-full text-left px-4 py-2.5 text-sm transition-all duration-150 hover:pl-5"
                     style={{
                       color: palette.text,
                       backgroundColor: isSelected ? `${palette.accent}14` : "transparent",
@@ -180,10 +225,10 @@ export default function UnlocSelect({
                       }
                     }}
                   >
-                    <span style={{ color: palette.accent, fontWeight: 700, marginRight: 6 }}>
+                    <span style={{ color: palette.accent, fontWeight: 700, marginRight: 8 }}>
                       {option.value}
                     </span>
-                    {option.municipio}
+                    <span>{option.municipio}</span>
                   </button>
                 );
               })

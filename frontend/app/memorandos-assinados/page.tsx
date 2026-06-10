@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Eye, FileText, History, Link2, Paperclip, Search, X } from "lucide-react";
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import { useAuthSession } from "../hooks/useAuthSession";
 import {
   SITUACAO_LABELS,
@@ -80,14 +80,20 @@ export default function MemorandosAssinadosPage() {
   const [statusFilter, setStatusFilter] = useState<MemorandoCentralStatus>("todos");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<MemorandoResumo | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!ready) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !mounted) return;
     const timer = window.setTimeout(() => {
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [ready]);
+  }, [ready, mounted]);
 
   const memorandos = useMemo(() => buildMemorandos(processos), [processos]);
   const statusCounts = useMemo(() => {
@@ -135,103 +141,146 @@ export default function MemorandosAssinadosPage() {
     setPage(1);
   }
 
+  if (!mounted || !ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={logout} username={username} />
-      <main className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="space-y-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Central de Memorandos</h1>
-              <p className="text-sm" style={{ color: COLORS.textLight }}>
-                Repositório oficial de consulta, auditoria e rastreabilidade dos memorandos do SICPR.
-              </p>
-            </div>
-            <div className="relative lg:w-[32rem]">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-              <input
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="Buscar memorando, produtor, CPF, município, comunidade, UNLOC, gerente ou técnico..."
-                className="w-full rounded-md border py-2 pl-9 pr-3 text-sm outline-none"
-                style={{ borderColor: COLORS.border }}
-              />
-            </div>
-          </div>
+      <Sidebar
+        onLogout={logout}
+        username={username || "Gerente UNLOC"}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {STATUS_FILTERS.map((filter) => (
-              <button
-                key={filter.key}
-                type="button"
-                onClick={() => applyStatusFilter(filter.key)}
-                className="rounded-lg border px-3 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                style={{
-                  backgroundColor: statusFilter === filter.key ? COLORS.primary : COLORS.card,
-                  borderColor: statusFilter === filter.key ? COLORS.primary : COLORS.border,
-                  color: statusFilter === filter.key ? "#FFFFFF" : COLORS.text,
-                }}
-              >
-                <span className="block text-xs font-semibold uppercase opacity-80">{filter.label}</span>
-                <span className="mt-1 block text-xl font-bold">{statusCounts.get(filter.key) || 0}</span>
-              </button>
-            ))}
-          </div>
-
-          <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="overflow-x-auto p-4">
-              <table className="min-w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
-                    <th className="px-3 py-2">Memorando</th>
-                    <th className="px-3 py-2">Data</th>
-                    <th className="px-3 py-2">UNLOC</th>
-                    <th className="px-3 py-2">Gerente</th>
-                    <th className="px-3 py-2">Processos</th>
-                    <th className="px-3 py-2">Produtores</th>
-                    <th className="px-3 py-2">Situação</th>
-                    <th className="px-3 py-2">Última movimentação</th>
-                    <th className="px-3 py-2 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.map((memorando) => (
-                    <tr key={memorando.loteId} className="border-b align-top" style={{ borderBottomColor: COLORS.border }}>
-                      <td className="px-3 py-3 font-semibold" style={{ color: COLORS.primary }}>{memorando.numero}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{formatDateTime(memorando.criadoEm)}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.unidadeLocal}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.gerenteResponsavel || "-"}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.processos.length}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.produtores.length}</td>
-                      <td className="px-3 py-3">
-                        <StatusBadge status={memorando.status} />
-                      </td>
-                      <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{formatDateTime(memorando.ultimaMovimentacao)}</td>
-                      <td className="px-3 py-3 text-right">
-                        <button type="button" onClick={() => setSelected(memorando)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold transition-colors hover:bg-[#F5F7F5]" style={{ color: COLORS.primary }}>
-                          <Eye size={14} />
-                          Ver
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {paged.length === 0 && <div className="py-8 text-center text-sm" style={{ color: COLORS.textLight }}>Nenhum memorando encontrado.</div>}
-            </div>
-            {filtered.length > PAGE_SIZE && (
-              <div className="flex items-center justify-between border-t px-4 py-3 text-sm" style={{ borderTopColor: COLORS.border, color: COLORS.text }}>
-                <span>Página {page} de {totalPages} | {filtered.length} memorando(s)</span>
-                <div className="flex gap-2">
-                  <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Anterior</button>
-                  <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Próxima</button>
-                </div>
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      >
+        <div className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="space-y-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Central de Memorandos</h1>
+                <p className="text-sm" style={{ color: COLORS.textLight }}>
+                  Repositório oficial de consulta, auditoria e rastreabilidade dos memorandos do SICPR.
+                </p>
               </div>
-            )}
-          </section>
+              <div className="relative lg:w-96">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                <input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Buscar memorando, produtor, CPF, município..."
+                  className="w-full rounded-md border py-2 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-green-500"
+                  style={{ borderColor: COLORS.border }}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {STATUS_FILTERS.map((filter) => (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() => applyStatusFilter(filter.key)}
+                  className="rounded-lg border px-3 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  style={{
+                    backgroundColor: statusFilter === filter.key ? COLORS.primary : COLORS.card,
+                    borderColor: statusFilter === filter.key ? COLORS.primary : COLORS.border,
+                    color: statusFilter === filter.key ? "#FFFFFF" : COLORS.text,
+                  }}
+                >
+                  <span className="block text-xs font-semibold uppercase opacity-80">{filter.label}</span>
+                  <span className="mt-1 block text-xl font-bold">{statusCounts.get(filter.key) || 0}</span>
+                </button>
+              ))}
+            </div>
+
+            <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+              <div className="overflow-x-auto p-4">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
+                      <th className="px-3 py-2">Memorando</th>
+                      <th className="px-3 py-2">Data</th>
+                      <th className="px-3 py-2">UNLOC</th>
+                      <th className="px-3 py-2">Gerente</th>
+                      <th className="px-3 py-2">Processos</th>
+                      <th className="px-3 py-2">Produtores</th>
+                      <th className="px-3 py-2">Situação</th>
+                      <th className="px-3 py-2">Última movimentação</th>
+                      <th className="px-3 py-2 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paged.map((memorando) => (
+                      <tr key={memorando.loteId} className="border-b align-top" style={{ borderBottomColor: COLORS.border }}>
+                        <td className="px-3 py-3 font-semibold" style={{ color: COLORS.primary }}>{memorando.numero}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{formatDateTime(memorando.criadoEm)}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.unidadeLocal}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.gerenteResponsavel || "-"}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.processos.length}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{memorando.produtores.length}</td>
+                        <td className="px-3 py-3">
+                          <StatusBadge status={memorando.status} />
+                        </td>
+                        <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{formatDateTime(memorando.ultimaMovimentacao)}</td>
+                        <td className="px-3 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelected(memorando)}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold transition-colors hover:bg-[#F5F7F5]"
+                            style={{ color: COLORS.primary }}
+                          >
+                            <Eye size={14} />
+                            Ver
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {paged.length === 0 && (
+                  <div className="py-8 text-center text-sm" style={{ color: COLORS.textLight }}>
+                    Nenhum memorando encontrado.
+                  </div>
+                )}
+              </div>
+              {filtered.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between border-t px-4 py-3 text-sm" style={{ borderTopColor: COLORS.border, color: COLORS.text }}>
+                  <span>Página {page} de {totalPages} | {filtered.length} memorando(s)</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={page === 1}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors hover:bg-gray-100"
+                      style={{ border: `1px solid ${COLORS.border}` }}
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      type="button"
+                      disabled={page === totalPages}
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                      className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors hover:bg-gray-100"
+                      style={{ border: `1px solid ${COLORS.border}` }}
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       </main>
 
@@ -240,6 +289,7 @@ export default function MemorandosAssinadosPage() {
   );
 }
 
+// Componente Modal de Detalhe (mantido igual, mas com seção -> div)
 function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResumo; onClose: () => void }) {
   const devolucoes = getDevolucoes(memorando);
   const historicoGeral = getHistoricoGeral(memorando);
@@ -247,9 +297,9 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
   const reenvios = Math.max(0, memorando.cadeiaSucessao.length - 1);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
       <div className="absolute inset-0 bg-black/45" onClick={onClose} />
-      <section className="relative flex h-[calc(100vh-2.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="relative flex h-[calc(100vh-2.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
         <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
           <div>
             <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Central de Memorandos</p>
@@ -264,7 +314,8 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto p-5">
-          <section className="rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+          {/* Conteúdo do modal permanece o mesmo, apenas substituindo section por div */}
+          <div className="rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
             <p className="mb-3 text-sm font-semibold uppercase" style={{ color: COLORS.primary }}>Resumo do memorando</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <InfoCard label="Número" value={memorando.numero} />
@@ -279,16 +330,18 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
               <InfoCard label="Reenvios" value={String(reenvios)} />
               <InfoCard label="Código de validação" value={memorando.assinatura?.codigoValidacao || "-"} />
             </div>
-          </section>
+          </div>
 
-          <section className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+          {/* Sucessão de memorandos */}
+          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
             <p className="mb-3 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
               <Link2 size={16} /> Sucessão de memorandos
             </p>
             <SuccessionChain memorando={memorando} />
-          </section>
+          </div>
 
-          <section className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+          {/* Lista de produtores */}
+          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
             <p className="mb-3 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
               <FileText size={16} /> Lista de produtores
             </p>
@@ -313,15 +366,16 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
                 );
               })}
             </div>
-          </section>
+          </div>
 
-          <section className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+          {/* Histórico geral */}
+          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
             <p className="mb-3 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
               <History size={16} /> Histórico geral do memorando
             </p>
             <div className="space-y-3">
-              {historicoGeral.map((item) => (
-                <div key={`${item.acao}-${item.dataHora}-${item.usuario}`} className="grid grid-cols-[18px_1fr] gap-3 text-sm">
+              {historicoGeral.map((item, idx) => (
+                <div key={`${item.acao}-${item.dataHora}-${idx}`} className="grid grid-cols-[18px_1fr] gap-3 text-sm">
                   <span className={`mt-1 h-3 w-3 rounded-full ring-4 ${getAuditDotClass(item.acao)}`} />
                   <div>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -334,19 +388,21 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
               ))}
               {historicoGeral.length === 0 && <p className="text-sm" style={{ color: COLORS.textLight }}>Nenhum evento institucional registrado.</p>}
             </div>
-          </section>
+          </div>
 
-          <section className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+          {/* Histórico individual dos produtores */}
+          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
             <p className="mb-3 font-semibold" style={{ color: COLORS.text }}>Histórico individual dos produtores</p>
             <div className="grid gap-3">
               {memorando.processos.map((processo) => (
                 <ProducerTimeline key={processo.id} processo={processo} />
               ))}
             </div>
-          </section>
+          </div>
 
+          {/* Devoluções */}
           {devolucoes.length > 0 && (
-            <section className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+            <div className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
               <p className="mb-3 font-semibold" style={{ color: COLORS.text }}>Controle de devoluções</p>
               <div className="overflow-x-auto rounded-md border" style={{ borderColor: COLORS.border }}>
                 <table className="min-w-full border-collapse text-sm">
@@ -361,8 +417,8 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
                     </tr>
                   </thead>
                   <tbody>
-                    {devolucoes.map((devolucao) => (
-                      <tr key={`${devolucao.processo.id}-${devolucao.evento.id}`} className="border-b last:border-b-0" style={{ borderBottomColor: COLORS.border }}>
+                    {devolucoes.map((devolucao, idx) => (
+                      <tr key={`${devolucao.processo.id}-${idx}`} className="border-b last:border-b-0" style={{ borderBottomColor: COLORS.border }}>
                         <td className="px-3 py-2 font-semibold" style={{ color: COLORS.text }}>{devolucao.processo.produtor}</td>
                         <td className="px-3 py-2" style={{ color: COLORS.textLight }}>{formatDateTime(devolucao.evento.dataHora)}</td>
                         <td className="px-3 py-2" style={{ color: COLORS.text }}>{devolucao.evento.usuario}</td>
@@ -374,10 +430,11 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
                   </tbody>
                 </table>
               </div>
-            </section>
+            </div>
           )}
 
-          <section className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
+          {/* Documentos */}
+          <div className="mt-5 rounded-lg border p-4" style={{ borderColor: COLORS.border }}>
             <p className="mb-3 inline-flex items-center gap-2 font-semibold" style={{ color: COLORS.text }}>
               <Paperclip size={16} /> Documentos
             </p>
@@ -389,8 +446,8 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
                     <span className="ml-2 text-xs font-normal" style={{ color: COLORS.textLight }}>{grupo.items.length} documento(s)</span>
                   </summary>
                   <div className="grid gap-2 border-t px-4 py-3 sm:grid-cols-2 lg:grid-cols-3" style={{ borderTopColor: COLORS.border }}>
-                    {grupo.items.map((item) => (
-                      <div key={`${grupo.processo.id}-${item.label}-${item.detail}`} className="rounded bg-[#F5F7F5] px-3 py-2 text-sm">
+                    {grupo.items.map((item, idx) => (
+                      <div key={`${grupo.processo.id}-${item.label}-${idx}`} className="rounded bg-[#F5F7F5] px-3 py-2 text-sm">
                         <p className="font-semibold" style={{ color: COLORS.text }}>{item.label}</p>
                         <p className="truncate text-xs" style={{ color: COLORS.textLight }}>{item.detail}</p>
                       </div>
@@ -399,14 +456,15 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
                 </details>
               ))}
             </div>
-          </section>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
 
-function buildMemorandos(processos: ProcessoSicpr[]) {
+// Funções auxiliares (permanecem iguais)
+function buildMemorandos(processos: ProcessoSicpr[]): MemorandoResumo[] {
   const grupos = new Map<string, MemorandoResumo>();
 
   processos.forEach((processo) => {
@@ -435,7 +493,7 @@ function buildMemorandos(processos: ProcessoSicpr[]) {
       ...memorando,
       status: getCentralStatus(memorando.processos, memorando),
       ultimaMovimentacao: getLastMovement(memorando.processos, memorando),
-      tecnicos: unique(memorando.processos.map((processo) => processo.tecnicoResponsavel)),
+      tecnicos: unique(memorando.processos.map((p) => p.tecnicoResponsavel)),
     }))
     .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
 
@@ -507,7 +565,7 @@ function findRelatedPrevious(memorando: MemorandoResumo, memorandos: MemorandoRe
   return memorandos.find((candidate) =>
     candidate.criadoEm < memorando.criadoEm &&
     candidate.loteId !== memorando.loteId &&
-    candidate.produtores.some((produtor) => producerIds.has(produtor.id)),
+    candidate.produtores.some((produtor) => producerIds.has(produtor.id))
   )?.numero;
 }
 
@@ -516,7 +574,7 @@ function findSuccessor(memorando: MemorandoResumo, memorandos: MemorandoResumo[]
   return memorandos.find((candidate) =>
     candidate.criadoEm > memorando.criadoEm &&
     candidate.loteId !== memorando.loteId &&
-    candidate.produtores.some((produtor) => producerIds.has(produtor.id)),
+    candidate.produtores.some((produtor) => producerIds.has(produtor.id))
   )?.numero;
 }
 
@@ -525,7 +583,7 @@ function buildSuccessionChain(memorando: MemorandoResumo, memorandos: MemorandoR
   return memorandos
     .filter((candidate) =>
       candidate.loteId === memorando.loteId ||
-      candidate.produtores.some((produtor) => producerIds.has(produtor.id)),
+      candidate.produtores.some((produtor) => producerIds.has(produtor.id))
     )
     .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))
     .map((item) => item.numero);
@@ -536,7 +594,7 @@ function getAuditoria(memorando: MemorandoResumo) {
     processo.historico.map((item) => ({
       ...item,
       observacao: [processo.produtor, item.observacao].filter(Boolean).join(" | "),
-    })),
+    }))
   );
 
   const baseEvents = [
@@ -576,7 +634,7 @@ function getHistoricoGeral(memorando: MemorandoResumo) {
       const action = normalize(item.acao);
       return institutionalActions.some((institutionalAction) => action.includes(institutionalAction));
     }),
-    (item) => `${normalize(item.acao)}-${item.dataHora}`,
+    (item) => `${normalize(item.acao)}-${item.dataHora}`
   );
 }
 
@@ -584,7 +642,7 @@ function getDevolucoes(memorando: MemorandoResumo) {
   return memorando.processos.flatMap((processo) =>
     processo.historico
       .filter((item) => normalize(item.acao).includes("devolvido"))
-      .map((evento) => ({ processo, evento })),
+      .map((evento) => ({ processo, evento }))
   );
 }
 
@@ -658,8 +716,8 @@ function ProducerTimeline({ processo }: { processo: ProcessoSicpr }) {
         <span className="ml-2 text-xs font-normal" style={{ color: COLORS.textLight }}>{processo.historico.length} evento(s)</span>
       </summary>
       <div className="space-y-3 border-t px-4 py-3" style={{ borderTopColor: COLORS.border }}>
-        {processo.historico.map((item) => (
-          <div key={item.id} className="grid grid-cols-[18px_1fr] gap-3 text-sm">
+        {processo.historico.map((item, idx) => (
+          <div key={item.id || idx} className="grid grid-cols-[18px_1fr] gap-3 text-sm">
             <span className={`mt-1 h-3 w-3 rounded-full ring-4 ${getAuditDotClass(item.acao)}`} />
             <div>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

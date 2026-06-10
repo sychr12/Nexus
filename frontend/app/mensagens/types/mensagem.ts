@@ -1,26 +1,26 @@
-export type Mensagem = {
+// app/mensagens/types/mensagem.ts
+export interface MensagemUser {
+  id: number;
+  username: string;
+  nomeCompleto: string | null;
+  perfil: string | null;
+  status: string;
+}
+
+export interface Mensagem {
   id: number;
   remetenteId: number;
   remetenteNome: string;
-  remetenteCargo?: string;
+  remetenteCargo: string | null;
   destinatarioId: number;
   destinatarioNome: string;
-  destinatarioCargo?: string;
-  texto?: string;
-  anexoNomeOriginal?: string;
-  anexoContentType?: string;
-  anexoTamanho?: number;
-  anexoUrl?: string;
+  destinatarioCargo: string | null;
+  texto: string | null;
+  anexoNomeOriginal: string | null;
+  anexoContentType: string | null;
+  anexoTamanho: number | null;
+  anexoUrl: string | null;
   lida: boolean;
   criadoEm: string;
   expiraEm: string;
-};
-
-export type MensagemUser = {
-  id: number;
-  username: string;
-  email?: string;
-  nomeCompleto?: string;
-  perfil?: string;
-  status?: string;
-};
+}

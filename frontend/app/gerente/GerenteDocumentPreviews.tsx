@@ -42,7 +42,7 @@ export function GeneratedDocumentPreview({ processo, documento }: { processo: Pr
   }
 
   return (
-    <div className="mx-auto min-h-[720px] max-w-3xl bg-white px-12 py-10 text-[14px] leading-7 shadow-sm">
+    <div className="mx-auto min-h-180 max-w-3xl bg-white px-12 py-10 text-[14px] leading-7 shadow-sm">
       <header className="mb-8 text-center">
         <p className="text-3xl font-bold text-emerald-700">AMAZONAS</p>
         <p className="text-xs font-semibold uppercase text-gray-500">Governo do Estado</p>
@@ -84,7 +84,7 @@ export function GeneratedDocumentPreview({ processo, documento }: { processo: Pr
 
 function FormularioPreview({ processo }: { processo: ProcessoSicpr }) {
   return (
-    <div className="mx-auto min-h-[720px] max-w-3xl bg-white px-12 py-10 text-[14px] leading-7 shadow-sm">
+    <div className="mx-auto min-h-180 max-w-3xl bg-white px-12 py-10 text-[14px] leading-7 shadow-sm">
       <header className="mb-8 text-center">
         <p className="text-3xl font-bold text-emerald-700">AMAZONAS</p>
         <p className="text-xs font-semibold uppercase text-gray-500">Governo do Estado</p>
@@ -115,7 +115,7 @@ function MemorandoPreview({ processo }: { processo: ProcessoSicpr }) {
 
   return (
     <div
-      className="relative mx-auto min-h-[960px] max-w-3xl overflow-hidden bg-white px-14 pb-44 pt-36 text-[13px] leading-6 text-black shadow-sm"
+      className="relative mx-auto min-h-240 max-w-3xl overflow-hidden bg-white px-14 pb-44 pt-36 text-[13px] leading-6 text-black shadow-sm"
       style={{ backgroundImage: "url('/images/PapelTimbrado.png')", backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" }}
     >
       <p className="font-bold uppercase">MEMO Nº {processo.memorandoNumero} - UNLOC {unidadeLocal}</p>

@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, RotateCcw,
 import UnlocSelect from "../components/UnlocSelect";
 import { GeneratedDocumentPreview } from "../fluxo/DocumentPreviews";
 import { AttachmentPreview, FilterStatCard as StatCard, SICPR_COLORS } from "../fluxo/SharedUi";
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import {
   SITUACAO_LABELS,
   STATUS_COLORS,
@@ -56,14 +56,20 @@ export default function UnlocPage() {
     | { tipo: "anexo"; processo: ProcessoSicpr; documento: DocumentoProcesso }
     | null
   >(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!ready) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !mounted) return;
     const timer = window.setTimeout(() => {
       setProcessos(loadProcessos());
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [ready]);
+  }, [ready, mounted]);
 
   const meusProcessos = useMemo(
     () =>
@@ -433,420 +439,332 @@ export default function UnlocPage() {
     memorandoNumero: "",
     assinaturaEletronica: undefined,
   };
+
+  if (!mounted || !ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={logout} username={username} />
+      <Sidebar
+        onLogout={logout}
+        username={username || "Tecnico UNLOC"}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
-      <main className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Unloc</h1>
-            <p className="text-sm" style={{ color: COLORS.textLight }}>
-              Nova inscricao, renovacao, alteracao, documentos gerados automaticamente e envio ao gerente da Unidade Local.
-            </p>
-          </div>
-
-          {message && (
-            <div
-              role={messageType === "error" ? "alert" : "status"}
-              className={`sicpr-alert ${messageType === "error" ? "sicpr-alert-error" : ""} flex items-start gap-3 rounded-md border px-4 py-3 text-sm font-medium`}
-              style={{
-                backgroundColor: messageType === "error" ? "#FEF3F2" : COLORS.card,
-                borderColor: messageType === "error" ? "#FCA5A5" : COLORS.border,
-                color: messageType === "error" ? COLORS.danger : COLORS.primary,
-              }}
-            >
-              {messageType === "error" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0" />}
-              <span>{message}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="rounded-lg border p-5 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="mb-4 flex items-center gap-2">
-              {editingProcessId ? <RotateCcw size={18} style={{ color: COLORS.primary }} /> : <Plus size={18} style={{ color: COLORS.primary }} />}
-              <div>
-                <h2 className="font-semibold" style={{ color: COLORS.text }}>{editingProcessId ? "Corrigir processo" : "Novo processo"}</h2>
-                {editingProcessId && <p className="text-xs" style={{ color: COLORS.textLight }}>Salve a correcao e depois use Reenviar ao gerente no card.</p>}
-              </div>
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      >
+        <div className="px-4 py-8 sm:px-6 lg:px-8">
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Unloc</h1>
+              <p className="text-sm" style={{ color: COLORS.textLight }}>
+                Nova inscricao, renovacao, alteracao, documentos gerados automaticamente e envio ao gerente da Unidade Local.
+              </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <input className="rounded-md border px-3 py-2 text-sm" placeholder="Nome do produtor" value={form.produtor} onChange={(e) => setForm({ ...form, produtor: e.target.value })} style={{ borderColor: COLORS.border }} />
-              <input
-                className="rounded-md border px-3 py-2 text-sm"
-                placeholder="CPF"
-                value={form.cpf}
-                inputMode="numeric"
-                maxLength={14}
-                onChange={(e) => setForm({ ...form, cpf: formatCpf(e.target.value) })}
-                style={{ borderColor: COLORS.border }}
-              />
-              <select className="rounded-md border px-3 py-2 text-sm" value={form.tipoProcesso} onChange={(e) => setForm({ ...form, tipoProcesso: e.target.value as TipoProcessoSicpr })} style={{ borderColor: COLORS.border }}>
-                {Object.entries(TIPO_PROCESSO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-              <UnlocSelect
-                value={form.unidadeLocal}
-                valueMode="municipio"
-                onChange={(value) => setForm({ ...form, unidadeLocal: value })}
-                placeholder="Selecione a Unidade Local"
-                searchPlaceholder="Buscar Unidade Local..."
-                size="compact"
-                colors={COLORS}
-              />
-            </div>
-
-            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.6fr]">
-              <div className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                <p className="mb-2 text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos gerados pelo sistema</p>
-                <div className="grid gap-2">
-                  {[...DOCUMENT_MODELS].sort((a) => (a.tipo === "fac" ? -1 : 1)).map((documento) => {
-                    const isFilled = Boolean(documentosGerados[documento.tipo]);
-                    return (
-                      <button
-                        key={documento.tipo}
-                        type="button"
-                        onClick={() => openDocumentModal(documento.tipo)}
-                        className="group flex items-start justify-between gap-3 rounded-md border bg-white px-3 py-2 text-left text-sm shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                        style={{ borderColor: isFilled ? COLORS.accent : COLORS.border }}
-                      >
-                        <span className="min-w-0">
-                          <span className="block font-semibold" style={{ color: COLORS.text }}>{documento.nome}</span>
-                          <span className="mt-0.5 block text-xs" style={{ color: COLORS.textLight }}>{documento.descricao}</span>
-                        </span>
-                        <span
-                          className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
-                          style={{
-                            backgroundColor: isFilled ? `${COLORS.accent}18` : "#F3F4F6",
-                            color: isFilled ? COLORS.primary : COLORS.textLight,
-                          }}
-                        >
-                          {isFilled && <CheckCircle2 size={12} />}
-                          {documento.tipo === "fac" ? (isFilled ? "Gerada" : "Não gerada") : (isFilled ? "Preenchido" : "Preencher")}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos obrigatórios assinados</span>
-                <div className="mb-4 rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]" style={{ borderColor: facAssinada ? COLORS.accent : COLORS.border, color: COLORS.textLight }}>
-                  <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
-                    <UploadCloud size={26} style={{ color: COLORS.primary }} />
-                    <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Anexar FAC assinada pelo produtor</span>
-                    <span className="mt-1 text-xs">Envie a FAC impressa, assinada fisicamente e digitalizada.</span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*,.pdf"
-                      onChange={(event) => {
-                        void handleFacAssinadaChange(event.target.files);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-
-                  <div className="mt-3 rounded-md border bg-white px-3 py-2 text-sm" style={{ borderColor: COLORS.border }}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0">
-                        <span className="block font-semibold" style={{ color: COLORS.text }}>FAC assinada pelo produtor</span>
-                        <span className="block text-xs" style={{ color: facAssinada ? COLORS.primary : COLORS.danger }}>
-                          {facAssinada ? "Assinada e anexada" : "Assinatura pendente"}
-                        </span>
-                      </span>
-                      {facAssinada && (
-                        <button type="button" onClick={removeFacAssinada} className="sicpr-remove-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ color: COLORS.danger }}>
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                    </div>
-                    {facAssinada && <p className="mt-2 truncate text-xs" style={{ color: COLORS.textLight }}>{facAssinada.arquivo} · {formatFileSize(facAssinada.tamanho)}</p>}
-                  </div>
-                </div>
-
-                <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos complementares</span>
-                <div
-                  className="rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]"
-                  style={{ borderColor: COLORS.border, color: COLORS.textLight }}
-                >
-                  <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
-                    <UploadCloud size={26} style={{ color: COLORS.primary }} />
-                    <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Selecionar arquivos</span>
-                    <span className="mt-1 text-xs">Fotos, PDF, comprovantes ou documentos complementares.</span>
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                      onChange={(event) => {
-                        void handleFileChange(event.target.files);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-
-                  {outrosAnexos.length > 0 && (
-                    <div className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2" style={{ borderTopColor: COLORS.border }}>
-                    {outrosAnexos.map((anexo, index) => (
-                      <div
-                        key={`${anexo.arquivo}-${index}`}
-                        className="group flex min-w-0 items-center justify-between gap-2 rounded-md border bg-white px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                        style={{ borderColor: COLORS.border }}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: `${COLORS.accent}18`, color: COLORS.primary }}>
-                            <Paperclip size={15} />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold" style={{ color: COLORS.text }}>{anexo.arquivo}</span>
-                            <span className="text-xs" style={{ color: COLORS.textLight }}>{formatFileSize(anexo.tamanho)}</span>
-                          </span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeAnexo(index)}
-                          title={`Remover ${anexo.arquivo}`}
-                          className="sicpr-remove-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md opacity-85 group-hover:opacity-100"
-                          style={{ color: COLORS.danger }}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              {editingProcessId && (
-                <button
-                  type="button"
-                  onClick={cancelEditing}
-                  className="rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
-                  style={{ color: COLORS.textLight }}
-                >
-                  Cancelar correcao
-                </button>
-              )}
-              <button className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: COLORS.primary }}>
-                {editingProcessId ? <Save size={16} /> : <FileText size={16} />}
-                {editingProcessId ? "Salvar correcao" : "Criar processo"}
-              </button>
-            </div>
-          </form>
-
-          <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="font-semibold" style={{ color: COLORS.text }}>Meus processos</h2>
-                  <p className="text-xs" style={{ color: COLORS.textLight }}>Lista compacta para grandes volumes. Clique em um processo para ver detalhes.</p>
-                </div>
-                <div className="relative lg:w-80">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                  <input
-                    value={processSearch}
-                    onChange={(event) => {
-                      setProcessSearch(event.target.value);
-                      setPage(1);
-                    }}
-                    placeholder="Buscar nome, CPF, municipio ou memorando..."
-                    className="w-full rounded-md border py-2 pl-9 pr-3 text-sm outline-none"
-                    style={{ borderColor: COLORS.border }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-5" style={{ borderBottomColor: COLORS.border }}>
-              <StatCard label="Em elaboração" value={stats.emElaboracao} active={processFilter === "em_elaboracao"} onClick={() => applyProcessFilter("em_elaboracao")} />
-              <StatCard label="Aguardando gerente" value={stats.aguardandoGerente} active={processFilter === "encaminhado_gerente"} onClick={() => applyProcessFilter("encaminhado_gerente")} />
-              <StatCard label="Em análise" value={stats.emAnalise} active={processFilter === "em_analise"} onClick={() => applyProcessFilter("em_analise")} />
-              <StatCard label="Devolvidos" value={stats.devolvidos} active={processFilter === "devolvidos"} onClick={() => applyProcessFilter("devolvidos")} />
-              <StatCard label="Concluídos" value={stats.concluidos} active={processFilter === "concluidos"} onClick={() => applyProcessFilter("concluidos")} />
-            </div>
-
-            <div className="flex flex-wrap gap-2 px-4 pt-4">
-              {PROCESS_FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={() => applyProcessFilter(filter.id)}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
-                  style={{
-                    backgroundColor: processFilter === filter.id ? COLORS.primary : COLORS.background,
-                    color: processFilter === filter.id ? "#FFFFFF" : COLORS.text,
-                    border: `1px solid ${processFilter === filter.id ? COLORS.primary : COLORS.border}`,
-                  }}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="overflow-x-auto p-4">
-              <table className="min-w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
-                    <th className="px-3 py-2">Produtor</th>
-                    <th className="px-3 py-2">CPF</th>
-                    <th className="px-3 py-2">Municipio</th>
-                    <th className="px-3 py-2">Tipo</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedProcessos.map((processo) => (
-                    <tr
-                      key={processo.id}
-                      onClick={() => {
-                        setSelectedProcesso(processo);
-                        setSelectedProcessoMessage("");
-                        setActiveDetailTab("dados");
-                      }}
-                      className="cursor-pointer border-b transition-colors hover:bg-[#F5F7F5]"
-                      style={{ borderBottomColor: COLORS.border }}
-                    >
-                      <td className="px-3 py-3 font-semibold" style={{ color: COLORS.text }}>{processo.produtor}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{processo.cpf}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.text }}>{processo.unidadeLocal}</td>
-                      <td className="px-3 py-3" style={{ color: COLORS.text }}>{TIPO_PROCESSO_LABELS[processo.tipoProcesso]}</td>
-                      <td className="px-3 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[processo.situacao]}`}>
-                          {SITUACAO_LABELS[processo.situacao]}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{formatDateTime(processo.encaminhadoGerenteEm || processo.criadoEm)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {pagedProcessos.length === 0 && <div className="py-8 text-center text-sm" style={{ color: COLORS.textLight }}>Nenhum processo encontrado.</div>}
-            </div>
-
-            {filteredProcessos.length > PAGE_SIZE && (
-              <div className="flex items-center justify-between border-t px-4 py-3 text-sm" style={{ borderTopColor: COLORS.border, color: COLORS.text }}>
-                <span>Pagina {page} de {totalPages} | {filteredProcessos.length} processo(s)</span>
-                <div className="flex gap-2">
-                  <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Anterior</button>
-                  <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50" style={{ border: `1px solid ${COLORS.border}` }}>Proxima</button>
-                </div>
+            {message && (
+              <div
+                role={messageType === "error" ? "alert" : "status"}
+                className="flex items-start gap-3 rounded-md border px-4 py-3 text-sm font-medium"
+                style={{
+                  backgroundColor: messageType === "error" ? "#FEF3F2" : COLORS.card,
+                  borderColor: messageType === "error" ? "#FCA5A5" : COLORS.border,
+                  color: messageType === "error" ? COLORS.danger : COLORS.primary,
+                }}
+              >
+                {messageType === "error" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0" />}
+                <span>{message}</span>
               </div>
             )}
 
-            <div className="hidden">
-              {meusProcessos.map((processo) => (
-                <article key={processo.id} className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold" style={{ color: COLORS.text }}>{processo.produtor}</h3>
-                      <p className="text-xs" style={{ color: COLORS.textLight }}>{processo.cpf} | {processo.unidadeLocal} | {TIPO_PROCESSO_LABELS[processo.tipoProcesso]}</p>
-                    </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[processo.situacao]}`}>
-                      {SITUACAO_LABELS[processo.situacao]}
-                    </span>
-                  </div>
+            <form onSubmit={handleSubmit} className="rounded-lg border p-5 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+              <div className="mb-4 flex items-center gap-2">
+                {editingProcessId ? <RotateCcw size={18} style={{ color: COLORS.primary }} /> : <Plus size={18} style={{ color: COLORS.primary }} />}
+                <div>
+                  <h2 className="font-semibold" style={{ color: COLORS.text }}>{editingProcessId ? "Corrigir processo" : "Novo processo"}</h2>
+                  {editingProcessId && <p className="text-xs" style={{ color: COLORS.textLight }}>Salve a correcao e depois use Reenviar ao gerente no card.</p>}
+                </div>
+              </div>
 
-                  {processo.ultimaJustificativa && (
-                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{processo.ultimaJustificativa}</p>
-                  )}
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <input className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500" placeholder="Nome do produtor" value={form.produtor} onChange={(e) => setForm({ ...form, produtor: e.target.value })} style={{ borderColor: COLORS.border }} />
+                <input
+                  className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
+                  placeholder="CPF"
+                  value={form.cpf}
+                  inputMode="numeric"
+                  maxLength={14}
+                  onChange={(e) => setForm({ ...form, cpf: formatCpf(e.target.value) })}
+                  style={{ borderColor: COLORS.border }}
+                />
+                <select className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500" value={form.tipoProcesso} onChange={(e) => setForm({ ...form, tipoProcesso: e.target.value as TipoProcessoSicpr })} style={{ borderColor: COLORS.border }}>
+                  {Object.entries(TIPO_PROCESSO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <UnlocSelect
+                  value={form.unidadeLocal}
+                  valueMode="municipio"
+                  onChange={(value) => setForm({ ...form, unidadeLocal: value })}
+                  placeholder="Selecione a Unidade Local"
+                  searchPlaceholder="Buscar Unidade Local..."
+                  size="compact"
+                  colors={COLORS}
+                />
+              </div>
 
-                  <div className="mt-3 grid gap-2 text-xs" style={{ color: COLORS.textLight }}>
-                    <span>Criado: {formatDateTime(processo.criadoEm)}</span>
-                    <span>Encaminhado: {formatDateTime(processo.encaminhadoGerenteEm)}</span>
-                  </div>
-
-                  <div className="mt-3">
-                    <FacStatusBadge processo={processo} />
-                  </div>
-
-                  <div className="mt-3 grid gap-3 text-xs lg:grid-cols-2">
-                    <div className="rounded-md border p-2" style={{ borderColor: COLORS.border }}>
-                      <p className="mb-1 inline-flex items-center gap-1 font-semibold" style={{ color: COLORS.text }}>
-                        <FileText size={13} /> Gerados pelo sistema
-                      </p>
-                      <div className="grid gap-1">
-                        {getDocumentosGerados(processo).map((doc) => (
-                          <button
-                            key={doc.arquivo}
-                            type="button"
-                            onClick={() => setPreview({ tipo: "gerado", processo, documento: doc })}
-                            className="flex w-full items-center gap-1 rounded px-1 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                            style={{ color: COLORS.textLight }}
+              <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.6fr]">
+                <div className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
+                  <p className="mb-2 text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos gerados pelo sistema</p>
+                  <div className="grid gap-2">
+                    {[...DOCUMENT_MODELS].sort((a) => (a.tipo === "fac" ? -1 : 1)).map((documento) => {
+                      const isFilled = Boolean(documentosGerados[documento.tipo]);
+                      return (
+                        <button
+                          key={documento.tipo}
+                          type="button"
+                          onClick={() => openDocumentModal(documento.tipo)}
+                          className="group flex items-start justify-between gap-3 rounded-md border bg-white px-3 py-2 text-left text-sm shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                          style={{ borderColor: isFilled ? COLORS.accent : COLORS.border }}
+                        >
+                          <span className="min-w-0">
+                            <span className="block font-semibold" style={{ color: COLORS.text }}>{documento.nome}</span>
+                            <span className="mt-0.5 block text-xs" style={{ color: COLORS.textLight }}>{documento.descricao}</span>
+                          </span>
+                          <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
+                            style={{
+                              backgroundColor: isFilled ? `${COLORS.accent}18` : "#F3F4F6",
+                              color: isFilled ? COLORS.primary : COLORS.textLight,
+                            }}
                           >
-                            <Eye size={12} style={{ color: COLORS.primary }} />
-                            <span className="min-w-0 truncate">{doc.nome}</span>
+                            {isFilled && <CheckCircle2 size={12} />}
+                            {documento.tipo === "fac" ? (isFilled ? "Gerada" : "Não gerada") : (isFilled ? "Preenchido" : "Preencher")}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos obrigatórios assinados</span>
+                  <div className="mb-4 rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]" style={{ borderColor: facAssinada ? COLORS.accent : COLORS.border, color: COLORS.textLight }}>
+                    <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
+                      <UploadCloud size={26} style={{ color: COLORS.primary }} />
+                      <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Anexar FAC assinada pelo produtor</span>
+                      <span className="mt-1 text-xs">Envie a FAC impressa, assinada fisicamente e digitalizada.</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*,.pdf"
+                        onChange={(event) => {
+                          void handleFacAssinadaChange(event.target.files);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+
+                    <div className="mt-3 rounded-md border bg-white px-3 py-2 text-sm" style={{ borderColor: COLORS.border }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block font-semibold" style={{ color: COLORS.text }}>FAC assinada pelo produtor</span>
+                          <span className="block text-xs" style={{ color: facAssinada ? COLORS.primary : COLORS.danger }}>
+                            {facAssinada ? "Assinada e anexada" : "Assinatura pendente"}
+                          </span>
+                        </span>
+                        {facAssinada && (
+                          <button type="button" onClick={removeFacAssinada} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-red-50" style={{ color: COLORS.danger }}>
+                            <Trash2 size={15} />
                           </button>
+                        )}
+                      </div>
+                      {facAssinada && <p className="mt-2 truncate text-xs" style={{ color: COLORS.textLight }}>{facAssinada.arquivo} · {formatFileSize(facAssinada.tamanho)}</p>}
+                    </div>
+                  </div>
+
+                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos complementares</span>
+                  <div
+                    className="rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]"
+                    style={{ borderColor: COLORS.border, color: COLORS.textLight }}
+                  >
+                    <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
+                      <UploadCloud size={26} style={{ color: COLORS.primary }} />
+                      <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Selecionar arquivos</span>
+                      <span className="mt-1 text-xs">Fotos, PDF, comprovantes ou documentos complementares.</span>
+                      <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        onChange={(event) => {
+                          void handleFileChange(event.target.files);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+
+                    {outrosAnexos.length > 0 && (
+                      <div className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2" style={{ borderTopColor: COLORS.border }}>
+                        {outrosAnexos.map((anexo, index) => (
+                          <div
+                            key={`${anexo.arquivo}-${index}`}
+                            className="group flex min-w-0 items-center justify-between gap-2 rounded-md border bg-white px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                            style={{ borderColor: COLORS.border }}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: `${COLORS.accent}18`, color: COLORS.primary }}>
+                                <Paperclip size={15} />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold" style={{ color: COLORS.text }}>{anexo.arquivo}</span>
+                                <span className="text-xs" style={{ color: COLORS.textLight }}>{formatFileSize(anexo.tamanho)}</span>
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeAnexo(index)}
+                              title={`Remover ${anexo.arquivo}`}
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md opacity-85 transition-colors hover:bg-red-50 group-hover:opacity-100"
+                              style={{ color: COLORS.danger }}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         ))}
                       </div>
-                    </div>
-                    <div className="rounded-md border p-2" style={{ borderColor: COLORS.border }}>
-                      <p className="mb-1 inline-flex items-center gap-1 font-semibold" style={{ color: COLORS.text }}>
-                        <Paperclip size={13} /> Complementares
-                      </p>
-                      {getOutrosDocumentos(processo).length > 0 ? (
-                        <div className="grid gap-1">
-                          {getOutrosDocumentos(processo).map((doc) => (
-                            <button
-                              key={doc.id}
-                              type="button"
-                              onClick={() => setPreview({ tipo: "anexo", processo, documento: doc })}
-                              className="flex w-full items-center gap-1 rounded px-1 py-1 text-left transition-colors hover:bg-[#F5F7F5]"
-                              style={{ color: COLORS.textLight }}
-                            >
-                              <Eye size={12} style={{ color: COLORS.primary }} />
-                              <span className="min-w-0 truncate">{doc.arquivo}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : <p style={{ color: COLORS.textLight }}>Sem anexos extras</p>}
-                    </div>
+                    )}
                   </div>
+                </div>
+              </div>
 
-                  {processo.situacao === "em_elaboracao" && (
-                    <button
-                      type="button"
-                      onClick={() => handleEncaminhar(processo.id)}
-                      className="sicpr-action-button mt-4 inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white"
-                      style={{ backgroundColor: COLORS.accent }}
-                    >
-                      <Send size={15} />
-                      Encaminhar ao gerente
-                    </button>
-                  )}
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {editingProcessId && (
+                  <button
+                    type="button"
+                    onClick={cancelEditing}
+                    className="rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
+                    style={{ color: COLORS.textLight }}
+                  >
+                    Cancelar correcao
+                  </button>
+                )}
+                <button className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90" style={{ backgroundColor: COLORS.primary }}>
+                  {editingProcessId ? <Save size={16} /> : <FileText size={16} />}
+                  {editingProcessId ? "Salvar correcao" : "Criar processo"}
+                </button>
+              </div>
+            </form>
 
-                  {["devolvido_gerente", "devolvido_analise"].includes(processo.situacao) && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEditing(processo)}
-                        className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white"
-                        style={{ backgroundColor: COLORS.primary }}
+            <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+              <div className="border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="font-semibold" style={{ color: COLORS.text }}>Meus processos</h2>
+                    <p className="text-xs" style={{ color: COLORS.textLight }}>Lista compacta para grandes volumes. Clique em um processo para ver detalhes.</p>
+                  </div>
+                  <div className="relative lg:w-80">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                    <input
+                      value={processSearch}
+                      onChange={(event) => {
+                        setProcessSearch(event.target.value);
+                        setPage(1);
+                      }}
+                      placeholder="Buscar nome, CPF, municipio ou memorando..."
+                      className="w-full rounded-md border py-2 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-green-500"
+                      style={{ borderColor: COLORS.border }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-5" style={{ borderBottomColor: COLORS.border }}>
+                <StatCard label="Em elaboração" value={stats.emElaboracao} active={processFilter === "em_elaboracao"} onClick={() => applyProcessFilter("em_elaboracao")} />
+                <StatCard label="Aguardando gerente" value={stats.aguardandoGerente} active={processFilter === "encaminhado_gerente"} onClick={() => applyProcessFilter("encaminhado_gerente")} />
+                <StatCard label="Em análise" value={stats.emAnalise} active={processFilter === "em_analise"} onClick={() => applyProcessFilter("em_analise")} />
+                <StatCard label="Devolvidos" value={stats.devolvidos} active={processFilter === "devolvidos"} onClick={() => applyProcessFilter("devolvidos")} />
+                <StatCard label="Concluídos" value={stats.concluidos} active={processFilter === "concluidos"} onClick={() => applyProcessFilter("concluidos")} />
+              </div>
+
+              <div className="flex flex-wrap gap-2 px-4 pt-4">
+                {PROCESS_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => applyProcessFilter(filter.id)}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+                    style={{
+                      backgroundColor: processFilter === filter.id ? COLORS.primary : COLORS.background,
+                      color: processFilter === filter.id ? "#FFFFFF" : COLORS.text,
+                      border: `1px solid ${processFilter === filter.id ? COLORS.primary : COLORS.border}`,
+                    }}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto p-4">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
+                      <th className="px-3 py-2">Produtor</th>
+                      <th className="px-3 py-2">CPF</th>
+                      <th className="px-3 py-2">Municipio</th>
+                      <th className="px-3 py-2">Tipo</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedProcessos.map((processo) => (
+                      <tr
+                        key={processo.id}
+                        onClick={() => {
+                          setSelectedProcesso(processo);
+                          setSelectedProcessoMessage("");
+                          setActiveDetailTab("dados");
+                        }}
+                        className="cursor-pointer border-b transition-colors hover:bg-[#F5F7F5]"
+                        style={{ borderBottomColor: COLORS.border }}
                       >
-                        <RotateCcw size={15} />
-                        Editar correcao
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleEncaminhar(processo.id)}
-                        className="sicpr-action-button inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white"
-                        style={{ backgroundColor: COLORS.accent }}
-                      >
-                        <Send size={15} />
-                        Reenviar ao gerente
-                      </button>
-                    </div>
-                  )}
-                </article>
-              ))}
-            </div>
-          </section>
+                        <td className="px-3 py-3 font-semibold" style={{ color: COLORS.text }}>{processo.produtor}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{processo.cpf}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{processo.unidadeLocal}</td>
+                        <td className="px-3 py-3" style={{ color: COLORS.text }}>{TIPO_PROCESSO_LABELS[processo.tipoProcesso]}</td>
+                        <td className="px-3 py-3">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${STATUS_COLORS[processo.situacao]}`}>
+                            {SITUACAO_LABELS[processo.situacao]}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3" style={{ color: COLORS.textLight }}>{formatDateTime(processo.encaminhadoGerenteEm || processo.criadoEm)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {pagedProcessos.length === 0 && <div className="py-8 text-center text-sm" style={{ color: COLORS.textLight }}>Nenhum processo encontrado.</div>}
+              </div>
+
+              {filteredProcessos.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between border-t px-4 py-3 text-sm" style={{ borderTopColor: COLORS.border, color: COLORS.text }}>
+                  <span>Pagina {page} de {totalPages} | {filteredProcessos.length} processo(s)</span>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors hover:bg-gray-100" style={{ border: `1px solid ${COLORS.border}` }}>Anterior</button>
+                    <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors hover:bg-gray-100" style={{ border: `1px solid ${COLORS.border}` }}>Proxima</button>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       </main>
 
+      {/* Modais */}
       {selectedProcesso && (
         <UnlocProcessDetailsModal
           processo={selectedProcesso}
@@ -879,9 +797,9 @@ export default function UnlocPage() {
       )}
 
       {preview && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
           <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
-          <section className="relative flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="relative flex h-[90vh] w-[90vw] max-w-7xl flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
             <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
               <div>
                 <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{preview.tipo === "gerado" ? "Documento gerado pelo sistema" : "Anexo do processo"}</p>
@@ -907,10 +825,9 @@ export default function UnlocPage() {
                 <AttachmentPreview documento={preview.documento} />
               )}
             </div>
-          </section>
+          </div>
         </div>
       )}
     </div>
   );
 }
-

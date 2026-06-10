@@ -8,7 +8,7 @@ import UserForm from './components/UserForm';
 import UserFilters from './components/UserFilters';
 import UserStats from './components/UserStats';
 import { Plus } from 'lucide-react';
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import { useAuthSession } from '../hooks/useAuthSession';
 
 // Animações CSS
@@ -87,6 +87,7 @@ const COLORS = {
   border: "#E2E8E0",
   rowAlt: "#F7FAF7",
   success: "#059669",
+  background: "#F5F7F5",
 };
 
 export default function UsersPage() {
@@ -110,11 +111,18 @@ export default function UsersPage() {
     perfil: '',
     status: '',
   });
-
   const [animated, setAnimated] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     // Adiciona estilos de animação
+    if (!mounted) return;
+    
     if (!document.getElementById("users-animations")) {
       const style = document.createElement("style");
       style.id = "users-animations";
@@ -122,13 +130,12 @@ export default function UsersPage() {
       document.head.appendChild(style);
     }
     setAnimated(true);
-  }, []);
-
+  }, [mounted]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !mounted) return;
     loadUsers();
-  }, [ready]);
+  }, [ready, mounted]);
 
   useEffect(() => {
     applyFilters();
@@ -220,16 +227,31 @@ export default function UsersPage() {
     return await handleCreateUser(id, userData);
   };
 
+  if (!mounted || !ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
 
   return (
-    <>
-      <TopBar onLogout={logout} username={username} />
-      <main style={{ backgroundColor: COLORS.rowAlt, paddingTop: '70px', minHeight: '100vh' }}>
-        <div className="px-6 lg:px-8">
+    <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
+      <Sidebar
+        onLogout={logout}
+        username={username || "Usuário"}
+        onCollapsedChange={setSidebarCollapsed}
+      />
+
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      >
+        <div className="px-6 py-8 lg:px-8">
           <div className="max-w-7xl mx-auto space-y-5">
             {/* Cabeçalho */}
             <div 
-              className="flex justify-between items-center"
+              className="flex justify-between items-center flex-wrap gap-4"
               style={{ animation: animated ? "fadeInUp 0.5s ease-out" : "none" }}
             >
               <div>
@@ -291,6 +313,6 @@ export default function UsersPage() {
           </div>
         </div>
       </main>
-    </>
+    </div>
   );
 }
