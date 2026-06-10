@@ -1,3 +1,4 @@
+// backend/src/main/java/com/sicpr/backend/config/SecurityConfig.java
 package com.sicpr.backend.config;
 
 import com.sicpr.backend.security.JwtAuthFilter;

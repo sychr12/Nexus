@@ -33,15 +33,19 @@ const COLORS = {
   text: "#1E2A22",
   textLight: "#6E786F",
   inputBg: "#FDFDFC",
-  hoverBg: "#F0F4EE",
+  hoverBg: "#F0F4EE"
 };
 
 const initialForm: MemorandoFormType = {
   numero: "",
   descricao: "",
   unloc: "",
-  memoEntrada: "",
+  memoEntrada: ""
 };
+
+// ============================================
+// COMPONENTES
+// ============================================
 
 interface FieldProps {
   label: string;
@@ -186,6 +190,12 @@ export default function MemorandoForm({ form, setForm, onSuccess }: MemorandoFor
               Preencha as informações abaixo para gerar o documento.
             </p>
           </div>
+          <span
+            className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+            }}
+          >
+          </span>
         </div>
 
         {success && (

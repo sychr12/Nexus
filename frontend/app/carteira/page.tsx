@@ -104,7 +104,10 @@ export default function CarteiraDigitalPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [animated, setAnimated] = useState(false);
+
+
+  const [username, setUsername] = useState("Usuário");
+
 
   useEffect(() => {
     // Adiciona estilos de animação
@@ -130,6 +133,22 @@ export default function CarteiraDigitalPage() {
     if (!ready) return;
     carregarCarteiras();
   }, [ready]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          setUsername(user.username || user.nomeCompleto || "Usuário");
+        } catch {
+          setUsername(localStorage.getItem("username") || "Usuário");
+        }
+      } else {
+        setUsername(localStorage.getItem("username") || "Usuário");
+      }
+    }
+  }, []);
 
   const handleSubmit = async (data: CarteiraRequest) => {
     try {

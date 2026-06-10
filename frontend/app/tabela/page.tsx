@@ -444,7 +444,7 @@ export default function TabelaPage() {
             {!loading && !erro && filteredDados.length > 0 && (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1060px] border-collapse">
+                  <table className="w-full min-w-265 border-collapse">
                     <thead style={{ backgroundColor: COLORS.background }}>
                       <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>ID</th>
@@ -544,7 +544,7 @@ export default function TabelaPage() {
       </main>
 
       {selectedDetails && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-6">
+        <div className="fixed inset-0 z-60 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedDetails(null)} />
           <div
             className="relative w-full max-w-2xl overflow-hidden rounded-lg shadow-xl"
