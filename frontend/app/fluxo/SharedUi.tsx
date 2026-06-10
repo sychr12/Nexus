@@ -27,7 +27,7 @@ export function AttachmentPreview({ documento }: { documento: DocumentoProcesso 
   }
 
   return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
+    <div className="flex min-h-90 flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
       <FileText size={48} />
       <p className="mt-3 font-semibold">{documento.arquivo}</p>
       <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pre-visualizacao disponivel para imagens e PDF.</p>
@@ -44,7 +44,7 @@ export function DetailInfoCard({ label, value, badgeClass }: { label: string; va
           {value}
         </span>
       ) : (
-        <p className="mt-2 break-words text-sm font-semibold" style={{ color: SICPR_COLORS.text }}>{value}</p>
+        <p className="mt-2 wrap-break-word text-sm font-semibold" style={{ color: SICPR_COLORS.text }}>{value}</p>
       )}
     </div>
   );

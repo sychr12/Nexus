@@ -16,7 +16,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import { userService } from "../users/services/user.service";
 import { mensagemService } from "./services/mensagem.service";
 import type { Mensagem, MensagemUser } from "./types/mensagem";
@@ -73,8 +73,16 @@ export default function MensagensPage() {
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const loadData = useCallback(async (storedUsername?: string) => {
+    if (!mounted) return;
+    
     try {
       setLoading(true);
       setError("");
@@ -90,16 +98,19 @@ export default function MensagensPage() {
 
       setUsers(activeUsers);
       setCurrentUser(me);
-      setMensagens(mensagensData);
+      setMensagens(Array.isArray(mensagensData) ? mensagensData : []);
       setSelectedUserId((current) => current || activeUsers[0]?.id || null);
     } catch (err) {
+      console.error("Erro ao carregar dados:", err);
       setError(err instanceof Error ? err.message : "Erro ao carregar mensagens");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
+    
     const timer = window.setTimeout(() => {
       const token = localStorage.getItem("token");
       const storedUsername = localStorage.getItem("username") || "Usuario";
@@ -114,7 +125,7 @@ export default function MensagensPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadData, router]);
+  }, [loadData, router, mounted]);
 
   useEffect(() => {
     const urlsToLoad = mensagens.filter(
@@ -140,7 +151,7 @@ export default function MensagensPage() {
 
       if (cancelled) {
         loadedEntries.forEach((entry) => {
-          if (entry && "url" in entry) URL.revokeObjectURL(entry.url);
+          if (entry && "url" in entry && entry.url) URL.revokeObjectURL(entry.url);
         });
         return;
       }
@@ -148,7 +159,7 @@ export default function MensagensPage() {
       setAttachmentUrls((current) => {
         const next = { ...current };
         loadedEntries.forEach((entry) => {
-          if (entry && "url" in entry) next[entry.id] = entry.url;
+          if (entry && "url" in entry && entry.url) next[entry.id] = entry.url;
         });
         return next;
       });
@@ -156,7 +167,7 @@ export default function MensagensPage() {
       setAttachmentErrors((current) => {
         const next = { ...current };
         loadedEntries.forEach((entry) => {
-          if (entry && "error" in entry) next[entry.id] = entry.error;
+          if (entry && "error" in entry && entry.error) next[entry.id] = entry.error;
         });
         return next;
       });
@@ -174,7 +185,9 @@ export default function MensagensPage() {
 
   useEffect(() => {
     return () => {
-      Object.values(attachmentUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      Object.values(attachmentUrlsRef.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
     };
   }, []);
 
@@ -211,6 +224,7 @@ export default function MensagensPage() {
       setAnexo(null);
       await loadData();
     } catch (err) {
+      console.error("Erro ao enviar:", err);
       setError(err instanceof Error ? err.message : "Erro ao enviar mensagem");
     } finally {
       setSending(false);
@@ -290,227 +304,246 @@ export default function MensagensPage() {
     return null;
   }
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={handleLogout} username={username} />
+      <Sidebar
+        onLogout={handleLogout}
+        username={username}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
-      <main className="px-4 py-6 sm:px-6 lg:px-8" style={{ paddingTop: "70px" }}>
-        <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[330px_1fr]">
-          <aside className="overflow-hidden rounded-lg border bg-white shadow-sm" style={{ borderColor: COLORS.border }}>
-            <div className="border-b p-5" style={{ borderColor: COLORS.border }}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>
-                    Mensagens
-                  </h1>
-                  <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
-                    Comunicacao temporaria por 24h
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => loadData()}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border transition hover:bg-slate-50"
-                  style={{ borderColor: COLORS.border, color: COLORS.primary }}
-                  title="Atualizar"
-                >
-                  <RefreshCcw size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-[calc(100vh-230px)] overflow-y-auto p-3">
-              {loading ? (
-                <div className="flex items-center justify-center py-12" style={{ color: COLORS.textLight }}>
-                  <Loader2 className="animate-spin" />
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="p-5 text-center text-sm" style={{ color: COLORS.textLight }}>
-                  Nenhum usuario disponivel.
-                </div>
-              ) : (
-                conversations.map(({ user, last, total }) => {
-                  const active = selectedUserId === user.id;
-                  return (
-                    <button
-                      type="button"
-                      key={user.id}
-                      onClick={() => setSelectedUserId(user.id)}
-                      className="mb-2 flex w-full items-center gap-3 rounded-lg border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
-                      style={{
-                        borderColor: active ? COLORS.accent : COLORS.border,
-                        backgroundColor: active ? "#F0F7EE" : COLORS.card,
-                      }}
-                    >
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: COLORS.primary }}>
-                        <UserRound size={20} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-semibold" style={{ color: COLORS.text }}>
-                            {userName(user)}
-                          </p>
-                          {total > 0 && <span className="text-xs" style={{ color: COLORS.accent }}>{total}</span>}
-                        </div>
-                        <p className="truncate text-xs" style={{ color: COLORS.textLight }}>
-                          {user.perfil || "Cargo nao informado"}
-                        </p>
-                        {last && (
-                          <p className="mt-1 truncate text-xs text-slate-500">
-                            {last.texto || last.anexoNomeOriginal || "Anexo enviado"}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </aside>
-
-          <section className="flex min-h-[calc(100vh-160px)] flex-col overflow-hidden rounded-lg border bg-white shadow-sm" style={{ borderColor: COLORS.border }}>
-            {selectedUser ? (
-              <>
-                <header className="flex items-center gap-3 border-b px-5 py-4" style={{ borderColor: COLORS.border }}>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg text-white" style={{ backgroundColor: COLORS.secondary }}>
-                    <MessageCircle size={22} />
-                  </div>
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      >
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[330px_1fr]">
+            {/* Sidebar de usuários */}
+            <aside className="overflow-hidden rounded-lg border bg-white shadow-sm" style={{ borderColor: COLORS.border }}>
+              <div className="border-b p-5" style={{ borderColor: COLORS.border }}>
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold" style={{ color: COLORS.primary }}>
-                      {userName(selectedUser)}
-                    </h2>
-                    <p className="text-sm" style={{ color: COLORS.textLight }}>
-                      {selectedUser.perfil || "Cargo nao informado"} | mensagens expiram em 24h
+                    <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>
+                      Mensagens
+                    </h1>
+                    <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
+                      Comunicacao temporaria por 24h
                     </p>
                   </div>
-                </header>
-
-                {error && (
-                  <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
-                  </div>
-                )}
-
-                <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                  {selectedMessages.length === 0 ? (
-                    <div className="flex h-full min-h-80 items-center justify-center text-center">
-                      <div>
-                        <MessageCircle className="mx-auto mb-3" style={{ color: COLORS.accent }} size={40} />
-                        <p className="font-semibold" style={{ color: COLORS.text }}>
-                          Comece uma conversa temporaria
-                        </p>
-                        <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
-                          Texto, imagem, audio e video ficam disponiveis por 24h.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    selectedMessages.map((mensagem) => {
-                      const mine = mensagem.remetenteId === currentUser?.id;
-                      return (
-                        <article key={mensagem.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                          <div
-                            className="max-w-[760px] rounded-lg border px-4 py-3 shadow-sm"
-                            style={{
-                              backgroundColor: mine ? "#EDF7E8" : "#FFFFFF",
-                              borderColor: mine ? COLORS.light : COLORS.border,
-                            }}
-                          >
-                            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: COLORS.textLight }}>
-                              <span className="font-semibold" style={{ color: COLORS.primary }}>
-                                {mine ? "Voce" : mensagem.remetenteNome}
-                              </span>
-                              <span>{mensagem.remetenteCargo || "Cargo nao informado"}</span>
-                              <span>{formatTime(mensagem.criadoEm)}</span>
-                            </div>
-                            {mensagem.texto && <p className="whitespace-pre-wrap text-sm leading-6" style={{ color: COLORS.text }}>{mensagem.texto}</p>}
-                            {renderAttachment(mensagem)}
-                            <p className="mt-3 text-[11px]" style={{ color: COLORS.textLight }}>
-                              Expira em {formatExpiry(mensagem.expiraEm)}
-                            </p>
-                          </div>
-                        </article>
-                      );
-                    })
-                  )}
-                </div>
-
-                <form onSubmit={handleSend} className="border-t p-4" style={{ borderColor: COLORS.border }}>
-                  {anexo && (
-                    <div className="mb-3 flex items-center justify-between rounded-lg border bg-slate-50 px-3 py-2 text-sm" style={{ borderColor: COLORS.border }}>
-                      <div className="flex min-w-0 items-center gap-2">
-                        {anexo.type.startsWith("image/") ? <ImageIcon size={16} /> : anexo.type.startsWith("video/") ? <Video size={16} /> : anexo.type.startsWith("audio/") ? <PlayCircle size={16} /> : <Paperclip size={16} />}
-                        <span className="truncate">{anexo.name}</span>
-                      </div>
-                      <button type="button" onClick={() => setAnexo(null)} className="rounded p-1 hover:bg-slate-200" title="Remover anexo">
-                        <X size={16} />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex items-end gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,audio/*,video/*"
-                      className="hidden"
-                      onChange={(event) => setAnexo(event.target.files?.[0] || null)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition hover:bg-slate-50"
-                      style={{ borderColor: COLORS.border, color: COLORS.primary }}
-                      title="Anexar arquivo"
-                    >
-                      <Paperclip size={20} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={recording ? stopRecording : startRecording}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition hover:bg-slate-50"
-                      style={{
-                        borderColor: recording ? "#DC2626" : COLORS.border,
-                        color: recording ? "#DC2626" : COLORS.primary,
-                      }}
-                      title={recording ? "Parar gravacao" : "Gravar audio"}
-                    >
-                      {recording ? <Square size={18} /> : <Mic size={20} />}
-                    </button>
-                    <textarea
-                      value={texto}
-                      onChange={(event) => setTexto(event.target.value)}
-                      rows={2}
-                      placeholder="Digite sua mensagem temporaria..."
-                      className="min-h-11 flex-1 resize-none rounded-lg border px-4 py-2 text-sm outline-none transition focus:ring-2"
-                      style={{ borderColor: COLORS.border, color: COLORS.text }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={sending || (!texto.trim() && !anexo)}
-                      className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-4 font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{ backgroundColor: COLORS.primary }}
-                    >
-                      {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                      Enviar
-                    </button>
-                  </div>
-                </form>
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-center">
-                <div>
-                  <UserRound className="mx-auto mb-3" style={{ color: COLORS.accent }} size={42} />
-                  <p className="font-semibold" style={{ color: COLORS.text }}>
-                    Selecione um usuario
-                  </p>
-                  <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
-                    As mensagens sao apagadas automaticamente depois de 24h.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => loadData()}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border transition hover:bg-slate-50"
+                    style={{ borderColor: COLORS.border, color: COLORS.primary }}
+                    title="Atualizar"
+                  >
+                    <RefreshCcw size={18} />
+                  </button>
                 </div>
               </div>
-            )}
-          </section>
+
+              <div className="max-h-[calc(100vh-230px)] overflow-y-auto p-3">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12" style={{ color: COLORS.textLight }}>
+                    <Loader2 className="animate-spin" size={24} />
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <div className="p-5 text-center text-sm" style={{ color: COLORS.textLight }}>
+                    Nenhum usuario disponivel.
+                  </div>
+                ) : (
+                  conversations.map(({ user, last, total }) => {
+                    const active = selectedUserId === user.id;
+                    return (
+                      <button
+                        type="button"
+                        key={user.id}
+                        onClick={() => setSelectedUserId(user.id)}
+                        className="mb-2 flex w-full items-center gap-3 rounded-lg border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
+                        style={{
+                          borderColor: active ? COLORS.accent : COLORS.border,
+                          backgroundColor: active ? "#F0F7EE" : COLORS.card,
+                        }}
+                      >
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: COLORS.primary }}>
+                          <UserRound size={20} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-sm font-semibold" style={{ color: COLORS.text }}>
+                              {userName(user)}
+                            </p>
+                            {total > 0 && <span className="text-xs" style={{ color: COLORS.accent }}>{total}</span>}
+                          </div>
+                          <p className="truncate text-xs" style={{ color: COLORS.textLight }}>
+                            {user.perfil || "Cargo nao informado"}
+                          </p>
+                          {last && (
+                            <p className="mt-1 truncate text-xs" style={{ color: COLORS.textLight }}>
+                              {last.texto || last.anexoNomeOriginal || "Anexo enviado"}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </aside>
+
+            {/* Área de conversa */}
+            <div className="flex min-h-[calc(100vh-160px)] flex-col overflow-hidden rounded-lg border bg-white shadow-sm" style={{ borderColor: COLORS.border }}>
+              {selectedUser ? (
+                <>
+                  <header className="flex items-center gap-3 border-b px-5 py-4" style={{ borderColor: COLORS.border }}>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg text-white" style={{ backgroundColor: COLORS.secondary }}>
+                      <MessageCircle size={22} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold" style={{ color: COLORS.primary }}>
+                        {userName(selectedUser)}
+                      </h2>
+                      <p className="text-sm" style={{ color: COLORS.textLight }}>
+                        {selectedUser.perfil || "Cargo nao informado"} | mensagens expiram em 24h
+                      </p>
+                    </div>
+                  </header>
+
+                  {error && (
+                    <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                    {selectedMessages.length === 0 ? (
+                      <div className="flex h-full min-h-80 items-center justify-center text-center">
+                        <div>
+                          <MessageCircle className="mx-auto mb-3" style={{ color: COLORS.accent }} size={40} />
+                          <p className="font-semibold" style={{ color: COLORS.text }}>
+                            Comece uma conversa temporaria
+                          </p>
+                          <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
+                            Texto, imagem, audio e video ficam disponiveis por 24h.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      selectedMessages.map((mensagem) => {
+                        const mine = mensagem.remetenteId === currentUser?.id;
+                        return (
+                          <article key={mensagem.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                            <div
+                              className="max-w-xl rounded-lg border px-4 py-3 shadow-sm"
+                              style={{
+                                backgroundColor: mine ? "#EDF7E8" : "#FFFFFF",
+                                borderColor: mine ? COLORS.light : COLORS.border,
+                              }}
+                            >
+                              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: COLORS.textLight }}>
+                                <span className="font-semibold" style={{ color: COLORS.primary }}>
+                                  {mine ? "Voce" : (mensagem.remetenteNome || "Usuário")}
+                                </span>
+                                <span>{mensagem.remetenteCargo || "Cargo nao informado"}</span>
+                                <span>{formatTime(mensagem.criadoEm)}</span>
+                              </div>
+                              {mensagem.texto && <p className="whitespace-pre-wrap text-sm leading-6" style={{ color: COLORS.text }}>{mensagem.texto}</p>}
+                              {renderAttachment(mensagem)}
+                              <p className="mt-3 text-[11px]" style={{ color: COLORS.textLight }}>
+                                Expira em {formatExpiry(mensagem.expiraEm)}
+                              </p>
+                            </div>
+                          </article>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <form onSubmit={handleSend} className="border-t p-4" style={{ borderColor: COLORS.border }}>
+                    {anexo && (
+                      <div className="mb-3 flex items-center justify-between rounded-lg border bg-slate-50 px-3 py-2 text-sm" style={{ borderColor: COLORS.border }}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          {anexo.type.startsWith("image/") ? <ImageIcon size={16} /> : anexo.type.startsWith("video/") ? <Video size={16} /> : anexo.type.startsWith("audio/") ? <PlayCircle size={16} /> : <Paperclip size={16} />}
+                          <span className="truncate">{anexo.name}</span>
+                        </div>
+                        <button type="button" onClick={() => setAnexo(null)} className="rounded p-1 hover:bg-slate-200" title="Remover anexo">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-end gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,audio/*,video/*"
+                        className="hidden"
+                        onChange={(event) => setAnexo(event.target.files?.[0] || null)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition hover:bg-slate-50"
+                        style={{ borderColor: COLORS.border, color: COLORS.primary }}
+                        title="Anexar arquivo"
+                      >
+                        <Paperclip size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={recording ? stopRecording : startRecording}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition hover:bg-slate-50"
+                        style={{
+                          borderColor: recording ? "#DC2626" : COLORS.border,
+                          color: recording ? "#DC2626" : COLORS.primary,
+                        }}
+                        title={recording ? "Parar gravacao" : "Gravar audio"}
+                      >
+                        {recording ? <Square size={18} /> : <Mic size={20} />}
+                      </button>
+                      <textarea
+                        value={texto}
+                        onChange={(event) => setTexto(event.target.value)}
+                        rows={2}
+                        placeholder="Digite sua mensagem temporaria..."
+                        className="min-h-11 flex-1 resize-none rounded-lg border px-4 py-2 text-sm outline-none transition focus:ring-2 focus:ring-green-500"
+                        style={{ borderColor: COLORS.border, color: COLORS.text }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={sending || (!texto.trim() && !anexo)}
+                        className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-4 font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{ backgroundColor: COLORS.primary }}
+                      >
+                        {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                        Enviar
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center text-center">
+                  <div>
+                    <UserRound className="mx-auto mb-3" style={{ color: COLORS.accent }} size={42} />
+                    <p className="font-semibold" style={{ color: COLORS.text }}>
+                      Selecione um usuario
+                    </p>
+                    <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
+                      As mensagens sao apagadas automaticamente depois de 24h.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </main>
     </div>

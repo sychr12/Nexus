@@ -16,7 +16,7 @@ import {
   Filter,
   X
 } from "lucide-react";
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { apiJson } from "../lib/http";
 
@@ -66,12 +66,18 @@ export default function TabelaPage() {
   const [visibleRows, setVisibleRows] = useState<Set<number>>(new Set());
   const [selectedDetails, setSelectedDetails] = useState<Inscricao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const itemsPerPage = 10;
 
   useEffect(() => {
-    if (!ready) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !mounted) return;
     carregarDados();
-  }, [ready]);
+  }, [ready, mounted]);
 
   async function carregarDados() {
     try {
@@ -235,316 +241,322 @@ export default function TabelaPage() {
     color: COLORS.text,
   };
 
+  if (!mounted || !ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={logout} username={username} />
+      <Sidebar
+        onLogout={logout}
+        username={username || "Usuário"}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
-      <main className="px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          {/* Header da Página */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Inscrições</h1>
-              <p className="text-sm mt-1" style={{ color: COLORS.textLight }}>
-                Gerencie todas as inscrições do sistema
-              </p>
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      >
+        <div className="px-4 sm:px-6 lg:px-8 py-8">
+          <div className="space-y-6">
+            {/* Header da Página */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold" style={{ color: COLORS.primary }}>Inscrições</h1>
+                <p className="text-sm mt-1" style={{ color: COLORS.textLight }}>
+                  Gerencie todas as inscrições do sistema
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-            </div>
-          </div>
 
-          {/* Card da Tabela */}
-          <div className="rounded-lg shadow-sm overflow-hidden" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}>
-            {/* Barra de Pesquisa */}
-            <div className="px-4 py-3" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold" style={{ color: COLORS.text }}>Lista de inscrições</h2>
-                  <p className="text-xs mt-0.5" style={{ color: COLORS.textLight }}>
-                    {filteredDados.length} de {dados.length} registros
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-center">
-                  <div className="relative 2xl:w-96">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                    <input
-                      type="text"
-                      placeholder="Pesquisar por ano, nome ou CPF..."
-                      value={searchTerm}
-                      onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className={`${filterFieldClass} w-full pl-10 pr-4`}
-                      style={filterFieldStyle}
-                    />
+            {/* Card da Tabela */}
+            <div className="rounded-lg shadow-sm overflow-hidden" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}>
+              {/* Barra de Pesquisa */}
+              <div className="px-4 py-3" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold" style={{ color: COLORS.text }}>Lista de inscrições</h2>
+                    <p className="text-xs mt-0.5" style={{ color: COLORS.textLight }}>
+                      {filteredDados.length} de {dados.length} registros
+                    </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="relative">
-                      <Filter size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                      <select
-                        value={periodFilter}
+                  <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-center">
+                    <div className="relative 2xl:w-96">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                      <input
+                        type="text"
+                        placeholder="Pesquisar por ano, nome ou CPF..."
+                        value={searchTerm}
                         onChange={(e) => {
-                          setPeriodFilter(e.target.value as PeriodFilter);
-                          setCurrentPage(2);
-                        }}
-                        className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
-                        style={filterFieldStyle}
-                      >
-                        <option value="todos">Todos os períodos</option>
-                        <option value="90">Últimos 90 dias</option>
-                      </select>
-                    </div>
-
-                    <div className="relative">
-                      <CalendarDays size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                      <select
-                        value={yearFilter}
-                        onChange={(e) => {
-                          setYearFilter(e.target.value);
+                          setSearchTerm(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className={`${filterFieldClass} pl-10 pr-5 text-xs font-semibold`}
+                        className={`${filterFieldClass} w-full pl-10 pr-4`}
                         style={filterFieldStyle}
-                      >
-                        <option value="todos">Todos os anos</option>
-                        {availableYears.map((year) => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
+                      />
                     </div>
 
-                    <div className="relative">
-                      <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                      <select
-                        value={municipioFilter}
-                        onChange={(e) => {
-                          setMunicipioFilter(e.target.value);
-                          setCurrentPage(1);
-                        }}
-                        className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
-                        style={filterFieldStyle}
-                      >
-                        <option value="todos">Todas as localidades</option>
-                        {availableMunicipios.map((municipio) => (
-                          <option key={municipio} value={municipio}>{municipio}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative">
+                        <Filter size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                        <select
+                          value={periodFilter}
+                          onChange={(e) => {
+                            setPeriodFilter(e.target.value as PeriodFilter);
+                            setCurrentPage(1);
+                          }}
+                          className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
+                          style={filterFieldStyle}
+                        >
+                          <option value="todos">Todos os períodos</option>
+                          <option value="90">Últimos 90 dias</option>
+                        </select>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={togglePageVisibility}
-                      disabled={!hasPageRows}
-                      title={arePageRowsVisible ? "Ocultar CPF e memorando" : "Mostrar CPF e memorando"}
-                      className="inline-flex min-h-[46px] items-center gap-2 rounded-xl border px-4 text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-4 focus:ring-[#6B9D4A]/10 disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        color: arePageRowsVisible ? "#FFFFFF" : COLORS.primary,
-                        backgroundColor: arePageRowsVisible ? COLORS.accent : COLORS.inputBg,
-                        borderColor: arePageRowsVisible ? COLORS.accent : COLORS.border,
-                      }}
-                    >
-                      {arePageRowsVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                      {arePageRowsVisible ? "Ocultar dados" : "Mostrar dados"}
-                    </button>
+                      <div className="relative">
+                        <CalendarDays size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                        <select
+                          value={yearFilter}
+                          onChange={(e) => {
+                            setYearFilter(e.target.value);
+                            setCurrentPage(1);
+                          }}
+                          className={`${filterFieldClass} pl-10 pr-5 text-xs font-semibold`}
+                          style={filterFieldStyle}
+                        >
+                          <option value="todos">Todos os anos</option>
+                          {availableYears.map((year) => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                    {hasActiveFilters && (
+                      <div className="relative">
+                        <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                        <select
+                          value={municipioFilter}
+                          onChange={(e) => {
+                            setMunicipioFilter(e.target.value);
+                            setCurrentPage(1);
+                          }}
+                          className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
+                          style={filterFieldStyle}
+                        >
+                          <option value="todos">Todas as localidades</option>
+                          {availableMunicipios.map((municipio) => (
+                            <option key={municipio} value={municipio}>{municipio}</option>
+                          ))}
+                        </select>
+                      </div>
+
                       <button
                         type="button"
-                        onClick={limparFiltros}
-                        title="Limpar filtros"
-                        className="group relative inline-flex min-h-[46px] w-[104px] items-center justify-center overflow-hidden rounded-xl border text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#B42318]/10"
+                        onClick={togglePageVisibility}
+                        disabled={!hasPageRows}
+                        title={arePageRowsVisible ? "Ocultar CPF e memorando" : "Mostrar CPF e memorando"}
+                        className="inline-flex min-h-11.5 items-center gap-2 rounded-xl border px-4 text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-4 focus:ring-[#6B9D4A]/10 disabled:cursor-not-allowed disabled:opacity-50"
                         style={{
-                          color: COLORS.danger,
-                          border: "1px solid #FECDCA",
-                          backgroundColor: "#FEF3F2",
-                        }}
-                        onMouseEnter={(event) => {
-                          event.currentTarget.style.color = "#FFFFFF";
-                          event.currentTarget.style.borderColor = COLORS.danger;
-                          event.currentTarget.style.backgroundColor = COLORS.danger;
-                        }}
-                        onMouseLeave={(event) => {
-                          event.currentTarget.style.color = COLORS.danger;
-                          event.currentTarget.style.borderColor = "#FECDCA";
-                          event.currentTarget.style.backgroundColor = "#FEF3F2";
+                          color: arePageRowsVisible ? "#FFFFFF" : COLORS.primary,
+                          backgroundColor: arePageRowsVisible ? COLORS.accent : COLORS.inputBg,
+                          borderColor: arePageRowsVisible ? COLORS.accent : COLORS.border,
                         }}
                       >
-                        <span className="inline-flex items-center gap-1.5 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                          <X size={14} />
-                          Limpar
-                        </span>
-                        <BrushCleaning
-                          size={17}
-                          className="absolute translate-y-4 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
-                        />
+                        {arePageRowsVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {arePageRowsVisible ? "Ocultar dados" : "Mostrar dados"}
                       </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Loading */}
-            {loading && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <Loader2 size={40} className="animate-spin" style={{ color: COLORS.accent }} />
-                <p className="mt-4" style={{ color: COLORS.textLight }}>Carregando dados...</p>
-              </div>
-            )}
-
-            {/* Erro */}
-            {!loading && erro && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: `${COLORS.light}` }}>
-                  <Bell size={32} style={{ color: COLORS.primary }} />
-                </div>
-                <p className="text-center" style={{ color: COLORS.primary }}>{erro}</p>
-                <button
-                  onClick={carregarDados}
-                  className="mt-4 px-4 py-2 text-sm text-white rounded-lg"
-                  style={{ backgroundColor: COLORS.accent }}
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            )}
-
-            {/* Sem Dados */}
-            {!loading && !erro && dados.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: COLORS.light }}>
-                  <FileText size={32} style={{ color: COLORS.primary }} />
-                </div>
-                <p className="text-center" style={{ color: COLORS.textLight }}>Nenhuma inscrição encontrada</p>
-              </div>
-            )}
-
-            {!loading && !erro && dados.length > 0 && filteredDados.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: COLORS.light }}>
-                  <FileText size={32} style={{ color: COLORS.primary }} />
-                </div>
-                <p className="text-center" style={{ color: COLORS.textLight }}>Nenhuma inscrição encontrada para os filtros selecionados</p>
-                {hasActiveFilters && (
-                  <button
-                    onClick={limparFiltros}
-                    className="mt-4 px-4 py-2 text-sm rounded-lg"
-                    style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}` }}
-                  >
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Tabela */}
-            {!loading && !erro && filteredDados.length > 0 && (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-265 border-collapse">
-                    <thead style={{ backgroundColor: COLORS.background }}>
-                      <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Data</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Nome</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>CPF</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Localidade</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Memorando</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Tipo</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Visualizar</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Detalhes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedDados.map((item) => {
-                        const isVisible = visibleRows.has(item.id);
-                        return (
-                          <tr key={item.id} className="hover:bg-gray-50 transition-colors" style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                            <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
-                            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
-                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.nome}</td>
-                            <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{isVisible ? item.cpf : "*****"}</td>
-                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
-                            <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.memorando : "*****"}</td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(item.tipo)}`}
-                                style={{ 
-                                  backgroundColor: `${COLORS.accent}15`, 
-                                  color: COLORS.accent,
-                                  borderColor: `${COLORS.accent}30`
-                                }}>
-                                {formatarTipo(item.tipo)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => toggleRowVisibility(item.id)}
-                                title={isVisible ? "Ocultar dados" : "Visualizar dados"}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
-                                style={{ color: COLORS.textLight }}
-                              >
-                                {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedDetails(item)}
-                                title="Ver detalhes"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
-                                style={{ color: COLORS.textLight }}
-                              >
-                                <Info size={18} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Paginação */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderTop: `1px solid ${COLORS.border}` }}>
-                    <p className="text-sm" style={{ color: COLORS.textLight }}>
-                      Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredDados.length)} de {filteredDados.length} resultados
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                        style={{ color: COLORS.primary }}
-                      >
-                        <ChevronLeft size={18} />
-                      </button>
-                      <span className="text-sm" style={{ color: COLORS.text }}>
-                        Página {currentPage} de {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-                        style={{ color: COLORS.primary }}
-                      >
-                        <ChevronRight size={18} />
-                      </button>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          onClick={limparFiltros}
+                          title="Limpar filtros"
+                          className="group relative inline-flex min-h-11.5 w-26 items-center justify-center overflow-hidden rounded-xl border text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#B42318]/10"
+                          style={{
+                            color: COLORS.danger,
+                            border: "1px solid #FECDCA",
+                            backgroundColor: "#FEF3F2",
+                          }}
+                        >
+                          <span className="inline-flex items-center gap-1.5 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                            <X size={14} />
+                            Limpar
+                          </span>
+                          <BrushCleaning
+                            size={17}
+                            className="absolute translate-y-4 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
+                          />
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              </div>
+
+              {/* Loading */}
+              {loading && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Loader2 size={40} className="animate-spin" style={{ color: COLORS.accent }} />
+                  <p className="mt-4" style={{ color: COLORS.textLight }}>Carregando dados...</p>
+                </div>
+              )}
+
+              {/* Erro */}
+              {!loading && erro && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: `${COLORS.light}` }}>
+                    <Bell size={32} style={{ color: COLORS.primary }} />
+                  </div>
+                  <p className="text-center" style={{ color: COLORS.primary }}>{erro}</p>
+                  <button
+                    onClick={carregarDados}
+                    className="mt-4 px-4 py-2 text-sm text-white rounded-lg"
+                    style={{ backgroundColor: COLORS.accent }}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+
+              {/* Sem Dados */}
+              {!loading && !erro && dados.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: COLORS.light }}>
+                    <FileText size={32} style={{ color: COLORS.primary }} />
+                  </div>
+                  <p className="text-center" style={{ color: COLORS.textLight }}>Nenhuma inscrição encontrada</p>
+                </div>
+              )}
+
+              {!loading && !erro && dados.length > 0 && filteredDados.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: COLORS.light }}>
+                    <FileText size={32} style={{ color: COLORS.primary }} />
+                  </div>
+                  <p className="text-center" style={{ color: COLORS.textLight }}>Nenhuma inscrição encontrada para os filtros selecionados</p>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={limparFiltros}
+                      className="mt-4 px-4 py-2 text-sm rounded-lg"
+                      style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}` }}
+                    >
+                      Limpar filtros
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Tabela */}
+              {!loading && !erro && filteredDados.length > 0 && (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-200 border-collapse">
+                      <thead style={{ backgroundColor: COLORS.background }}>
+                        <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Data</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Nome</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>CPF</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Localidade</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Memorando</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Tipo</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Visualizar</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Detalhes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedDados.map((item) => {
+                          const isVisible = visibleRows.has(item.id);
+                          return (
+                            <tr key={item.id} className="hover:bg-gray-50 transition-colors" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                              <td className="px-4 py-3 text-sm font-medium tabular-nums" style={{ color: COLORS.textLight }}>{item.id}</td>
+                              <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: COLORS.textLight }}>{formatarData(item.criadoEm)}</td>
+                              <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.nome}</td>
+                              <td className="px-4 py-3 text-sm whitespace-nowrap tabular-nums" style={{ color: COLORS.textLight }}>{isVisible ? item.cpf : "*****"}</td>
+                              <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{item.municipio}</td>
+                              <td className="px-4 py-3 text-sm" style={{ color: COLORS.textLight }}>{isVisible ? item.memorando : "*****"}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getTipoColor(item.tipo)}`}
+                                  style={{ 
+                                    backgroundColor: `${COLORS.accent}15`, 
+                                    color: COLORS.accent,
+                                    borderColor: `${COLORS.accent}30`
+                                  }}>
+                                  {formatarTipo(item.tipo)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRowVisibility(item.id)}
+                                  title={isVisible ? "Ocultar dados" : "Visualizar dados"}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
+                                  style={{ color: COLORS.textLight }}
+                                >
+                                  {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDetails(item)}
+                                  title="Ver detalhes"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
+                                  style={{ color: COLORS.textLight }}
+                                >
+                                  <Info size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Paginação */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                      <p className="text-sm" style={{ color: COLORS.textLight }}>
+                        Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredDados.length)} de {filteredDados.length} resultados
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                          style={{ color: COLORS.primary }}
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                        <span className="text-sm" style={{ color: COLORS.text }}>
+                          Página {currentPage} de {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                          style={{ color: COLORS.primary }}
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </main>
 
+      {/* Modal de Detalhes */}
       {selectedDetails && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center px-4 py-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-black/45" onClick={() => setSelectedDetails(null)} />
           <div
             className="relative w-full max-w-2xl overflow-hidden rounded-lg shadow-xl"
@@ -594,7 +606,7 @@ export default function TabelaPage() {
                     <div>
                       <p className="text-sm font-semibold" style={{ color: COLORS.primary }}>Motivo da devolução indisponível</p>
                       <p className="mt-1 text-sm" style={{ color: COLORS.textLight }}>
-                        O motivo e os detalhes da devolução ainda não estão disponíveis neste registro, porque essa informação ainda não está sendo salva no backend/banco de dados.
+                        O motivo e os detalhes da devolução ainda não estão disponíveis neste registro.
                       </p>
                     </div>
                   </div>

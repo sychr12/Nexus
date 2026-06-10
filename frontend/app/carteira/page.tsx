@@ -1,8 +1,9 @@
+// app/carteira/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Upload } from "lucide-react";
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import { useAuthSession } from "../hooks/useAuthSession";
 import FormularioCarteira from "./components/FormularioCarteira";
 import CardPreview from "./components/CardPreview";
@@ -97,17 +98,15 @@ const initialForm: CarteiraRequest = {
 };
 
 export default function CarteiraDigitalPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
+  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuário" });
   const [form, setForm] = useState<CarteiraRequest>(initialForm);
   const [carteiras, setCarteiras] = useState<CarteiraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-
-
-  const [username, setUsername] = useState("Usuário");
-
+  const [animated, setAnimated] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     // Adiciona estilos de animação
@@ -134,22 +133,6 @@ export default function CarteiraDigitalPage() {
     carregarCarteiras();
   }, [ready]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          setUsername(user.username || user.nomeCompleto || "Usuário");
-        } catch {
-          setUsername(localStorage.getItem("username") || "Usuário");
-        }
-      } else {
-        setUsername(localStorage.getItem("username") || "Usuário");
-      }
-    }
-  }, []);
-
   const handleSubmit = async (data: CarteiraRequest) => {
     try {
       setIsLoading(true);
@@ -174,16 +157,30 @@ export default function CarteiraDigitalPage() {
     setForm(data);
   };
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen font-sans" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={logout} username={username} />
+      <Sidebar 
+        onLogout={logout} 
+        username={username || "Usuário"} 
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
-      <main style={{ paddingTop: "70px", minHeight: "100vh" }}>
-        <div className="px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto">
+      <main 
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      >
+        <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-screen-2xl mx-auto">
           {/* Page Header com botões */}
           <div 
-            className="mb-8 flex items-center justify-between"
+            className="mb-8 flex items-center justify-between flex-wrap gap-4"
             style={{ animation: animated ? "fadeInUp 0.5s ease-out" : "none" }}
           >
             <div>
@@ -255,11 +252,11 @@ export default function CarteiraDigitalPage() {
             </div>
           )}
 
-          {/* Two-column layout */}
-          <div className="flex gap-6 items-start">
+          {/* Two-column layout - Responsivo */}
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
             {/* Coluna Esquerda - Formulário */}
             <div 
-              className="w-1/2 sticky top-6 transition-all duration-500"
+              className="w-full lg:w-1/2 lg:sticky lg:top-6 transition-all duration-500"
               style={{ 
                 animation: animated ? "fadeInLeft 0.6s ease-out 0.1s both" : "none",
               }}
@@ -273,7 +270,7 @@ export default function CarteiraDigitalPage() {
 
             {/* Coluna Direita - Preview do Cartão */}
             <div 
-              className="w-1/2 transition-all duration-500"
+              className="w-full lg:w-1/2 transition-all duration-500"
               style={{ 
                 animation: animated ? "fadeInRight 0.6s ease-out 0.2s both" : "none",
               }}

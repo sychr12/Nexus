@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import MemorandoForm from "./components/MemorandoForm";
 import MemorandoPreview from "./components/MemorandoPreview";
-import TopBar from "../sidebar/page";
+import Sidebar from "../sidebar/page";
 import { useAuthSession } from "../hooks/useAuthSession";
 import {
   MemorandoForm as MemorandoFormType,
@@ -56,6 +56,7 @@ export default function MemorandoPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!document.getElementById("kf-page")) {
@@ -68,7 +69,6 @@ export default function MemorandoPage() {
     const frame = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(frame);
   }, []);
-
 
   const carregarMemorandos = async () => {
     try {
@@ -88,6 +88,14 @@ export default function MemorandoPage() {
     carregarMemorandos();
   }, [ready]);
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen font-sans"
@@ -97,10 +105,20 @@ export default function MemorandoPage() {
         transition: "opacity .3s ease",
       }}
     >
-      <TopBar onLogout={logout} username={username} />
+      <Sidebar
+        onLogout={logout}
+        username={username || "Usuário"}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
-      <main style={{ paddingTop: "70px", minHeight: "100vh" }}>
-        <div className="px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto">
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{
+          marginLeft: sidebarCollapsed ? '72px' : '260px',
+          minHeight: "100vh",
+        }}
+      >
+        <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-screen-2xl mx-auto">
           {/* Header */}
           <div
             className="mb-5"
@@ -137,18 +155,18 @@ export default function MemorandoPage() {
               {error}
               <button
                 onClick={carregarMemorandos}
-                className="ml-auto underline text-xs"
+                className="ml-auto underline text-xs hover:opacity-70 transition-opacity"
               >
                 Tentar novamente
               </button>
             </div>
           )}
 
-          {/* Layout */}
-          <div className="flex flex-col lg:flex-row gap-4 items-start">
+          {/* Layout responsivo */}
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
             {/* Form */}
             <div
-              className="w-full lg:w-[42%] sticky top-3"
+              className="w-full lg:w-1/2 lg:sticky lg:top-6"
               style={{
                 animation: mounted ? "fadeUp .55s ease both" : "none",
               }}
@@ -162,7 +180,7 @@ export default function MemorandoPage() {
 
             {/* Preview */}
             <div
-              className="w-full lg:w-[58%]"
+              className="w-full lg:w-1/2"
               style={{
                 animation: mounted ? "fadeUp .55s ease both" : "none",
               }}
