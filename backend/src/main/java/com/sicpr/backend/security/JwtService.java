@@ -42,8 +42,14 @@ public class JwtService {
     }
 
     public String generateToken(String username) {
+        return generateToken(username, "USUARIO");
+    }
+
+    public String generateToken(String username, String perfil) {
+        String normalizedRole = RoleUtils.normalizeRole(perfil);
         return Jwts.builder()
                 .setSubject(username)
+                .claim("role", normalizedRole)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(signingKey, SignatureAlgorithm.HS256)
@@ -52,6 +58,11 @@ public class JwtService {
 
     public String extractUsername(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    public String extractRole(String token) {
+        Object role = parseClaims(token).get("role");
+        return RoleUtils.normalizeRole(role == null ? "USUARIO" : role.toString());
     }
 
     public boolean validateToken(String token) {
@@ -70,4 +81,5 @@ public class JwtService {
                 .parseClaimsJws(token)
                 .getBody();
     }
+
 }

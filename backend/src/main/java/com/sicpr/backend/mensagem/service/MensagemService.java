@@ -4,6 +4,7 @@ import com.sicpr.backend.mensagem.dto.MensagemRequest;
 import com.sicpr.backend.mensagem.dto.MensagemResponse;
 import com.sicpr.backend.mensagem.model.Mensagem;
 import com.sicpr.backend.mensagem.repository.MensagemRepository;
+import com.sicpr.backend.config.UploadSecurityProperties;
 import com.sicpr.backend.user.model.User;
 import com.sicpr.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class MensagemService {
 
     private final MensagemRepository mensagemRepository;
     private final UserRepository userRepository;
+    private final UploadSecurityProperties uploadSecurityProperties;
 
     @Value("${app.upload-dir:uploads/mensagens}")
     private String uploadDir;
@@ -108,6 +110,9 @@ public class MensagemService {
         }
 
         String contentType = anexo.getContentType() == null ? "" : anexo.getContentType();
+        if (anexo.getSize() > uploadSecurityProperties.messageAttachmentMaxBytes()) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Anexo excede o limite permitido");
+        }
         if (!contentType.startsWith("image/") && !contentType.startsWith("audio/") && !contentType.startsWith("video/")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Apenas imagem, audio ou video sao permitidos");
         }

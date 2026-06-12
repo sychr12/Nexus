@@ -1,5 +1,7 @@
 package com.sicpr.backend.security;
 
+import com.sicpr.backend.user.model.User;
+import com.sicpr.backend.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +22,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(
@@ -69,6 +72,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 String username =
                         jwtService.extractUsername(token);
+                User user = userRepository.findByUsername(username).orElse(null);
+                if (user == null || !"ATIVO".equals(user.getStatus())) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("Usuario inativo ou inexistente");
+                    return;
+                }
+
+                String role = user.getPerfil() != null ? user.getPerfil() : jwtService.extractRole(token);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -76,7 +87,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                 null,
                                 List.of(
                                         new SimpleGrantedAuthority(
-                                                "ROLE_USER"
+                                                RoleUtils.authorityFor(role)
                                         )
                                 )
                         );

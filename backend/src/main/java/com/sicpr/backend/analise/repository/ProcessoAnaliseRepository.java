@@ -24,4 +24,8 @@ public interface ProcessoAnaliseRepository extends JpaRepository<ProcessoAnalise
     List<ProcessoAnalise> findByDeclaracaoFutura(Boolean declaracaoFutura);
 
     List<ProcessoAnalise> findByCpfDivergente(Boolean cpfDivergente);
+
+    long countByDecisao(String decisao);
+
+    long countByDecisaoIsNull();
 }

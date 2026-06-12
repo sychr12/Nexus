@@ -1,4 +1,5 @@
 // app/mensagens/services/mensagem.service.ts
+import { validateMessageAttachment } from "@/app/_lib/uploadLimits";
 import type { Mensagem } from "../types/mensagem";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -36,7 +37,10 @@ export const mensagemService = {
       const formData = new FormData();
       formData.append("destinatarioId", String(destinatarioId));
       if (texto?.trim()) formData.append("texto", texto.trim());
-      if (anexo) formData.append("anexo", anexo);
+      if (anexo) {
+        validateMessageAttachment(anexo);
+        formData.append("anexo", anexo);
+      }
 
       // Não definir Content-Type manualmente para FormData
       const response = await fetch(`${API_URL}/api/mensagens`, {

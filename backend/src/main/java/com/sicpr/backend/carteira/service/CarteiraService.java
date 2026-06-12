@@ -6,6 +6,7 @@ import com.sicpr.backend.carteira.dto.CarteiraResponseDTO;
 import com.sicpr.backend.carteira.dto.FiltroBuscaDTO;
 import com.sicpr.backend.carteira.model.CarteiraDigital;
 import com.sicpr.backend.carteira.repository.CarteiraRepository;
+import com.sicpr.backend.config.UploadSecurityProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -27,6 +28,7 @@ public class CarteiraService {
     
     private final CarteiraRepository carteiraRepository;
     private final PdfGenerationService pdfGenerationService;
+    private final UploadSecurityProperties uploadSecurityProperties;
     
     private static final Pattern CPF_PATTERN = Pattern.compile("\\d{11}");
     
@@ -34,6 +36,10 @@ public class CarteiraService {
     public CarteiraResponseDTO salvar(CarteiraRequestDTO request, String usuario) throws IOException {
         log.info("Salvando carteira para produtor: {}", request.getNome());
         
+        if (request.getCpf() == null) {
+            throw new IllegalArgumentException("CPF e obrigatorio");
+        }
+
         String cpfLimpo = request.getCpf().replaceAll("\\D", "");
         if (!CPF_PATTERN.matcher(cpfLimpo).matches()) {
             throw new IllegalArgumentException("CPF inválido");
@@ -55,12 +61,21 @@ public class CarteiraService {
         
         if (request.getFotos() != null && request.getFotos().length > 0) {
             MultipartFile[] fotos = request.getFotos();
-            if (fotos.length > 0 && fotos[0] != null && !fotos[0].isEmpty()) 
+            if (fotos.length > 3) {
+                throw new IllegalArgumentException("Envie no maximo 3 fotos.");
+            }
+            if (fotos.length > 0 && fotos[0] != null && !fotos[0].isEmpty()) {
+                validarFoto(fotos[0]);
                 carteira.setFoto1(fotos[0].getBytes());
-            if (fotos.length > 1 && fotos[1] != null && !fotos[1].isEmpty()) 
+            }
+            if (fotos.length > 1 && fotos[1] != null && !fotos[1].isEmpty()) {
+                validarFoto(fotos[1]);
                 carteira.setFoto2(fotos[1].getBytes());
-            if (fotos.length > 2 && fotos[2] != null && !fotos[2].isEmpty()) 
+            }
+            if (fotos.length > 2 && fotos[2] != null && !fotos[2].isEmpty()) {
+                validarFoto(fotos[2]);
                 carteira.setFoto3(fotos[2].getBytes());
+            }
         }
         
         byte[] pdf = pdfGenerationService.gerarPdf(carteira);
@@ -143,5 +158,16 @@ public class CarteiraService {
         dto.setUsuario(carteira.getUsuario());
         dto.setCreatedAt(carteira.getCriadoEm());
         return dto;
+    }
+
+    private void validarFoto(MultipartFile foto) {
+        if (foto.getSize() > uploadSecurityProperties.carteiraPhotoMaxBytes()) {
+            throw new IllegalArgumentException("Cada foto deve ter no maximo " + uploadSecurityProperties.getCarteiraPhotoMaxSize() + ".");
+        }
+
+        String contentType = foto.getContentType() == null ? "" : foto.getContentType().toLowerCase();
+        if (!contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("Apenas imagens sao permitidas nas fotos da carteira.");
+        }
     }
 }

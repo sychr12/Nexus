@@ -25,6 +25,7 @@ import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr, TipoPro
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import { DOCUMENT_MODELS, DETAIL_TABS, PAGE_SIZE, PROCESS_FILTERS, initialForm } from "./config";
 import type { AnexoUpload, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
+import { normalizeCoordinate, validateLatitude, validateLongitude } from "./coordinate-utils";
 import { fileToAnexo, formatCpf, formatFileSize, onlyDigits } from "./file-utils";
 import { FacStatusBadge } from "./UnlocUi";
 import UnlocDocumentModal from "./UnlocDocumentModal";
@@ -256,22 +257,66 @@ export default function UnlocPage() {
   function saveGeneratedDocument() {
     if (!activeDocument) return;
     const model = DOCUMENT_MODELS.find((documento) => documento.tipo === activeDocument);
-    const missingRequired = model?.campos.find((campo) => campo.obrigatorio && !documentDraft[campo.key]?.trim());
+    const normalizedDraft = normalizeDocumentDraft(activeDocument, documentDraft);
+    const missingRequired = model?.campos.find((campo) => campo.obrigatorio && !normalizedDraft[campo.key]?.trim());
 
     if (missingRequired) {
       setDocumentModalMessage(`Preencha o campo obrigatório: ${missingRequired.label}.`);
       return;
     }
 
+    const validationError = validateDocumentDraft(activeDocument, normalizedDraft);
+    if (validationError) {
+      setDocumentModalMessage(validationError);
+      return;
+    }
+
     setDocumentosGerados((current) => ({
       ...current,
-      [activeDocument]: documentDraft,
+      [activeDocument]: normalizedDraft,
     }));
+    setDocumentDraft(normalizedDraft);
     setActiveDocument(null);
     setDocumentDraft({});
     setDocumentModalMessage("");
     setMessageType("success");
     setMessage(activeDocument === "fac" ? "FAC gerada. Imprima, colete a assinatura fisica do produtor e anexe a versão assinada." : "Documento preenchido e pronto para geracao automatica.");
+  }
+
+  function normalizeDocumentDraft(document: GeneratedDocKey, draft: Record<string, string>) {
+    if (document !== "fac" && document !== "declaracao_produtor") {
+      return draft;
+    }
+
+    return {
+      ...draft,
+      latitude: normalizeCoordinate(draft.latitude || ""),
+      longitude: normalizeCoordinate(draft.longitude || ""),
+    };
+  }
+
+  function validateDocumentDraft(document: GeneratedDocKey, draft: Record<string, string>) {
+    if (document !== "fac") {
+      const latitude = draft.latitude?.trim();
+      const longitude = draft.longitude?.trim();
+
+      if (latitude) {
+        const latitudeError = validateLatitude(latitude);
+        if (latitudeError) return latitudeError;
+      }
+
+      if (longitude) {
+        const longitudeError = validateLongitude(longitude);
+        if (longitudeError) return longitudeError;
+      }
+
+      return "";
+    }
+
+    const latitudeError = validateLatitude(draft.latitude || "");
+    if (latitudeError) return latitudeError;
+
+    return validateLongitude(draft.longitude || "");
   }
 
   function printActiveDocument() {

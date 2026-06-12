@@ -7,6 +7,7 @@ import com.sicpr.backend.carteira.dto.FiltroBuscaDTO;
 import com.sicpr.backend.carteira.dto.SefazDadosDTO;
 import com.sicpr.backend.carteira.service.CarteiraService;
 import com.sicpr.backend.carteira.service.SefazService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
@@ -31,7 +32,7 @@ public class CarteiraController {
     
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CarteiraResponseDTO> salvar(
-            @ModelAttribute CarteiraRequestDTO request,
+            @Valid @ModelAttribute CarteiraRequestDTO request,
             @AuthenticationPrincipal UserDetails userDetails) throws IOException {
         String usuario = userDetails != null ? userDetails.getUsername() : "SISTEMA";
         CarteiraResponseDTO response = carteiraService.salvar(request, usuario);

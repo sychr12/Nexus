@@ -4,8 +4,8 @@ package com.sicpr.backend.email.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import javax.mail.*;
-import javax.mail.search.FlagTerm;
+import jakarta.mail.*;
+import jakarta.mail.search.FlagTerm;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;

@@ -2,9 +2,22 @@ export interface DashboardStats {
   usuariosOnline: number;
   usuariosOffline: number;
   totalUsuarios: number;
+  usuariosAtivos: number;
+  usuariosBloqueados: number;
+  totalInscricoes: number;
+  inscricoesHoje: number;
   totalLancamentos: number;
   totalMemorandos: number;
+  memorandosHoje: number;
   totalCartoes: number;
+  cartoesHoje: number;
+  totalProcessosFluxo: number;
+  processosEmElaboracao: number;
+  processosGerente: number;
+  processosAnalise: number;
+  processosLancamento: number;
+  processosConcluidos: number;
+  processosDevolvidos: number;
   ultimoAcesso: string;
 }
 
@@ -27,12 +40,12 @@ export interface AtividadeRecente {
 export interface TopCategoria {
   nome: string;
   total: number;
-  percentage?: number;
 }
 
 export interface Relatorio {
   nome: string;
   descricao: string;
+  rota: string;
 }
 
 export interface Notificacao {
@@ -40,4 +53,9 @@ export interface Notificacao {
   mensagem: string;
   dataHora: string;
   lida: boolean;
+}
+
+export interface ChartData {
+  dias: string[];
+  valores: number[];
 }

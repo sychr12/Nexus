@@ -3,6 +3,7 @@ package com.sicpr.backend.user.controller;
 import com.sicpr.backend.auth.dto.UserRequest;
 import com.sicpr.backend.user.model.User;
 import com.sicpr.backend.user.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -35,7 +36,7 @@ public class UserController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse create(@RequestBody UserRequest request) {
+    public UserResponse create(@Valid @RequestBody UserRequest request) {
         User user = User.builder()
                 .username(request.getUsername())
                 .password(request.getPassword())
@@ -48,7 +49,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    public UserResponse update(@PathVariable Long id, @RequestBody UserRequest request) {
+    public UserResponse update(@PathVariable Long id, @Valid @RequestBody UserRequest request) {
         User user = User.builder()
                 .nomeCompleto(request.getNomeCompleto())
                 .telefone(request.getTelefone())

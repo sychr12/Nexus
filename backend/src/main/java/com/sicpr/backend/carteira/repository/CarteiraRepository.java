@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,4 +31,8 @@ public interface CarteiraRepository extends JpaRepository<CarteiraDigital, Long>
     
     @Query("SELECT DISTINCT c.usuario FROM CarteiraDigital c WHERE c.usuario IS NOT NULL AND c.usuario != ''")
     List<String> findUsuariosUnicos();
+
+    long countByCriadoEmBetween(LocalDateTime inicio, LocalDateTime fim);
+
+    List<CarteiraDigital> findTop5ByOrderByCriadoEmDesc();
 }

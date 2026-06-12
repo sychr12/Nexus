@@ -4,11 +4,14 @@ import com.sicpr.backend.carteira.dto.BatchResultDTO;
 import com.sicpr.backend.carteira.dto.BatchStatusDTO;
 import com.sicpr.backend.carteira.model.CarteiraDigital;
 import com.sicpr.backend.carteira.repository.CarteiraRepository;
+import com.sicpr.backend.config.UploadSecurityProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -31,6 +34,7 @@ public class BatchCarteiraService {
     private final CarteiraRepository carteiraRepository;
     private final SefazService sefazService;
     private final PdfGenerationService pdfGenerationService;
+    private final UploadSecurityProperties uploadSecurityProperties;
     
     private static final Pattern CPF_PATTERN = Pattern.compile("\\d{11}");
     private static final Path TEMP_DIR = Paths.get(System.getProperty("java.io.tmpdir"), "carteira_batch");
@@ -43,6 +47,8 @@ public class BatchCarteiraService {
      */
     @Transactional
     public BatchResultDTO processarBatch(List<MultipartFile> files, String usuario) throws IOException {
+        validarListaArquivos(files);
+
         String batchId = UUID.randomUUID().toString();
         log.info("Iniciando processamento em lote: {} com {} arquivos", batchId, files.size());
         
@@ -64,6 +70,7 @@ public class BatchCarteiraService {
             }
             
             // Extrair CPF do nome do arquivo (baseado no código Python)
+            validarPdf(file);
             String cpf = extrairCpfDoNome(nomeArquivo);
             if (cpf == null) {
                 resultado.setIgnorados(resultado.getIgnorados() + 1);
@@ -96,6 +103,8 @@ public class BatchCarteiraService {
      */
     @Transactional
     public BatchResultDTO processarZip(MultipartFile zipFile, String usuario) throws IOException {
+        validarZip(zipFile);
+
         String batchId = UUID.randomUUID().toString();
         log.info("Iniciando processamento de ZIP: {}", batchId);
         
@@ -104,17 +113,30 @@ public class BatchCarteiraService {
         
         long inicio = System.currentTimeMillis();
         List<MultipartFile> pdfFiles = new ArrayList<>();
+        int entradas = 0;
         
         // Extrair PDFs do ZIP
         try (ZipInputStream zis = new ZipInputStream(zipFile.getInputStream())) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
+                entradas++;
+                if (entradas > uploadSecurityProperties.getCarteiraBatchMaxZipEntries()) {
+                    throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP excede o limite de entradas permitido.");
+                }
+
                 if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".pdf")) {
+                    if (pdfFiles.size() >= uploadSecurityProperties.getCarteiraBatchMaxFiles()) {
+                        throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP contem mais PDFs que o limite permitido.");
+                    }
+
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
                     byte[] buffer = new byte[4096];
                     int len;
                     while ((len = zis.read(buffer)) > 0) {
                         baos.write(buffer, 0, len);
+                        if (baos.size() > uploadSecurityProperties.carteiraBatchPdfMaxBytes()) {
+                            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "PDF dentro do ZIP excede o limite permitido.");
+                        }
                     }
                     
                     MultipartFile pdfFile = new InMemoryMultipartFile(
@@ -135,6 +157,7 @@ public class BatchCarteiraService {
         // Processar cada PDF
         for (MultipartFile file : pdfFiles) {
             String nomeArquivo = file.getOriginalFilename();
+            validarPdf(file);
             String cpf = extrairCpfDoNome(nomeArquivo);
             
             if (cpf == null) {
@@ -234,6 +257,44 @@ public class BatchCarteiraService {
         }
 
         return cpf.substring(0, 3) + ".***.***-" + cpf.substring(9);
+    }
+
+    private void validarListaArquivos(List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            throw new IllegalArgumentException("Envie ao menos um arquivo PDF.");
+        }
+        if (files.size() > uploadSecurityProperties.getCarteiraBatchMaxFiles()) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Quantidade de PDFs acima do limite permitido.");
+        }
+    }
+
+    private void validarPdf(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Arquivo PDF vazio.");
+        }
+        if (file.getSize() > uploadSecurityProperties.carteiraBatchPdfMaxBytes()) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "PDF excede o limite permitido.");
+        }
+
+        String nomeArquivo = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
+        if (!nomeArquivo.endsWith(".pdf") || (!contentType.isBlank() && !contentType.equals("application/pdf"))) {
+            throw new IllegalArgumentException("Apenas arquivos PDF sao permitidos.");
+        }
+    }
+
+    private void validarZip(MultipartFile zipFile) {
+        if (zipFile == null || zipFile.isEmpty()) {
+            throw new IllegalArgumentException("Arquivo ZIP vazio.");
+        }
+        if (zipFile.getSize() > uploadSecurityProperties.carteiraBatchZipMaxBytes()) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP excede o limite permitido.");
+        }
+
+        String nomeArquivo = zipFile.getOriginalFilename() == null ? "" : zipFile.getOriginalFilename().toLowerCase();
+        if (!nomeArquivo.endsWith(".zip")) {
+            throw new IllegalArgumentException("Apenas arquivos ZIP sao permitidos.");
+        }
     }
     
     private void addDetalhe(BatchResultDTO resultado, String arquivo, String cpf, boolean sucesso, String mensagem) {

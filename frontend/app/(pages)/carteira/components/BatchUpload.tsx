@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Upload, FileText, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { formatBytes, UPLOAD_LIMITS, validateBatchPdfs, validateBatchZip } from "@/app/_lib/uploadLimits";
 import { enviarBatchFiles, enviarBatchZip, BatchResult } from "../services/carteiraService";
 
 export default function BatchUpload() {
@@ -15,17 +16,31 @@ export default function BatchUpload() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const fileList = Array.from(e.target.files);
-      setFiles(fileList);
-      setResult(null);
-      setError(null);
+      try {
+        validateBatchPdfs(fileList);
+        setFiles(fileList);
+        setResult(null);
+        setError(null);
+      } catch (err) {
+        setFiles([]);
+        e.target.value = "";
+        setError(err instanceof Error ? err.message : "Arquivos invalidos");
+      }
     }
   };
 
   const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFiles([e.target.files[0]]);
-      setResult(null);
-      setError(null);
+      try {
+        validateBatchZip(e.target.files[0]);
+        setFiles([e.target.files[0]]);
+        setResult(null);
+        setError(null);
+      } catch (err) {
+        setFiles([]);
+        e.target.value = "";
+        setError(err instanceof Error ? err.message : "ZIP invalido");
+      }
     }
   };
 
@@ -114,6 +129,9 @@ export default function BatchUpload() {
               onChange={handleFileChange}
               className="mt-1 block w-full rounded-lg border border-gray-300 p-2 text-sm"
             />
+            <p className="mt-2 text-xs text-gray-500">
+              Max. {UPLOAD_LIMITS.carteiraBatchMaxFiles} PDFs, {formatBytes(UPLOAD_LIMITS.carteiraBatchPdfMaxBytes)} por arquivo
+            </p>
             {files.length > 0 && (
               <div className="mt-4">
                 <p className="text-sm text-gray-600">{files.length} arquivo(s) selecionado(s)</p>
@@ -151,7 +169,7 @@ export default function BatchUpload() {
               </div>
             )}
             <p className="mt-2 text-xs text-gray-500">
-              O ZIP deve conter apenas arquivos PDF com nome = CPF
+              O ZIP deve conter apenas PDFs com nome = CPF. Max. {formatBytes(UPLOAD_LIMITS.carteiraBatchZipMaxBytes)}
             </p>
           </div>
         )}

@@ -2,6 +2,7 @@ package com.sicpr.backend.auth.service;
 
 import com.sicpr.backend.auth.dto.*;
 import com.sicpr.backend.security.JwtService;
+import com.sicpr.backend.security.RoleUtils;
 import com.sicpr.backend.user.model.User;
 import com.sicpr.backend.user.repository.UserRepository;
 import com.sicpr.backend.user.service.UserService;
@@ -54,7 +55,8 @@ public class AuthService {
         userService.resetTentativasFalhas(user.getUsername());
         userService.registrarUltimoLogin(user.getUsername());
 
-        String token = jwtService.generateToken(user.getUsername());
-        return new AuthResponse(token, user.getUsername(), user.getPerfil());
+        String perfil = RoleUtils.normalizeRole(user.getPerfil());
+        String token = jwtService.generateToken(user.getUsername(), perfil);
+        return new AuthResponse(token, user.getUsername(), perfil, RoleUtils.authorityFor(perfil));
     }
 }

@@ -1,5 +1,6 @@
 // frontend/app/carteira/services/carteiraService.ts
 import { apiFetch, getAuthHeaders, getAuthToken, throwIfNotOk } from "@/app/_lib/http";
+import { validateBatchPdfs, validateBatchZip, validateCarteiraPhoto } from "@/app/_lib/uploadLimits";
 import {
   CarteiraResponse,
   CarteiraRequest,
@@ -35,6 +36,7 @@ export async function cadastrarCarteira(data: CarteiraRequest): Promise<Carteira
   if (data.fotos) {
     data.fotos.forEach((foto) => {
       if (foto) {
+        validateCarteiraPhoto(foto);
         formData.append("fotos", foto);
       }
     });
@@ -184,6 +186,8 @@ export async function buscarEstatisticas(): Promise<CarteiraEstatistica> {
 
 // CORRIGIDO: método para enviar múltiplos arquivos PDF
 export async function enviarBatchFiles(files: File[]): Promise<BatchResult> {
+  validateBatchPdfs(files);
+
   const formData = new FormData();
   files.forEach(file => {
     formData.append("files", file);
@@ -199,6 +203,8 @@ export async function enviarBatchFiles(files: File[]): Promise<BatchResult> {
 
 // CORRIGIDO: método para enviar arquivo ZIP
 export async function enviarBatchZip(file: File): Promise<BatchResult> {
+  validateBatchZip(file);
+
   const formData = new FormData();
   formData.append("file", file);
   

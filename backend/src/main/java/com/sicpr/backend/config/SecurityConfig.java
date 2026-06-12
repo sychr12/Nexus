@@ -2,6 +2,8 @@
 package com.sicpr.backend.config;
 
 import com.sicpr.backend.security.JwtAuthFilter;
+import com.sicpr.backend.security.RoleUtils;
+import com.sicpr.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +13,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -59,12 +64,12 @@ public class SecurityConfig {
                 // CARTEIRAS
                 .requestMatchers(
                     "/api/carteira/**"
-                ).authenticated()
+                ).hasAnyRole("ADMIN", "GERENTE", "TECNICO", "USUARIO")
 
                 // MEMORANDOS
                 .requestMatchers(
                     "/api/memorandos/**"
-                ).authenticated()
+                ).hasAnyRole("ADMIN", "GERENTE", "TECNICO", "USUARIO")
 
                 // INSCRICOES
                 .requestMatchers(
@@ -75,21 +80,35 @@ public class SecurityConfig {
                     HttpMethod.GET,
                     "/api/inscricoes"
                 ).permitAll()
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/inscricoes/web"
+                ).hasAnyRole("ADMIN", "GERENTE", "TECNICO")
+
+                // USUARIOS
+                .requestMatchers(
+                    "/api/users/**"
+                ).hasRole("ADMIN")
+
+                // EMAILS
+                .requestMatchers(
+                    "/api/email/**"
+                ).hasRole("ADMIN")
 
                 // ENCAMINHAMENTOS DE ANALISE
                 .requestMatchers(
                     "/api/encaminhamentos-analise/**"
-                ).authenticated()
+                ).hasAnyRole("ADMIN", "GERENTE", "TECNICO", "USUARIO")
 
                 // FLUXO SICPR
                 .requestMatchers(
                     "/api/fluxo/**"
-                ).authenticated()
+                ).hasAnyRole("ADMIN", "GERENTE", "TECNICO", "USUARIO")
 
                 // DASHBOARD
                 .requestMatchers(
                     "/api/dashboard/**"
-                ).authenticated()
+                ).hasAnyRole("ADMIN", "GERENTE", "TECNICO", "USUARIO")
 
                 // ERRO
                 .requestMatchers(
@@ -143,5 +162,20 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService(UserRepository userRepository) {
+        return username -> userRepository.findByUsername(username)
+            .map(user -> new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword(),
+                "ATIVO".equals(user.getStatus()),
+                true,
+                true,
+                true,
+                java.util.List.of(new SimpleGrantedAuthority(RoleUtils.authorityFor(user.getPerfil())))
+            ))
+            .orElseThrow(() -> new UsernameNotFoundException("Usuario nao encontrado"));
     }
 }

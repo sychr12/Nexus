@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "@/app/_components/layout/Sidebar";
+import { formatBytes, UPLOAD_LIMITS, validateMessageAttachment } from "@/app/_lib/uploadLimits";
 import { userService } from "../users/services/user.service";
 import { mensagemService } from "./services/mensagem.service";
 import type { Mensagem, MensagemUser } from "./types/mensagem";
@@ -77,7 +78,8 @@ export default function MensagensPage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    const mountTimer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(mountTimer);
   }, []);
 
   const loadData = useCallback(async (storedUsername?: string) => {
@@ -486,8 +488,25 @@ export default function MensagensPage() {
                         type="file"
                         accept="image/*,audio/*,video/*"
                         className="hidden"
-                        onChange={(event) => setAnexo(event.target.files?.[0] || null)}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+                          if (!file) {
+                            setAnexo(null);
+                            return;
+                          }
+
+                          try {
+                            validateMessageAttachment(file);
+                            setAnexo(file);
+                            setError("");
+                          } catch (err) {
+                            setAnexo(null);
+                            event.target.value = "";
+                            setError(err instanceof Error ? err.message : "Anexo invalido");
+                          }
+                        }}
                       />
+                      <span className="text-xs text-slate-400">Max. {formatBytes(UPLOAD_LIMITS.messageAttachmentMaxBytes)}</span>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}

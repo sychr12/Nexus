@@ -3,6 +3,7 @@ package com.sicpr.backend.inscricao.controller;
 import com.sicpr.backend.inscricao.dto.InscricaoRequest;
 import com.sicpr.backend.inscricao.dto.InscricaoResponse;
 import com.sicpr.backend.inscricao.service.InscricaoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,7 +18,7 @@ public class InscricaoController {
     private final InscricaoService service;
 
     @PostMapping
-    public InscricaoResponse salvar(@RequestBody InscricaoRequest request) {
+    public InscricaoResponse salvar(@Valid @RequestBody InscricaoRequest request) {
         return service.salvar(request);
     }
 

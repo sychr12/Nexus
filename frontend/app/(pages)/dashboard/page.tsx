@@ -1,460 +1,589 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { PieChart as PieChartIcon, Activity, FileText, ChevronRight, TrendingUp } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
-  LineChart,
-  Line,
-  BarChart,
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  CreditCard,
+  FileText,
+  Layers,
+  RefreshCw,
+  ShieldAlert,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import {
   Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
 import Sidebar from "@/app/_components/layout/Sidebar";
-
-import StatsCards from "./components/StatsCards";
-import UsersOnline from "./components/UsersOnline";
-import RecentActivities from "./components/RecentActivities";
-import { dashboardApi } from "./lib/api";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
+import { dashboardApi } from "./lib/api";
 import {
-  DashboardStats,
-  UsuarioAtivo,
   AtividadeRecente,
-  TopCategoria,
-  Relatorio,
+  ChartData,
+  DashboardStats,
   Notificacao,
+  Relatorio,
+  TopCategoria,
+  UsuarioAtivo,
 } from "./lib/types";
 
-// Animações CSS
-const animations = `
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes fadeInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-`;
-
-// Nova paleta de cores
 const COLORS = {
-  primary: "#2D452F",
-  secondary: "#4C6A4B",
-  accent: "#6B9D4A",
-  light: "#CFE2CE",
-  background: "#F5F7F5",
-  card: "#FFFFFF",
-  text: "#1A2E1B",
-  textLight: "#6B7C6A",
+  background: "#F6F8F6",
+  panel: "#FFFFFF",
+  border: "#DDE6DC",
+  primary: "#245136",
+  primarySoft: "#E6F2EA",
+  text: "#17251B",
+  muted: "#65756A",
+  blue: "#2563EB",
+  amber: "#B7791F",
+  red: "#C2410C",
+  green: "#16803C",
+  slate: "#475569",
 };
 
-const CAT_COLORS = ["#6B9D4A", "#4C6A4B", "#2D452F", "#8DB87C"];
+type DashboardState = {
+  stats: DashboardStats;
+  usuarios: UsuarioAtivo[];
+  atividades: AtividadeRecente[];
+  categorias: TopCategoria[];
+  relatorios: Relatorio[];
+  notificacoes: Notificacao[];
+  chart: ChartData;
+};
 
 export default function DashboardPage() {
   const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [usuarios, setUsuarios] = useState<UsuarioAtivo[]>([]);
-  const [atividades, setAtividades] = useState<AtividadeRecente[]>([]);
-  const [categorias, setCategorias] = useState<TopCategoria[]>([]);
-  const [relatorios, setRelatorios] = useState<Relatorio[]>([]);
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
+  const [data, setData] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [animated, setAnimated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const [lineChartData, setLineChartData] = useState([
-    { mes: "Jan", receita: 42000, despesa: 28000 },
-    { mes: "Fev", receita: 45000, despesa: 30000 },
-    { mes: "Mar", receita: 48000, despesa: 32000 },
-    { mes: "Abr", receita: 52000, despesa: 31000 },
-    { mes: "Mai", receita: 55000, despesa: 35000 },
-    { mes: "Jun", receita: 58000, despesa: 34000 },
-  ]);
-
-  const [barChartData, setBarChartData] = useState([
-    { categoria: "Combustível", valor: 36 },
-    { categoria: "Insumos", valor: 25 },
-    { categoria: "Serviços", valor: 20 },
-    { categoria: "Outros", valor: 19 },
-  ]);
-
   useEffect(() => {
-    setMounted(true);
+    const timer = window.setTimeout(() => {
+      setMounted(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-    
-    if (!document.getElementById("dashboard-animations")) {
-      const style = document.createElement("style");
-      style.id = "dashboard-animations";
-      style.textContent = animations;
-      document.head.appendChild(style);
-    }
-  }, [mounted]);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-  useEffect(() => {
-    if (!ready || !mounted) return;
-    loadAll();
-    
-    // Ativa animações após carregamento
-    setTimeout(() => setAnimated(true), 100);
-  }, [ready, mounted]);
-
-  async function loadAll() {
     try {
-      setLoading(true);
-      const [s, u, a, c, r, n] = await Promise.all([
+      const [stats, usuarios, atividades, categorias, relatorios, notificacoes, chart] = await Promise.all([
         dashboardApi.getStats(),
         dashboardApi.getUsuariosAtivos(),
         dashboardApi.getAtividadesRecentes(),
         dashboardApi.getTopCategorias(),
         dashboardApi.getRelatorios(),
         dashboardApi.getNotificacoes(),
+        dashboardApi.getChartData(),
       ]);
-      setStats(s);
-      setUsuarios(u);
-      setAtividades(a);
-      setCategorias(c);
-      setRelatorios(r);
-      setNotificacoes(n);
-      
-      if (c && c.length > 0) {
-        setBarChartData(c.map(cat => ({ categoria: cat.nome, valor: cat.total })));
-      }
-    } catch (err) {
-      console.error("Erro ao carregar:", err);
+
+      setData({ stats, usuarios, atividades, categorias, relatorios, notificacoes, chart });
+    } catch {
+      setError("Nao foi possivel carregar os dados do dashboard.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  if (!mounted || loading || !ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.background }}>
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderBottomColor: COLORS.primary }} />
-      </div>
-    );
+  useEffect(() => {
+    if (!ready || !mounted) return;
+
+    const timer = window.setTimeout(() => {
+      void loadDashboard();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadDashboard, mounted, ready]);
+
+  const chartRows = data?.chart.dias.map((dia, index) => ({ dia, total: data.chart.valores[index] ?? 0 })) ?? [];
+  const statusTotal = data?.categorias.reduce((total, item) => total + item.total, 0) ?? 0;
+
+  if (!mounted || !ready) {
+    return <LoadingScreen />;
   }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <Sidebar 
-        onLogout={logout} 
-        username={username || "Usuário"} 
+      <Sidebar
+        onLogout={logout}
+        username={username || "Usuario"}
         onCollapsedChange={setSidebarCollapsed}
       />
 
-      {/* Conteúdo principal com margem dinâmica para o sidebar */}
-      <main 
-        className="transition-all duration-300 min-h-screen"
-        style={{ marginLeft: sidebarCollapsed ? '72px' : '260px' }}
+      <main
+        className="min-h-screen transition-all duration-300"
+        style={{ marginLeft: sidebarCollapsed ? "72px" : "260px" }}
       >
-        <div className="px-4 sm:px-6 lg:px-8 py-8">
-          <div className="space-y-8">
-            {/* TÍTULO DO DASHBOARD */}
-            <div style={{ animation: animated ? "fadeInUp 0.5s ease-out" : "none" }}>
-              <h1 className="text-3xl font-bold tracking-tight" style={{ color: COLORS.primary }}>
-                Dashboard
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold" style={{ color: COLORS.text }}>
+                Dashboard operacional
               </h1>
-              <p className="text-sm mt-1" style={{ color: COLORS.textLight }}>
-                Visão geral do sistema e métricas principais
+              <p className="mt-1 text-sm" style={{ color: COLORS.muted }}>
+                Ultimo acesso registrado: {data?.stats.ultimoAcesso ?? "-"}
               </p>
             </div>
-
-            {/* Stats Cards com animação */}
-            <div style={{ animation: animated ? "fadeInUp 0.6s ease-out 0.1s both" : "none" }}>
-              {stats && <StatsCards stats={stats} />}
-            </div>
-
-            {/* 2 GRÁFICOS LADO A LADO */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Gráfico de Linha */}
-              <div 
-                className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                style={{ 
-                  backgroundColor: COLORS.card, 
-                  borderColor: COLORS.light,
-                  animation: animated ? "fadeInLeft 0.6s ease-out 0.2s both" : "none"
-                }}
-              >
-                <div className="flex items-center gap-2 mb-6">
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
-                    style={{ backgroundColor: `${COLORS.primary}10` }}
-                  >
-                    <TrendingUp size={18} style={{ color: COLORS.primary }} />
-                  </div>
-                  <h3 className="font-semibold transition-colors duration-300" style={{ color: COLORS.text }}>Receita vs Despesa</h3>
-                </div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={lineChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.light} />
-                    <XAxis dataKey="mes" stroke={COLORS.textLight} fontSize={12} />
-                    <YAxis stroke={COLORS.textLight} fontSize={12} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: COLORS.card,
-                        border: `1px solid ${COLORS.light}`,
-                        borderRadius: "8px",
-                        color: COLORS.text,
-                      }}
-                    />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="receita" 
-                      name="Receita (R$)" 
-                      stroke={COLORS.primary} 
-                      strokeWidth={2} 
-                      dot={{ fill: COLORS.primary, r: 4 }}
-                      animationDuration={1500}
-                      animationBegin={300}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="despesa" 
-                      name="Despesa (R$)" 
-                      stroke={COLORS.accent} 
-                      strokeWidth={2} 
-                      dot={{ fill: COLORS.accent, r: 4 }}
-                      animationDuration={1500}
-                      animationBegin={500}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Gráfico de Barras */}
-              <div 
-                className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                style={{ 
-                  backgroundColor: COLORS.card, 
-                  borderColor: COLORS.light,
-                  animation: animated ? "fadeInRight 0.6s ease-out 0.2s both" : "none"
-                }}
-              >
-                <div className="flex items-center gap-2 mb-6">
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
-                    style={{ backgroundColor: `${COLORS.accent}10` }}
-                  >
-                    <PieChartIcon size={18} style={{ color: COLORS.accent }} />
-                  </div>
-                  <h3 className="font-semibold transition-colors duration-300" style={{ color: COLORS.text }}>Top Categorias</h3>
-                </div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.light} />
-                    <XAxis dataKey="categoria" stroke={COLORS.textLight} fontSize={12} />
-                    <YAxis stroke={COLORS.textLight} fontSize={12} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: COLORS.card,
-                        border: `1px solid ${COLORS.light}`,
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Bar 
-                      dataKey="valor" 
-                      name="Percentual (%)" 
-                      fill={COLORS.accent} 
-                      radius={[8, 8, 0, 0]} 
-                      animationDuration={1500}
-                      animationBegin={300}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Cards complementares */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* UsersOnline com animação */}
-              <div style={{ animation: animated ? "fadeInUp 0.5s ease-out 0.3s both" : "none" }}>
-                {usuarios.length > 0 && <UsersOnline users={usuarios} />}
-              </div>
-
-              {/* Distribuição */}
-              {categorias.length > 0 && (
-                <div 
-                  className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                  style={{ 
-                    backgroundColor: COLORS.card, 
-                    borderColor: COLORS.light,
-                    animation: animated ? "fadeInUp 0.5s ease-out 0.4s both" : "none"
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-6">
-                    <div 
-                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
-                      style={{ backgroundColor: `${COLORS.secondary}10` }}
-                    >
-                      <PieChartIcon size={18} style={{ color: COLORS.secondary }} />
-                    </div>
-                    <h3 className="font-semibold" style={{ color: COLORS.text }}>Distribuição</h3>
-                  </div>
-                  <div className="space-y-4">
-                    {categorias.map((cat, i) => (
-                      <div 
-                        key={i} 
-                        className="transition-all duration-300 hover:translate-x-1"
-                        style={{ animation: animated ? `fadeInRight 0.3s ease-out ${i * 0.1 + 0.5}s both` : "none" }}
-                      >
-                        <div className="flex justify-between text-sm mb-1">
-                          <span style={{ color: COLORS.textLight }}>{cat.nome}</span>
-                          <span className="font-medium" style={{ color: COLORS.text }}>{cat.total}%</span>
-                        </div>
-                        <div className="w-full rounded-full h-2" style={{ backgroundColor: COLORS.light }}>
-                          <div 
-                            className="h-2 rounded-full transition-all duration-1000 ease-out"
-                            style={{ 
-                              width: `${cat.total}%`, 
-                              backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
-                              animation: animated ? "slideIn 0.8s ease-out" : "none"
-                            }} 
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Evolução Mensal */}
-              <div 
-                className="rounded-xl shadow-sm border p-6 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                style={{ 
-                  backgroundColor: COLORS.card, 
-                  borderColor: COLORS.light,
-                  animation: animated ? "fadeInUp 0.5s ease-out 0.5s both" : "none"
-                }}
-              >
-                <div className="flex items-center gap-2 mb-6">
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110" 
-                    style={{ backgroundColor: `${COLORS.primary}10` }}
-                  >
-                    <Activity size={18} style={{ color: COLORS.primary }} />
-                  </div>
-                  <h3 className="font-semibold" style={{ color: COLORS.text }}>Evolução Mensal</h3>
-                  <div 
-                    className="ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-all duration-300 hover:scale-105"
-                    style={{ backgroundColor: `${COLORS.accent}20`, color: COLORS.accent }}
-                  >
-                    <TrendingUp size={12} className="animate-pulse" />
-                    <span>+12%</span>
-                  </div>
-                </div>
-                <div className="h-48 flex items-center justify-center">
-                  <div className="text-center transition-all duration-300 hover:scale-105">
-                    <Activity size={40} style={{ color: COLORS.textLight }} />
-                    <p className="text-sm mt-2" style={{ color: COLORS.textLight }}>Mais dados em breve</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Activities */}
-              <div style={{ animation: animated ? "fadeInUp 0.5s ease-out 0.6s both" : "none" }}>
-                {atividades.length > 0 && <RecentActivities activities={atividades} />}
-              </div>
-
-              {/* Relatórios */}
-              {relatorios.length > 0 && (
-                <div 
-                  className="rounded-xl shadow-sm border transition-all duration-300 hover:shadow-lg"
-                  style={{ 
-                    backgroundColor: COLORS.card, 
-                    borderColor: COLORS.light,
-                    animation: animated ? "fadeInUp 0.5s ease-out 0.7s both" : "none"
-                  }}
-                >
-                  <div className="p-6 border-b" style={{ borderBottomColor: COLORS.light }}>
-                    <div className="flex items-center gap-2">
-                      <FileText size={18} style={{ color: COLORS.accent }} />
-                      <h3 className="font-semibold" style={{ color: COLORS.text }}>Relatórios</h3>
-                    </div>
-                  </div>
-                  <div className="divide-y" style={{ borderColor: COLORS.light }}>
-                    {relatorios.map((rel, i) => (
-                      <div 
-                        key={i} 
-                        className="p-4 hover:bg-gray-50 flex items-center justify-between transition-all duration-300 hover:translate-x-1 cursor-pointer"
-                        style={{ animation: animated ? `fadeInRight 0.3s ease-out ${i * 0.1 + 0.7}s both` : "none" }}
-                      >
-                        <div>
-                          <p className="text-sm font-medium transition-colors duration-300" style={{ color: COLORS.text }}>{rel.nome}</p>
-                          <p className="text-xs" style={{ color: COLORS.textLight }}>{rel.descricao}</p>
-                        </div>
-                        <ChevronRight 
-                          size={16} 
-                          style={{ color: COLORS.textLight }} 
-                          className="transition-all duration-300 group-hover:translate-x-1" 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={loadDashboard}
+              disabled={loading}
+              className="inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium transition hover:bg-white disabled:opacity-60"
+              style={{ borderColor: COLORS.border, color: COLORS.primary }}
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              Atualizar
+            </button>
           </div>
+
+          {loading && <LoadingPanel />}
+
+          {!loading && error && (
+            <ErrorPanel message={error} onRetry={loadDashboard} />
+          )}
+
+          {!loading && !error && data && (
+            <div className="space-y-6">
+              <SummaryGrid stats={data.stats} />
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,0.8fr)]">
+                <Panel title="Movimentacoes dos ultimos 30 dias" icon={Activity}>
+                  {chartRows.some((item) => item.total > 0) ? (
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartRows}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                          <XAxis dataKey="dia" stroke={COLORS.muted} fontSize={12} />
+                          <YAxis allowDecimals={false} stroke={COLORS.muted} fontSize={12} />
+                          <Tooltip />
+                          <Line
+                            type="monotone"
+                            dataKey="total"
+                            name="Movimentacoes"
+                            stroke={COLORS.primary}
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 5 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyState text="Sem movimentacoes nos ultimos 30 dias." />
+                  )}
+                </Panel>
+
+                <Panel title="Fila operacional" icon={Layers}>
+                  <StatusList categorias={data.categorias} total={statusTotal} />
+                </Panel>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <Panel title="Processos por situacao" icon={FileText} className="xl:col-span-2">
+                  {data.categorias.some((item) => item.total > 0) ? (
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data.categorias}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                          <XAxis dataKey="nome" stroke={COLORS.muted} fontSize={11} interval={0} />
+                          <YAxis allowDecimals={false} stroke={COLORS.muted} fontSize={12} />
+                          <Tooltip />
+                          <Bar dataKey="total" name="Processos" fill={COLORS.primary} radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <EmptyState text="Nenhum processo registrado no fluxo." />
+                  )}
+                </Panel>
+
+                <Panel title="Alertas" icon={ShieldAlert}>
+                  <NotificationList notificacoes={data.notificacoes} />
+                </Panel>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <Panel title="Atividades recentes" icon={Clock3} className="xl:col-span-2">
+                  <ActivityList atividades={data.atividades} />
+                </Panel>
+
+                <div className="space-y-6">
+                  <Panel title="Usuarios online" icon={Users}>
+                    <UsersOnlineList usuarios={data.usuarios} />
+                  </Panel>
+
+                  <Panel title="Relatorios" icon={FileText}>
+                    <ReportList relatorios={data.relatorios} />
+                  </Panel>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
   );
+}
+
+function SummaryGrid({ stats }: { stats: DashboardStats }) {
+  const cards = [
+    {
+      label: "Inscricoes",
+      value: stats.totalInscricoes,
+      detail: `${stats.inscricoesHoje} hoje`,
+      icon: FileText,
+      tone: COLORS.blue,
+    },
+    {
+      label: "Aguardando gerente",
+      value: stats.processosGerente,
+      detail: "fila de aprovacao",
+      icon: Clock3,
+      tone: COLORS.amber,
+    },
+    {
+      label: "Em analise",
+      value: stats.processosAnalise,
+      detail: "analise tecnica",
+      icon: Activity,
+      tone: COLORS.primary,
+    },
+    {
+      label: "Aguardando lancamento",
+      value: stats.processosLancamento,
+      detail: "prontos para finalizar",
+      icon: CheckCircle2,
+      tone: COLORS.green,
+    },
+    {
+      label: "Carteiras emitidas",
+      value: stats.totalCartoes,
+      detail: `${stats.cartoesHoje} hoje`,
+      icon: CreditCard,
+      tone: COLORS.slate,
+    },
+    {
+      label: "Usuarios bloqueados",
+      value: stats.usuariosBloqueados,
+      detail: `${stats.usuariosAtivos} ativos`,
+      icon: ShieldAlert,
+      tone: stats.usuariosBloqueados > 0 ? COLORS.red : COLORS.green,
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      {cards.map((card) => {
+        const Icon = card.icon;
+        return (
+          <div key={card.label} className="rounded-lg border bg-white p-4" style={{ borderColor: COLORS.border }}>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-medium" style={{ color: COLORS.muted }}>{card.label}</span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-md" style={{ backgroundColor: COLORS.primarySoft }}>
+                <Icon size={18} style={{ color: card.tone }} />
+              </span>
+            </div>
+            <div className="text-2xl font-semibold" style={{ color: COLORS.text }}>{formatNumber(card.value)}</div>
+            <div className="mt-1 text-xs" style={{ color: COLORS.muted }}>{card.detail}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusList({ categorias, total }: { categorias: TopCategoria[]; total: number }) {
+  if (!categorias.some((item) => item.total > 0)) {
+    return <EmptyState text="Sem processos na fila operacional." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {categorias.map((item) => {
+        const percent = total > 0 ? Math.round((item.total / total) * 100) : 0;
+        return (
+          <div key={item.nome}>
+            <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium" style={{ color: COLORS.text }}>{item.nome}</span>
+              <span style={{ color: COLORS.muted }}>{formatNumber(item.total)} | {percent}%</span>
+            </div>
+            <div className="h-2 rounded-full" style={{ backgroundColor: COLORS.primarySoft }}>
+              <div
+                className="h-2 rounded-full"
+                style={{ width: `${percent}%`, backgroundColor: COLORS.primary }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ActivityList({ atividades }: { atividades: AtividadeRecente[] }) {
+  if (atividades.length === 0) {
+    return <EmptyState text="Nenhuma atividade recente registrada." />;
+  }
+
+  return (
+    <div className="divide-y" style={{ borderColor: COLORS.border }}>
+      {atividades.map((atividade, index) => (
+        <div key={`${atividade.tipo}-${atividade.dataHora}-${index}`} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+          <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-md" style={{ backgroundColor: COLORS.primarySoft }}>
+            <Activity size={16} style={{ color: COLORS.primary }} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium" style={{ color: COLORS.text }}>{sanitizeActivityDescription(atividade.descricao)}</p>
+            <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>
+              {atividade.usuario} | {formatDateTime(atividade.dataHora)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UsersOnlineList({ usuarios }: { usuarios: UsuarioAtivo[] }) {
+  if (usuarios.length === 0) {
+    return <EmptyState text="Nenhum usuario online agora." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {usuarios.map((usuario) => (
+        <div key={usuario.username} className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium" style={{ color: COLORS.text }}>{usuario.nome}</p>
+            <p className="truncate text-xs" style={{ color: COLORS.muted }}>@{usuario.username} | {usuario.perfil}</p>
+          </div>
+          <span className="rounded-full px-2 py-1 text-xs font-medium" style={{ backgroundColor: COLORS.primarySoft, color: COLORS.green }}>
+            {usuario.tempoOnline}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NotificationList({ notificacoes }: { notificacoes: Notificacao[] }) {
+  if (notificacoes.length === 0) {
+    return <EmptyState text="Nenhum alerta operacional no momento." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {notificacoes.map((notificacao) => (
+        <div key={`${notificacao.titulo}-${notificacao.mensagem}`} className="rounded-md border p-3" style={{ borderColor: COLORS.border }}>
+          <div className="flex items-start gap-2">
+            <AlertCircle size={16} style={{ color: COLORS.amber }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: COLORS.text }}>{notificacao.titulo}</p>
+              <p className="mt-1 text-xs" style={{ color: COLORS.muted }}>{notificacao.mensagem}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportList({ relatorios }: { relatorios: Relatorio[] }) {
+  if (relatorios.length === 0) {
+    return <EmptyState text="Nenhum relatorio disponivel." />;
+  }
+
+  return (
+    <div className="divide-y" style={{ borderColor: COLORS.border }}>
+      {relatorios.map((relatorio) => (
+        <Link
+          key={relatorio.nome}
+          href={relatorio.rota || rotaPadraoRelatorio(relatorio.nome)}
+          className="flex w-full items-center justify-between gap-3 py-3 text-left first:pt-0 last:pb-0"
+        >
+          <span>
+            <span className="block text-sm font-medium" style={{ color: COLORS.text }}>{relatorio.nome}</span>
+            <span className="block text-xs" style={{ color: COLORS.muted }}>{relatorio.descricao}</span>
+          </span>
+          <ChevronRight size={16} style={{ color: COLORS.muted }} />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function Panel({
+  title,
+  icon: Icon,
+  className = "",
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={`rounded-lg border bg-white p-5 ${className}`} style={{ borderColor: COLORS.border }}>
+      <div className="mb-4 flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-md" style={{ backgroundColor: COLORS.primarySoft }}>
+          <Icon size={17} style={{ color: COLORS.primary }} />
+        </span>
+        <h2 className="text-sm font-semibold" style={{ color: COLORS.text }}>{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed px-4 text-center text-sm" style={{ borderColor: COLORS.border, color: COLORS.muted }}>
+      {text}
+    </div>
+  );
+}
+
+function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border bg-white p-6" style={{ borderColor: COLORS.border }}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <AlertCircle size={22} style={{ color: COLORS.red }} />
+          <div>
+            <p className="font-semibold" style={{ color: COLORS.text }}>{message}</p>
+            <p className="mt-1 text-sm" style={{ color: COLORS.muted }}>
+              Verifique se o backend esta online e se seu usuario tem permissao para acessar o dashboard.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-white"
+          style={{ backgroundColor: COLORS.primary }}
+        >
+          <RefreshCw size={16} />
+          Tentar novamente
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function rotaPadraoRelatorio(nome: string) {
+  const normalized = nome.toLowerCase();
+
+  if (normalized.includes("inscri")) return "/tabela";
+  if (normalized.includes("carteira")) return "/carteira";
+  if (normalized.includes("memorando")) return "/memorando";
+  if (normalized.includes("processo")) return "/analises";
+  if (normalized.includes("usuario")) return "/users";
+
+  return "/dashboard";
+}
+
+function sanitizeActivityDescription(description: string) {
+  const inscricaoPrefix = "Inscricao cadastrada para ";
+
+  if (!description.startsWith(inscricaoPrefix)) {
+    return description;
+  }
+
+  const rawName = description.slice(inscricaoPrefix.length).trim();
+  const decodedName = decodeReadableBase64(rawName);
+
+  if (decodedName) {
+    return `${inscricaoPrefix}${decodedName}`;
+  }
+
+  if (looksEncoded(rawName)) {
+    return "Inscricao cadastrada";
+  }
+
+  return description;
+}
+
+function decodeReadableBase64(value: string) {
+  if (!looksEncoded(value)) {
+    return null;
+  }
+
+  try {
+    const binary = window.atob(value);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes).trim();
+
+    return isReadableText(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+function looksEncoded(value: string) {
+  return value.length >= 12 && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+
+function isReadableText(value: string) {
+  if (!value || value.length > 120) {
+    return false;
+  }
+
+  const readableChars = Array.from(value).filter((char) => /[\p{L}\s'.-]/u.test(char)).length;
+  return readableChars >= Math.max(3, Math.floor(value.length / 2));
+}
+
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: COLORS.background }}>
+      <RefreshCw size={28} className="animate-spin" style={{ color: COLORS.primary }} />
+    </div>
+  );
+}
+
+function LoadingPanel() {
+  return (
+    <div className="rounded-lg border bg-white p-8 text-center" style={{ borderColor: COLORS.border, color: COLORS.muted }}>
+      <RefreshCw size={24} className="mx-auto mb-3 animate-spin" style={{ color: COLORS.primary }} />
+      Carregando dashboard...
+    </div>
+  );
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR").format(value ?? 0);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

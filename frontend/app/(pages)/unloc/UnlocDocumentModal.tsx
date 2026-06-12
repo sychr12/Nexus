@@ -86,6 +86,7 @@ export default function UnlocDocumentModal({
             value={value}
             onChange={(event) => updateField(campo.key, event.target.value)}
             placeholder={campo.placeholder}
+            maxLength={campo.maxLength}
             rows={3}
             className="w-full resize-y rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
             style={fieldStyle}
@@ -96,6 +97,7 @@ export default function UnlocDocumentModal({
             value={value}
             onChange={(event) => updateField(campo.key, event.target.value)}
             placeholder={campo.placeholder}
+            maxLength={campo.maxLength}
             className="w-full rounded-md border px-3 py-2 text-sm outline-none transition focus:ring-4 focus:ring-[#6B9D4A]/10"
             style={fieldStyle}
           />

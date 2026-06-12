@@ -11,13 +11,11 @@ import {
   PieChart,
   BarChart3,
   LogOut,
-  Bell,
   User,
   Menu,
   X,
   Home,
   Search,
-  Paperclip,
   Key,
   Building2,
   UserCheck,
@@ -48,7 +46,6 @@ const MENU_ITEMS = [
   // Aba Adicionar pausada temporariamente. Mantida no projeto para reativacao futura.
   // { id: "adicionar", label: "Adicionar", icon: PlusCircle, href: "/adicionar" },
   { id: "consultar", label: "Consultar", icon: Search, href: "/tabela" },
-  { id: "anexar", label: "Anexar", icon: Paperclip, href: "/anexar" },
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
   { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
   { id: "mensagens", label: "Mensagens", icon: MessageCircle, href: "/mensagens" },
@@ -127,21 +124,28 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
   const setCollapsed = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
     setCollapsedState((prev) => {
       const newValue = typeof value === 'function' ? value(prev) : value;
-      onCollapsedChange?.(newValue);
       return newValue;
     });
-  }, [onCollapsedChange]);
+  }, []);
 
   useEffect(() => {
-    setMounted(true);
-    // Recuperar estado salvo do localStorage
-    const saved = localStorage.getItem("sidebar-collapsed");
-    if (saved !== null) {
-      const savedValue = saved === "true";
-      setCollapsedState(savedValue);
-      onCollapsedChange?.(savedValue);
-    }
-  }, [onCollapsedChange]);
+    const mountTimer = window.setTimeout(() => {
+      setMounted(true);
+      // Recuperar estado salvo do localStorage
+      const saved = localStorage.getItem("sidebar-collapsed");
+      if (saved !== null) {
+        const savedValue = saved === "true";
+        setCollapsedState(savedValue);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(mountTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    onCollapsedChange?.(collapsed);
+  }, [collapsed, mounted, onCollapsedChange]);
 
   // Salvar estado no localStorage quando mudar
   useEffect(() => {
@@ -153,7 +157,7 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
   useEffect(() => {
     if (!mounted) return;
     
-    setCurrentTime(new Date());
+    const initialTimer = window.setTimeout(() => setCurrentTime(new Date()), 0);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     
     if (!document.getElementById("sidebar-animations")) {
@@ -163,14 +167,17 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
       document.head.appendChild(style);
     }
     
-    return () => clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialTimer);
+      clearInterval(timer);
+    };
   }, [mounted]);
 
   const handleNavigation = useCallback((href: string) => {
     if (!mounted) return;
     try {
       router.push(href);
-    } catch (error) {
+    } catch {
       window.location.href = href;
     }
     setMobileMenuOpen(false);

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +38,12 @@ public class UserService {
     @SuppressWarnings("null")
     @Transactional
     public User create(User user) {
+        if (!StringUtils.hasText(user.getUsername())) {
+            throw new IllegalArgumentException("Username e obrigatorio");
+        }
+        if (!StringUtils.hasText(user.getPassword())) {
+            throw new IllegalArgumentException("Senha e obrigatoria");
+        }
         if (repository.findByUsername(user.getUsername()).isPresent()) {
             throw new RuntimeException("Username já existe");
         }

@@ -4,6 +4,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AlignLeft, Building2, Calendar, FileText, Hash, Image as ImageIcon, MapPin, User } from "lucide-react";
 import UnlocSelect from "@/app/_components/UnlocSelect";
+import { formatBytes, UPLOAD_LIMITS, validateCarteiraPhoto } from "@/app/_lib/uploadLimits";
 import { CarteiraRequest } from "../types/carteira";
 
 const COLORS = {
@@ -67,13 +68,20 @@ export default function FormularioCarteira({
     const novosPreviews = [...fotosPreview];
 
     if (file) {
-      novasFotos[index] = file;
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        novosPreviews[index] = reader.result as string;
-        setFotosPreview(novosPreviews);
-      };
-      reader.readAsDataURL(file);
+      try {
+        validateCarteiraPhoto(file);
+        novasFotos[index] = file;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          novosPreviews[index] = reader.result as string;
+          setFotosPreview(novosPreviews);
+        };
+        reader.readAsDataURL(file);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Foto invalida");
+        return;
+      }
     } else {
       delete novasFotos[index];
       delete novosPreviews[index];
@@ -364,7 +372,7 @@ export default function FormularioCarteira({
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500">Formatos: JPG, PNG (máx. 5MB cada)</p>
+          <p className="text-xs text-gray-500">Formatos: JPG, PNG (max. {formatBytes(UPLOAD_LIMITS.carteiraPhotoMaxBytes)} cada)</p>
         </div>
 
         <button

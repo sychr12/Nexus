@@ -12,4 +12,5 @@ import lombok.NoArgsConstructor;
 public class RelatorioDTO {
     private String nome;
     private String descricao;
+    private String rota;
 }
