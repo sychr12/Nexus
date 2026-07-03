@@ -1,6 +1,8 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
+import { Search } from 'lucide-react';
+import ClearFiltersButton from '@/app/_components/ClearFiltersButton';
+import StyledSelect from '@/app/_components/StyledSelect';
 import type { UserFilters as UserFiltersType } from '../types/user';
 
 const COLORS = {
@@ -21,6 +23,15 @@ interface UserFiltersProps {
 
 export default function UserFilters({ filters, setFilters }: UserFiltersProps) {
   const hasActiveFilters = filters.search || filters.perfil || filters.status;
+  const selectColors = {
+    accent: COLORS.accent,
+    card: COLORS.card,
+    border: COLORS.border,
+    inputBg: COLORS.rowAlt,
+    text: COLORS.primary,
+    textLight: COLORS.textLight,
+    hoverBg: "#F0F4EE",
+  };
 
   const clearFilters = () => {
     setFilters({ search: '', perfil: '', status: '' });
@@ -56,18 +67,18 @@ export default function UserFilters({ filters, setFilters }: UserFiltersProps) {
           <label className="block text-xs font-medium mb-1" style={{ color: COLORS.textLight }}>
             Perfil
           </label>
-          <select
-            value={filters.perfil}
-            onChange={(e) => setFilters({ ...filters, perfil: e.target.value })}
-            className="w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2"
-            style={{ backgroundColor: COLORS.rowAlt, borderColor: COLORS.border, color: COLORS.primary }}
-          >
-            <option value="">Todos</option>
-            <option value="ADMIN">Administrador</option>
-            <option value="GERENTE">Gerente</option>
-            <option value="TECNICO">Tecnico</option>
-            <option value="USUARIO">Usuario Padrao</option>
-          </select>
+          <StyledSelect
+            value={filters.perfil || ""}
+            onChange={(value) => setFilters({ ...filters, perfil: value })}
+            options={[
+              { value: "", label: "Todos" },
+              { value: "ADMIN", label: "Administrador" },
+              { value: "GERENTE", label: "Gerente" },
+              { value: "TECNICO", label: "Técnico" },
+              { value: "USUARIO", label: "Usuário" },
+            ]}
+            colors={selectColors}
+          />
         </div>
 
         {/* Filtro por Status */}
@@ -75,29 +86,22 @@ export default function UserFilters({ filters, setFilters }: UserFiltersProps) {
           <label className="block text-xs font-medium mb-1" style={{ color: COLORS.textLight }}>
             Status
           </label>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2"
-            style={{ backgroundColor: COLORS.rowAlt, borderColor: COLORS.border, color: COLORS.primary }}
-          >
-            <option value="">Todos</option>
-            <option value="ATIVO">Ativo</option>
-            <option value="INATIVO">Inativo</option>
-            <option value="BLOQUEADO">Bloqueado</option>
-          </select>
+          <StyledSelect
+            value={filters.status || ""}
+            onChange={(value) => setFilters({ ...filters, status: value })}
+            options={[
+              { value: "", label: "Todos" },
+              { value: "ATIVO", label: "Ativo" },
+              { value: "INATIVO", label: "Inativo" },
+              { value: "BLOQUEADO", label: "Bloqueado" },
+            ]}
+            colors={selectColors}
+          />
         </div>
 
         {/* Limpar Filtros */}
         {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 hover:bg-gray-100"
-            style={{ color: COLORS.accent }}
-          >
-            <X size={16} />
-            Limpar Filtros
-          </button>
+          <ClearFiltersButton onClick={clearFilters} />
         )}
       </div>
     </div>

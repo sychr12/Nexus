@@ -2,8 +2,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Image from "next/image";
 import { AlignLeft, Building2, Calendar, FileText, Hash, Image as ImageIcon, MapPin, User } from "lucide-react";
 import UnlocSelect from "@/app/_components/UnlocSelect";
+import { formatAnyDateToDateInput, formatDateInput, isValidDateInput } from "@/app/_lib/dateInput";
 import { formatBytes, UPLOAD_LIMITS, validateCarteiraPhoto } from "@/app/_lib/uploadLimits";
 import { CarteiraRequest } from "../types/carteira";
 
@@ -39,8 +41,8 @@ export default function FormularioCarteira({
     nome: initialData?.nome || "",
     propriedade: initialData?.propriedade || "",
     unloc: initialData?.unloc || "",
-    inicio: initialData?.inicio || "",
-    validade: initialData?.validade || "",
+    inicio: formatAnyDateToDateInput(initialData?.inicio || ""),
+    validade: formatAnyDateToDateInput(initialData?.validade || ""),
     endereco: initialData?.endereco || "",
     atividade1: initialData?.atividade1 || "",
     atividade2: initialData?.atividade2 || "",
@@ -113,6 +115,16 @@ export default function FormularioCarteira({
     const cpfNumeros = form.cpf.replace(/\D/g, "");
     if (cpfNumeros.length !== 11) {
       setError("CPF inválido. Deve conter 11 dígitos");
+      return;
+    }
+
+    if (form.inicio && !isValidDateInput(form.inicio)) {
+      setError("Data de inicio invalida. Use dia/mes/ano.");
+      return;
+    }
+
+    if (form.validade && !isValidDateInput(form.validade)) {
+      setError("Data de validade invalida. Use dia/mes/ano.");
       return;
     }
 
@@ -268,25 +280,39 @@ export default function FormularioCarteira({
         <div className="grid gap-4 sm:grid-cols-2">
           <InputField label="Data de Início" icon={<Calendar size={12} />} focused={focusedField === "inicio"}>
             <input
-              type="date"
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="dd/mm/aaaa"
               value={form.inicio}
-              onChange={(e) => handleChange("inicio", e.target.value)}
+              onChange={(e) => handleChange("inicio", formatDateInput(e.target.value))}
               onFocus={() => setFocusedField("inicio")}
               onBlur={() => setFocusedField(null)}
+              aria-invalid={form.inicio.length === 10 && !isValidDateInput(form.inicio)}
               className="w-full rounded-xl px-4 py-3 border text-sm"
-              style={fieldStyle("inicio")}
+              style={{
+                ...fieldStyle("inicio"),
+                borderColor: form.inicio.length === 10 && !isValidDateInput(form.inicio) ? COLORS.danger : fieldStyle("inicio").borderColor,
+              }}
             />
           </InputField>
 
           <InputField label="Data de Validade" icon={<Calendar size={12} />} focused={focusedField === "validade"}>
             <input
-              type="date"
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="dd/mm/aaaa"
               value={form.validade}
-              onChange={(e) => handleChange("validade", e.target.value)}
+              onChange={(e) => handleChange("validade", formatDateInput(e.target.value))}
               onFocus={() => setFocusedField("validade")}
               onBlur={() => setFocusedField(null)}
+              aria-invalid={form.validade.length === 10 && !isValidDateInput(form.validade)}
               className="w-full rounded-xl px-4 py-3 border text-sm"
-              style={fieldStyle("validade")}
+              style={{
+                ...fieldStyle("validade"),
+                borderColor: form.validade.length === 10 && !isValidDateInput(form.validade) ? COLORS.danger : fieldStyle("validade").borderColor,
+              }}
             />
           </InputField>
         </div>
@@ -340,9 +366,12 @@ export default function FormularioCarteira({
               <div key={index} className="space-y-2">
                 {fotosPreview[index] ? (
                   <div className="relative">
-                    <img
+                    <Image
                       src={fotosPreview[index]}
                       alt={`Preview ${index + 1}`}
+                      width={320}
+                      height={128}
+                      unoptimized
                       className="h-32 w-full rounded-lg border object-cover"
                     />
                     <button

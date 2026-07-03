@@ -5,9 +5,8 @@ import com.sicpr.backend.memorando.dto.MemorandoResponseDTO;
 import com.sicpr.backend.memorando.dto.UpdateMemorandoDTO;
 import com.sicpr.backend.memorando.entity.Memorando;
 import com.sicpr.backend.memorando.repository.MemorandoRepository;
+import com.sicpr.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -23,6 +22,7 @@ public class MemorandoService {
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final MemorandoRepository repository;
+    private final CurrentUserService currentUser;
 
     // ─── Criar ───────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ public class MemorandoService {
                                 : LocalDate.now()
                 )
                 .quantidade(0)
-                .usuario(usuarioLogado())
+                .usuario(currentUser.requireUsername())
                 .criadoEm(LocalDateTime.now())
                 .build();
 
@@ -125,24 +125,6 @@ public class MemorandoService {
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
-
-    private String usuarioLogado() {
-
-        Authentication auth =
-                SecurityContextHolder
-                        .getContext()
-                        .getAuthentication();
-
-        if (
-                auth != null
-                        && auth.isAuthenticated()
-                        && !"anonymousUser".equals(auth.getPrincipal())
-        ) {
-            return auth.getName();
-        }
-
-        return "sistema";
-    }
 
     private MemorandoResponseDTO toDTO(Memorando m) {
 

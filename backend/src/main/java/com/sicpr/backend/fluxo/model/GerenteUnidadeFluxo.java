@@ -13,8 +13,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
-
 @Entity
 @Table(name = "fluxo_gerentes_unidade")
 @Getter
@@ -50,7 +48,7 @@ public class GerenteUnidadeFluxo {
     @PrePersist
     void onCreate() {
         if (id == null || id.isBlank()) {
-            id = "ger-" + UUID.randomUUID();
+            id = FluxoIdGenerator.generate("ger");
         }
         if (status == null) {
             status = "ativo";

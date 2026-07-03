@@ -1,81 +1,65 @@
+# Frontend - SICPR
 
-# Frontend
+Interface web do SICPR, desenvolvida com Next.js App Router, React, TypeScript e Tailwind CSS.
 
-Sistema desenvolvido com [Next.js](https://nextjs.org).
+## Requisitos
 
-## 🚀 Começando
+- Node.js 20 ou superior
+- Backend rodando em `http://localhost:8080`
 
-### Pré-requisitos
-- Node.js instalado
+## Configuracao Local
 
-### Instalação e execução
-
-```bash
-# Instalar dependências
+```powershell
+Copy-Item .env.example .env.local
 npm install
-
-# Rodar em desenvolvimento
 npm run dev
 ```
 
-Acesse [http://localhost:3000](http://localhost:3000)
+Por padrao, o frontend usa:
 
-## 📁 Estrutura do projeto
-
-```
-frontend/
-├── app/
-│   ├── login/          # Tela de autenticação
-│   ├── dashboard/      # Área principal do sistema
-│   ├── services/       # Integração com API/backend
-│   └── page.tsx        # Página inicial
-├── public/             # Arquivos estáticos
-└── node_modules/       # Dependências
+```properties
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
 ```
 
-## 🔧 Funcionalidades
+## Comandos
 
-- **Login** - Autenticação de usuários
-- **Dashboard** - Painel principal após login
-- **Services** - Comunicação com o backend
-
-## 📦 Comandos úteis
-
-| Comando | Descrição |
+| Comando | Descricao |
 |---------|-----------|
-| `npm run dev` | Desenvolvimento com hot-reload |
-| `npm run build` | Build para produção |
-| `npm run start` | Executar build de produção |
-| `npm run lint` | Verificar erros de código |
+| `npm run dev` | Servidor local de desenvolvimento |
+| `npm run lint` | Verificacao ESLint |
+| `npm run build` | Build de producao |
+| `npm run start` | Executa o build gerado |
 
-## 🌐 Deploy
+## Integracao com Backend
 
-**Vercel** (recomendado)
-```bash
-npm i -g vercel
-vercel
+As chamadas HTTP passam por `app/_lib/http.ts`.
+
+- `API_BASE_URL` vem de `NEXT_PUBLIC_API_URL`.
+- Cookies sao enviados com `credentials: "include"`.
+- O JWT fica em cookie HttpOnly criado pelo backend.
+- Mutacoes recebem automaticamente o header `X-XSRF-TOKEN`.
+
+O frontend nao manipula JWT manualmente e nao deve persistir token em `localStorage`.
+
+## Organizacao
+
+```text
+frontend/app/
+├── (pages)/       # rotas visiveis da aplicacao
+├── _components/   # componentes compartilhados
+├── _features/     # logica e UI por dominio
+├── _hooks/        # hooks reutilizaveis
+├── _lib/          # HTTP, auth e utilitarios comuns
+└── _services/     # adaptadores legados/globais
 ```
 
-**Build manual**
-```bash
+Detalhes adicionais: [app/README.md](app/README.md).
+
+## Validacao Antes de Entregar
+
+```powershell
+npm run lint
 npm run build
-# A pasta .next contém os arquivos otimizados
 ```
 
-## 🛠️ Tecnologias
-
-- Next.js 15
-- React 19
-- TypeScript
-- Tailwind CSS
-
----
-
-Para mais detalhes, consulte a [documentação do Next.js](https://nextjs.org/docs).
-```
-
-Este README é:
-- ✅ Mais completo que o "bem mais simples"
-- ✅ Sem excesso de informações como o primeiro
-- ✅ Fácil de escanear visualmente
-- ✅ Útil para quem está começando no projeto
+No CI, o frontend roda com Node 20 e executa `npm ci`, `npm run lint` e `npm run build`.

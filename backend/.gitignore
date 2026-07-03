@@ -49,6 +49,7 @@ Thumbs.db
 
 # SQL Dumps / Backups
 *.sql
+!src/main/resources/db/migration/*.sql
 *.dump
 *.backup
 *.bak

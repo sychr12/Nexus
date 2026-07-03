@@ -144,6 +144,11 @@ input.login-autofill:autofill {
     margin: 7mm;
   }
 
+  @page sicpr-report-page {
+    size: A4 portrait;
+    margin: 5mm;
+  }
+
   body.sicpr-printing-document {
     background: #ffffff !important;
   }
@@ -169,6 +174,67 @@ input.login-autofill:autofill {
     margin: 0 auto !important;
     background: #ffffff !important;
     box-shadow: none !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document {
+    page: sicpr-report-page;
+    width: 196mm !important;
+    max-width: 196mm !important;
+    min-height: 0 !important;
+    padding: 6mm 10mm !important;
+    font-size: 10.5px !important;
+    line-height: 1.25 !important;
+    overflow: hidden !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document header {
+    padding-bottom: 4mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document main {
+    padding-top: 5mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .sicpr-report-logo {
+    height: 18mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document section,
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document footer {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .mt-8 {
+    margin-top: 5mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .mt-6 {
+    margin-top: 4mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .mt-5,
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .mt-4,
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .mt-3 {
+    margin-top: 3mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .p-4,
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .p-3 {
+    padding: 2.8mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-print-clone .sicpr-report-document .py-2 {
+    padding-top: 1.6mm !important;
+    padding-bottom: 1.6mm !important;
+  }
+
+  body.sicpr-printing-document .sicpr-preview-scale {
+    transform: none !important;
+    width: 100% !important;
+    min-height: auto !important;
   }
 
   body.sicpr-printing-document .sicpr-print-clone .sicpr-fac-document {

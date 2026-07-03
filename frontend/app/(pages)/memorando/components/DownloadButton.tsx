@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download, Loader2, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch } from "@/app/_lib/http";
+import { logger } from "@/app/_lib/logger";
 import { downloadMemorando } from "../services/memorando.service";
 
 const COLORS = {
@@ -83,7 +84,7 @@ export default function DownloadButton({ id, numero, unloc, disabled = false }: 
       const msg = err instanceof Error ? err.message : "Erro ao baixar";
       addHistory({ fileName, timestamp: new Date(), status: "error", errorMsg: msg });
       setShowHistory(true);
-      console.error(err);
+      logger.error("Erro ao baixar memorando", err);
     } finally {
       setIsLoading(false);
     }

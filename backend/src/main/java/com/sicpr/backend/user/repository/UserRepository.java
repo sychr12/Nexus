@@ -13,9 +13,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByStatus(String status);
 
+    long countByStatusAndUnidadeLocalIgnoreCase(String status, String unidadeLocal);
+
+    long countByUnidadeLocalIgnoreCase(String unidadeLocal);
+
     long countByUltimoLoginAfter(LocalDateTime dataHora);
 
+    long countByUltimoLoginAfterAndUnidadeLocalIgnoreCase(LocalDateTime dataHora, String unidadeLocal);
+
+    List<User> findByStatusOrderByNomeCompletoAscUsernameAsc(String status);
+
     List<User> findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc();
+
+    List<User> findTop5ByUnidadeLocalIgnoreCaseAndUltimoLoginIsNotNullOrderByUltimoLoginDesc(String unidadeLocal);
     
     // Métodos removidos porque os campos não existem no User
     // boolean existsByUsername(String username);

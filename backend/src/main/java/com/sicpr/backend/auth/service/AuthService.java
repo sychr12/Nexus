@@ -57,6 +57,6 @@ public class AuthService {
 
         String perfil = RoleUtils.normalizeRole(user.getPerfil());
         String token = jwtService.generateToken(user.getUsername(), perfil);
-        return new AuthResponse(token, user.getUsername(), perfil, RoleUtils.authorityFor(perfil));
+        return new AuthResponse(token, user.getUsername(), perfil, RoleUtils.authorityFor(perfil), user.getUnidadeLocal());
     }
 }

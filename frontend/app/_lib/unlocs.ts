@@ -73,7 +73,7 @@ export const UNLOC_OPTIONS: UnlocOption[] = Object.entries(UNLOC_CODES).map(
   ([municipio, value]) => ({
     municipio,
     value,
-    label: `${value} — ${municipio}`,
+    label: `${value} - ${municipio}`,
   })
 );
 

@@ -5,8 +5,13 @@ import com.sicpr.backend.inscricao.dto.InscricaoResponse;
 import com.sicpr.backend.inscricao.model.Inscricao;
 import com.sicpr.backend.inscricao.repository.InscricaoRepository;
 import com.sicpr.backend.inscricao.validation.DmsCoordinateValidator;
+import com.sicpr.backend.security.CurrentUserService;
 import com.sicpr.backend.security.CryptoService;
+import com.sicpr.backend.security.RoleUtils;
+import com.sicpr.backend.security.SearchHashService;
+import com.sicpr.backend.user.model.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,8 +22,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InscricaoService {
 
+    private static final int DEFAULT_LIST_LIMIT = 500;
+
     private final InscricaoRepository repository;
     private final CryptoService cryptoService;
+    private final SearchHashService searchHashService;
+    private final CurrentUserService currentUserService;
 
     private String criptografar(String valor) {
         return cryptoService.encrypt(valor);
@@ -55,6 +64,11 @@ public class InscricaoService {
                                 request.getCpf()
                         )
                 )
+                .cpfHash(
+                        searchHashService.cpfHash(
+                                request.getCpf()
+                        )
+                )
                 .municipio(
                         request.getMunicipio()
                 )
@@ -87,7 +101,8 @@ public class InscricaoService {
     // API SEGURA
     public List<InscricaoResponse> listarPublico() {
 
-        return repository.findAll()
+        return repository.findAllByOrderByCriadoEmDesc(PageRequest.of(0, DEFAULT_LIST_LIMIT))
+                .getContent()
                 .stream()
                 .map(this::converterPublico)
                 .toList();
@@ -95,11 +110,21 @@ public class InscricaoService {
 
     // WEB ADMIN
     public List<InscricaoResponse> listarWeb() {
+        User user = currentUserService.requireUser();
+        List<Inscricao> inscricoes = "ADMIN".equals(RoleUtils.normalizeRole(user.getPerfil()))
+                ? repository.findAllByOrderByCriadoEmDesc(PageRequest.of(0, DEFAULT_LIST_LIMIT)).getContent()
+                : repository.findByMunicipioIgnoreCaseOrderByCriadoEmDesc(requireUnidadeLocal(user), PageRequest.of(0, DEFAULT_LIST_LIMIT)).getContent();
 
-        return repository.findAll()
-                .stream()
+        return inscricoes.stream()
                 .map(this::converterWeb)
                 .toList();
+    }
+
+    private String requireUnidadeLocal(User user) {
+        if (user.getUnidadeLocal() == null || user.getUnidadeLocal().trim().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuario sem unidade local vinculada.");
+        }
+        return user.getUnidadeLocal().trim();
     }
 
     private InscricaoResponse converterPublico(

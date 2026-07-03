@@ -6,11 +6,14 @@ import TopBar from "@/app/_components/layout/Sidebar";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
 
 export default function BatchPage() {
-  const { username, logout } = useAuthSession({ defaultUsername: "Usuario" });
+  const { username, role, logout } = useAuthSession({
+    defaultUsername: "Usuario",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
 
   return (
     <>
-      <TopBar onLogout={logout} username={username} />
+      <TopBar onLogout={logout} username={username} role={role} />
       <div className="min-h-screen bg-gray-50 pt-[104px] lg:pt-[152px]">
         <div className="p-6">
           <div className="mx-auto max-w-5xl space-y-6">

@@ -5,6 +5,7 @@ import com.sicpr.backend.carteira.model.CarteiraDigital;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,9 +15,9 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface CarteiraRepository extends JpaRepository<CarteiraDigital, Long> {
+public interface CarteiraRepository extends JpaRepository<CarteiraDigital, Long>, JpaSpecificationExecutor<CarteiraDigital> {
     
-    Optional<CarteiraDigital> findByCpf(String cpf);
+    Optional<CarteiraDigital> findByCpfHash(String cpfHash);
     
     // Consulta SIMPLES - sem parâmetros complexos
     @Query("SELECT c FROM CarteiraDigital c ORDER BY c.criadoEm DESC")
@@ -25,7 +26,6 @@ public interface CarteiraRepository extends JpaRepository<CarteiraDigital, Long>
     // Busca por termo - simplificada
     @Query("SELECT c FROM CarteiraDigital c WHERE " +
            "LOWER(c.nome) LIKE LOWER(CONCAT('%', :termo, '%')) OR " +
-           "LOWER(c.cpf) LIKE LOWER(CONCAT('%', :termo, '%')) OR " +
            "LOWER(c.registro) LIKE LOWER(CONCAT('%', :termo, '%'))")
     Page<CarteiraDigital> buscarPorTermo(@Param("termo") String termo, Pageable pageable);
     
@@ -35,4 +35,6 @@ public interface CarteiraRepository extends JpaRepository<CarteiraDigital, Long>
     long countByCriadoEmBetween(LocalDateTime inicio, LocalDateTime fim);
 
     List<CarteiraDigital> findTop5ByOrderByCriadoEmDesc();
+
+    List<CarteiraDigital> findTop25ByOrderByCriadoEmDesc();
 }

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { 
   Bell, 
-  BrushCleaning,
   Search, 
   ChevronLeft, 
   ChevronRight,
@@ -17,8 +16,12 @@ import {
   X
 } from "lucide-react";
 import Sidebar from "@/app/_components/layout/Sidebar";
+import ClearFiltersButton from "@/app/_components/ClearFiltersButton";
+import StyledSelect from "@/app/_components/StyledSelect";
+import { useClientMounted } from "@/app/_hooks/useClientMounted";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import { apiJson } from "@/app/_lib/http";
+import { logger } from "@/app/_lib/logger";
 
 // Paleta de cores
 const COLORS = {
@@ -55,7 +58,11 @@ const getInscricaoDate = (item: Inscricao) => {
 };
 
 export default function TabelaPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Usuario",
+    allowedRoles: ["ADMIN", "GERENTE", "TECNICO", "USUARIO"],
+  });
+  const mounted = useClientMounted();
   const [dados, setDados] = useState<Inscricao[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -67,12 +74,7 @@ export default function TabelaPage() {
   const [selectedDetails, setSelectedDetails] = useState<Inscricao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const itemsPerPage = 10;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!ready || !mounted) return;
@@ -86,7 +88,7 @@ export default function TabelaPage() {
       setDados(data);
       setErro("");
     } catch (error) {
-      console.error(error);
+      logger.error("Erro ao carregar inscricoes", error);
       setErro("Não foi possível carregar os dados. Tente novamente mais tarde.");
     } finally {
       setLoading(false);
@@ -254,6 +256,7 @@ export default function TabelaPage() {
       <Sidebar
         onLogout={logout}
         username={username || "Usuário"}
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 
@@ -302,56 +305,55 @@ export default function TabelaPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="relative">
-                        <Filter size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                        <select
+                      <div className="w-48">
+                        <StyledSelect
                           value={periodFilter}
-                          onChange={(e) => {
-                            setPeriodFilter(e.target.value as PeriodFilter);
+                          onChange={(value) => {
+                            setPeriodFilter(value as PeriodFilter);
                             setCurrentPage(1);
                           }}
-                          className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
-                          style={filterFieldStyle}
-                        >
-                          <option value="todos">Todos os períodos</option>
-                          <option value="90">Últimos 90 dias</option>
-                        </select>
+                          icon={<Filter size={15} />}
+                          size="compact"
+                          options={[
+                            { value: "todos", label: "Todos os períodos" },
+                            { value: "90", label: "Últimos 90 dias" },
+                          ]}
+                          colors={COLORS}
+                        />
                       </div>
 
-                      <div className="relative">
-                        <CalendarDays size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                        <select
+                      <div className="w-40">
+                        <StyledSelect
                           value={yearFilter}
-                          onChange={(e) => {
-                            setYearFilter(e.target.value);
+                          onChange={(value) => {
+                            setYearFilter(value);
                             setCurrentPage(1);
                           }}
-                          className={`${filterFieldClass} pl-10 pr-5 text-xs font-semibold`}
-                          style={filterFieldStyle}
-                        >
-                          <option value="todos">Todos os anos</option>
-                          {availableYears.map((year) => (
-                            <option key={year} value={year}>{year}</option>
-                          ))}
-                        </select>
+                          icon={<CalendarDays size={15} />}
+                          size="compact"
+                          options={[
+                            { value: "todos", label: "Todos os anos" },
+                            ...availableYears.map((year) => ({ value: year, label: year })),
+                          ]}
+                          colors={COLORS}
+                        />
                       </div>
 
-                      <div className="relative">
-                        <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: COLORS.textLight }} />
-                        <select
+                      <div className="w-56">
+                        <StyledSelect
                           value={municipioFilter}
-                          onChange={(e) => {
-                            setMunicipioFilter(e.target.value);
+                          onChange={(value) => {
+                            setMunicipioFilter(value);
                             setCurrentPage(1);
                           }}
-                          className={`${filterFieldClass} pl-9 pr-5 text-xs font-semibold`}
-                          style={filterFieldStyle}
-                        >
-                          <option value="todos">Todas as localidades</option>
-                          {availableMunicipios.map((municipio) => (
-                            <option key={municipio} value={municipio}>{municipio}</option>
-                          ))}
-                        </select>
+                          icon={<Search size={15} />}
+                          size="compact"
+                          options={[
+                            { value: "todos", label: "Todas as localidades" },
+                            ...availableMunicipios.map((municipio) => ({ value: municipio, label: municipio })),
+                          ]}
+                          colors={COLORS}
+                        />
                       </div>
 
                       <button
@@ -371,26 +373,7 @@ export default function TabelaPage() {
                       </button>
 
                       {hasActiveFilters && (
-                        <button
-                          type="button"
-                          onClick={limparFiltros}
-                          title="Limpar filtros"
-                          className="group relative inline-flex min-h-11.5 w-26 items-center justify-center overflow-hidden rounded-xl border text-xs font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#B42318]/10"
-                          style={{
-                            color: COLORS.danger,
-                            border: "1px solid #FECDCA",
-                            backgroundColor: "#FEF3F2",
-                          }}
-                        >
-                          <span className="inline-flex items-center gap-1.5 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
-                            <X size={14} />
-                            Limpar
-                          </span>
-                          <BrushCleaning
-                            size={17}
-                            className="absolute translate-y-4 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
-                          />
-                        </button>
+                        <ClearFiltersButton onClick={limparFiltros} />
                       )}
                     </div>
                   </div>
@@ -439,13 +422,7 @@ export default function TabelaPage() {
                   </div>
                   <p className="text-center" style={{ color: COLORS.textLight }}>Nenhuma inscrição encontrada para os filtros selecionados</p>
                   {hasActiveFilters && (
-                    <button
-                      onClick={limparFiltros}
-                      className="mt-4 px-4 py-2 text-sm rounded-lg"
-                      style={{ color: COLORS.primary, border: `1px solid ${COLORS.border}` }}
-                    >
-                      Limpar filtros
-                    </button>
+                    <ClearFiltersButton onClick={limparFiltros} className="mt-4" />
                   )}
                 </div>
               )}

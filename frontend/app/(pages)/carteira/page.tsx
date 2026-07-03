@@ -1,15 +1,16 @@
 // app/carteira/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Upload } from "lucide-react";
 import Sidebar from "@/app/_components/layout/Sidebar";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import FormularioCarteira from "./components/FormularioCarteira";
 import CardPreview from "./components/CardPreview";
 import ModalBatchUpload from "./components/ModalBatchUpload";
-import { CarteiraRequest, CarteiraResponse } from "./types/carteira";
+import { CarteiraRequest } from "./types/carteira";
 import { cadastrarCarteira, listarCarteiras } from "./services/carteiraService";
+import { logger } from "@/app/_lib/logger";
 
 // Animações CSS
 const animations = `
@@ -98,9 +99,11 @@ const initialForm: CarteiraRequest = {
 };
 
 export default function CarteiraDigitalPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuário" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Usuário",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
   const [form, setForm] = useState<CarteiraRequest>(initialForm);
-  const [carteiras, setCarteiras] = useState<CarteiraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -116,22 +119,22 @@ export default function CarteiraDigitalPage() {
       style.textContent = animations;
       document.head.appendChild(style);
     }
-    setAnimated(true);
+    const frame = requestAnimationFrame(() => setAnimated(true));
+    return () => cancelAnimationFrame(frame);
   }, []);
 
-  const carregarCarteiras = async () => {
+  const carregarCarteiras = useCallback(async () => {
     try {
-      const data = await listarCarteiras(0, 10);
-      setCarteiras(data.content);
+      await listarCarteiras(0, 10);
     } catch (err) {
-      console.error("Erro ao carregar carteiras:", err);
+      logger.error("Erro ao carregar carteiras", err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
-    carregarCarteiras();
-  }, [ready]);
+    void carregarCarteiras();
+  }, [carregarCarteiras, ready]);
 
   const handleSubmit = async (data: CarteiraRequest) => {
     try {
@@ -170,6 +173,7 @@ export default function CarteiraDigitalPage() {
       <Sidebar 
         onLogout={logout} 
         username={username || "Usuário"} 
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 

@@ -12,7 +12,7 @@ const COLORS = {
 
 export function HistoricoResumo({ processo }: { processo: ProcessoSicpr }) {
   const memorandos = getMemorandosProcesso(processo);
-  const devolucoes = processo.historico.filter((item) => item.acao.toLowerCase().includes("devolvido pela analise")).length;
+  const devolucoes = processo.historico.filter((item) => normalizeText(item.acao).includes("devolvido pela analise")).length;
   const ultimoMemorando = memorandos.at(-1)?.numero || processo.memorandoNumero || "-";
 
   return (
@@ -171,22 +171,24 @@ function getTimelineCycles(processo: ProcessoSicpr) {
 
 function findLastEventBefore(processo: ProcessoSicpr, acao: string, beforeIso?: string) {
   const beforeTime = beforeIso ? new Date(beforeIso).getTime() : Number.POSITIVE_INFINITY;
+  const normalizedAction = normalizeText(acao);
   return [...processo.historico]
     .reverse()
-    .find((item) => item.acao === acao && new Date(item.dataHora).getTime() <= beforeTime);
+    .find((item) => normalizeText(item.acao) === normalizedAction && new Date(item.dataHora).getTime() <= beforeTime);
 }
 
 function findFirstEventBetween(processo: ProcessoSicpr, acao: string, startIso?: string, endIso?: string) {
   const startTime = startIso ? new Date(startIso).getTime() : Number.NEGATIVE_INFINITY;
   const endTime = endIso ? new Date(endIso).getTime() : Number.POSITIVE_INFINITY;
+  const normalizedAction = normalizeText(acao);
   return processo.historico.find((item) => {
     const time = new Date(item.dataHora).getTime();
-    return item.acao === acao && time >= startTime && time < endTime;
+    return normalizeText(item.acao) === normalizedAction && time >= startTime && time < endTime;
   });
 }
 
 function getTimelineDotClass(acao: string) {
-  const value = acao.toLowerCase();
+  const value = normalizeText(acao);
   if (value.includes("devolvido")) return "bg-red-500 ring-red-100";
   if (value.includes("aprovado") || value.includes("concluido") || value.includes("criado")) return "bg-emerald-500 ring-emerald-100";
   if (value.includes("encaminhado")) return "bg-amber-500 ring-amber-100";
@@ -198,4 +200,11 @@ function getStatusDotClass(situacao: ProcessoSicpr["situacao"]) {
   if (situacao === "em_analise") return "bg-indigo-500 ring-indigo-100";
   if (situacao === "encaminhado_gerente") return "bg-amber-500 ring-amber-100";
   return "bg-emerald-500 ring-emerald-100";
+}
+
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }

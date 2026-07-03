@@ -23,4 +23,7 @@ public class UserRequest {
 
     @Size(max = 30, message = "Telefone deve ter no maximo 30 caracteres.")
     private String telefone;
+
+    @Size(max = 120, message = "Unidade local deve ter no maximo 120 caracteres.")
+    private String unidadeLocal;
 }

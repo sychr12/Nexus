@@ -22,6 +22,10 @@ public record MensagemResponse(
         LocalDateTime expiraEm
 ) {
     public static MensagemResponse from(Mensagem mensagem) {
+        return from(mensagem, mensagem.getTexto());
+    }
+
+    public static MensagemResponse from(Mensagem mensagem, String texto) {
         String anexoUrl = mensagem.getAnexoNomeArquivo() == null
                 ? null
                 : "/api/mensagens/anexos/" + mensagem.getAnexoNomeArquivo();
@@ -34,7 +38,7 @@ public record MensagemResponse(
                 mensagem.getDestinatario().getId(),
                 nomeUsuario(mensagem.getDestinatario().getNomeCompleto(), mensagem.getDestinatario().getUsername()),
                 mensagem.getDestinatario().getPerfil(),
-                mensagem.getTexto(),
+                texto,
                 mensagem.getAnexoNomeOriginal(),
                 mensagem.getAnexoContentType(),
                 mensagem.getAnexoTamanho(),

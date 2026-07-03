@@ -2,6 +2,7 @@
 
 import { ChevronDown, MapPin, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ClearFiltersButton from "@/app/_components/ClearFiltersButton";
 import { filterUnlocOptions, UNLOC_OPTIONS } from "@/app/_lib/unlocs";
 
 const COLORS = {
@@ -62,17 +63,12 @@ export default function MemorandoFilters({ search, setSearch, selectedUnloc, set
           Filtros
         </span>
         {hasAnyFilter && (
-          <button
+          <ClearFiltersButton
             onClick={() => {
               setSearch("");
               setSelectedUnloc("");
             }}
-            className="flex items-center gap-1 text-xs font-medium transition-opacity hover:opacity-70"
-            style={{ color: COLORS.accent }}
-          >
-            <X size={12} />
-            Limpar filtros
-          </button>
+          />
         )}
       </div>
 

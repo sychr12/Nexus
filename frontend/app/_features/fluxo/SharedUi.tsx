@@ -1,4 +1,7 @@
-import { FileText } from "lucide-react";
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { FileText, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import type { DocumentoProcesso } from "./types";
 
 export const SICPR_COLORS = {
@@ -11,6 +14,102 @@ export const SICPR_COLORS = {
   border: "#E2E8E0",
   danger: "#B42318",
 };
+
+type DocumentPreviewViewerProps = {
+  children: ReactNode;
+  title?: string;
+};
+
+export function DocumentPreviewViewer({ children, title = "Visualização do documento" }: DocumentPreviewViewerProps) {
+  const [zoom, setZoom] = useState(1);
+  const [expanded, setExpanded] = useState(false);
+  const isZoomed = zoom > 1.05;
+
+  const decreaseZoom = () => setZoom((current) => Math.max(0.55, Number((current - 0.1).toFixed(2))));
+  const increaseZoom = () => setZoom((current) => Math.min(1.8, Number((current + 0.1).toFixed(2))));
+  const resetZoom = () => setZoom(1);
+  const toggleDocumentZoom = () => setZoom((current) => (current > 1.05 ? 1 : 1.35));
+
+  return (
+    <div
+      className={expanded ? "fixed inset-3 z-[130] flex w-full flex-col overflow-hidden rounded-lg border bg-white shadow-2xl" : "flex h-full min-h-0 w-full flex-col"}
+      style={expanded ? { borderColor: SICPR_COLORS.border } : undefined}
+    >
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border bg-white px-3 py-2 print:hidden" style={{ borderColor: SICPR_COLORS.border }}>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: SICPR_COLORS.textLight }}>
+            {title}
+          </p>
+          <p className="text-xs" style={{ color: SICPR_COLORS.textLight }}>
+            Zoom {Math.round(zoom * 100)}%
+          </p>
+          <p className="text-[11px]" style={{ color: SICPR_COLORS.textLight }}>
+            Duplo clique no documento para {isZoomed ? "reduzir" : "aproximar"}.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <PreviewToolButton label="Diminuir zoom" onClick={decreaseZoom} icon={<ZoomOut size={16} />} />
+          <PreviewToolButton label="Aumentar zoom" onClick={increaseZoom} icon={<ZoomIn size={16} />} />
+          <PreviewToolButton label="Restaurar zoom" onClick={resetZoom} icon={<RotateCcw size={16} />} />
+          {expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition hover:bg-[#F5F7F5]"
+              style={{ borderColor: SICPR_COLORS.border, color: SICPR_COLORS.primary }}
+            >
+              <Minimize2 size={16} />
+              Sair da tela cheia
+            </button>
+          )}
+          {!expanded && (
+            <PreviewToolButton
+              label="Ampliar visualização"
+              onClick={() => setExpanded(true)}
+              icon={<Maximize2 size={16} />}
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-md" style={{ backgroundColor: SICPR_COLORS.background }}>
+        <div
+          className="w-fit min-w-full px-3 py-3"
+          style={{ display: "flex", justifyContent: isZoomed ? "flex-start" : "center" }}
+        >
+          <div
+            className="sicpr-preview-scale"
+            onDoubleClick={toggleDocumentZoom}
+            style={{
+              cursor: isZoomed ? "zoom-out" : "zoom-in",
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+              width: `${100 / zoom}%`,
+              minHeight: `${100 / zoom}%`,
+            }}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewToolButton({ label, icon, onClick }: { label: string; icon: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-md border transition hover:bg-[#F5F7F5]"
+      style={{ borderColor: SICPR_COLORS.border, color: SICPR_COLORS.primary }}
+    >
+      {icon}
+    </button>
+  );
+}
 
 export function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
   if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
@@ -30,7 +129,7 @@ export function AttachmentPreview({ documento }: { documento: DocumentoProcesso 
     <div className="flex min-h-90 flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
       <FileText size={48} />
       <p className="mt-3 font-semibold">{documento.arquivo}</p>
-      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pre-visualizacao disponivel para imagens e PDF.</p>
+      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pré-visualização disponível para imagens e PDF.</p>
     </div>
   );
 }

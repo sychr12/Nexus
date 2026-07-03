@@ -18,6 +18,10 @@ export const dashboardApi = {
     return apiJson<UsuarioAtivo[]>("/dashboard/usuarios-ativos");
   },
 
+  registrarPresenca(): Promise<void> {
+    return apiJson<void>("/dashboard/presenca", { method: "POST" });
+  },
+
   getAtividadesRecentes(): Promise<AtividadeRecente[]> {
     return apiJson<AtividadeRecente[]>("/dashboard/atividades");
   },

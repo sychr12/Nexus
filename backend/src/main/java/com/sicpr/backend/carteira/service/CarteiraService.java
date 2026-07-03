@@ -7,16 +7,21 @@ import com.sicpr.backend.carteira.dto.FiltroBuscaDTO;
 import com.sicpr.backend.carteira.model.CarteiraDigital;
 import com.sicpr.backend.carteira.repository.CarteiraRepository;
 import com.sicpr.backend.config.UploadSecurityProperties;
+import com.sicpr.backend.security.CryptoService;
+import com.sicpr.backend.security.SearchHashService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -29,6 +34,8 @@ public class CarteiraService {
     private final CarteiraRepository carteiraRepository;
     private final PdfGenerationService pdfGenerationService;
     private final UploadSecurityProperties uploadSecurityProperties;
+    private final CryptoService cryptoService;
+    private final SearchHashService searchHashService;
     
     private static final Pattern CPF_PATTERN = Pattern.compile("\\d{11}");
     
@@ -48,6 +55,7 @@ public class CarteiraService {
         CarteiraDigital carteira = new CarteiraDigital();
         carteira.setRegistro(request.getRegistro());
         carteira.setCpf(cpfLimpo);
+        carteira.setCpfHash(searchHashService.cpfHash(cpfLimpo));
         carteira.setNome(request.getNome());
         carteira.setPropriedade(request.getPropriedade());
         carteira.setUnloc(request.getUnloc());
@@ -80,6 +88,7 @@ public class CarteiraService {
         
         byte[] pdf = pdfGenerationService.gerarPdf(carteira);
         carteira.setPdfConteudo(pdf);
+        carteira.setCpf(cryptoService.encrypt(cpfLimpo));
         
         CarteiraDigital saved = carteiraRepository.save(carteira);
         log.info("Carteira salva com ID: {}", saved.getId());
@@ -103,6 +112,16 @@ public class CarteiraService {
     @Transactional(readOnly = true)
     public Page<CarteiraResponseDTO> buscarPorTermo(String termo, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
+        String cpf = searchHashService.normalizeCpf(termo);
+        if (cpf.length() == 11) {
+            Optional<CarteiraDigital> carteira = carteiraRepository.findByCpfHash(searchHashService.cpfHash(cpf));
+            if (carteira.isEmpty()) {
+                return Page.empty(pageable);
+            }
+            return new org.springframework.data.domain.PageImpl<>(List.of(carteira.get()), pageable, 1)
+                    .map(this::toResponseDTO);
+        }
+
         Page<CarteiraDigital> carteiras = carteiraRepository.buscarPorTermo(termo, pageable);
         return carteiras.map(this::toResponseDTO);
     }
@@ -119,14 +138,14 @@ public class CarteiraService {
     @Transactional(readOnly = true)
     public byte[] buscarPdfPorId(Long id) {
         CarteiraDigital carteira = carteiraRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Carteira não encontrada"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Carteira nao encontrada."));
         return carteira.getPdfConteudo();
     }
     
     @Transactional(readOnly = true)
     public CarteiraResponseDTO buscarPorCpf(String cpf) {
         String cpfLimpo = cpf.replaceAll("\\D", "");
-        return carteiraRepository.findByCpf(cpfLimpo)
+        return carteiraRepository.findByCpfHash(searchHashService.cpfHash(cpfLimpo))
             .map(this::toResponseDTO)
             .orElse(null);
     }
@@ -145,7 +164,7 @@ public class CarteiraService {
         CarteiraResponseDTO dto = new CarteiraResponseDTO();
         dto.setId(carteira.getId());
         dto.setRegistro(carteira.getRegistro());
-        dto.setCpf(carteira.getCpf());
+        dto.setCpf(decryptNullable(carteira.getCpf()));
         dto.setNome(carteira.getNome());
         dto.setPropriedade(carteira.getPropriedade());
         dto.setUnloc(carteira.getUnloc());
@@ -166,8 +185,55 @@ public class CarteiraService {
         }
 
         String contentType = foto.getContentType() == null ? "" : foto.getContentType().toLowerCase();
-        if (!contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("Apenas imagens sao permitidas nas fotos da carteira.");
+        if (!List.of("image/jpeg", "image/png", "image/gif", "image/webp").contains(contentType)) {
+            throw new IllegalArgumentException("Apenas imagens JPG, PNG, GIF ou WEBP sao permitidas nas fotos da carteira.");
         }
+        if (!hasSupportedImageSignature(foto, contentType)) {
+            throw new IllegalArgumentException("Imagem invalida ou incompativel com o tipo informado.");
+        }
+    }
+
+    private boolean hasSupportedImageSignature(MultipartFile file, String contentType) {
+        try (InputStream input = file.getInputStream()) {
+            byte[] header = input.readNBytes(12);
+            return switch (contentType) {
+                case "image/jpeg" -> header.length >= 3
+                        && (header[0] & 0xFF) == 0xFF
+                        && (header[1] & 0xFF) == 0xD8
+                        && (header[2] & 0xFF) == 0xFF;
+                case "image/png" -> header.length >= 8
+                        && (header[0] & 0xFF) == 0x89
+                        && header[1] == 'P'
+                        && header[2] == 'N'
+                        && header[3] == 'G'
+                        && (header[4] & 0xFF) == 0x0D
+                        && (header[5] & 0xFF) == 0x0A
+                        && (header[6] & 0xFF) == 0x1A
+                        && (header[7] & 0xFF) == 0x0A;
+                case "image/gif" -> header.length >= 6
+                        && header[0] == 'G'
+                        && header[1] == 'I'
+                        && header[2] == 'F'
+                        && header[3] == '8'
+                        && (header[4] == '7' || header[4] == '9')
+                        && header[5] == 'a';
+                case "image/webp" -> header.length >= 12
+                        && header[0] == 'R'
+                        && header[1] == 'I'
+                        && header[2] == 'F'
+                        && header[3] == 'F'
+                        && header[8] == 'W'
+                        && header[9] == 'E'
+                        && header[10] == 'B'
+                        && header[11] == 'P';
+                default -> false;
+            };
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nao foi possivel validar a imagem.");
+        }
+    }
+
+    private String decryptNullable(String value) {
+        return value == null || value.isBlank() ? "" : cryptoService.decrypt(value);
     }
 }

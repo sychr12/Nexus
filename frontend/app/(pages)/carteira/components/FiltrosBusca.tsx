@@ -1,7 +1,9 @@
 // frontend/app/carteira/components/FiltrosBusca.tsx
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
+import ClearFiltersButton from "@/app/_components/ClearFiltersButton";
+import StyledSelect from "@/app/_components/StyledSelect";
 
 interface FiltrosBuscaProps {
   searchTerm: string;
@@ -16,7 +18,6 @@ export default function FiltrosBusca({
   onSearch,
   selectedUnloc,
   onUnlocChange,
-  usuarios,
 }: FiltrosBuscaProps) {
   const unlocOptions = [
     { value: "", label: "Todos os municípios" },
@@ -38,16 +39,12 @@ export default function FiltrosBusca({
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-900">Filtrar resultados</h2>
         {hasFilters && (
-          <button
+          <ClearFiltersButton
             onClick={() => {
               onSearch("");
               onUnlocChange("");
             }}
-            className="flex items-center gap-1 text-sm text-green-600 hover:text-green-700"
-          >
-            <X size={14} />
-            Limpar filtros
-          </button>
+          />
         )}
       </div>
 
@@ -63,17 +60,20 @@ export default function FiltrosBusca({
           />
         </div>
 
-        <select
+        <StyledSelect
           value={selectedUnloc}
-          onChange={(e) => onUnlocChange(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-        >
-          {unlocOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          onChange={onUnlocChange}
+          options={unlocOptions}
+          colors={{
+            accent: "#6B9D4A",
+            border: "#D1D5DB",
+            inputBg: "#FFFFFF",
+            card: "#FFFFFF",
+            text: "#1F3A2E",
+            textLight: "#6B7280",
+            hoverBg: "#F0F4EE",
+          }}
+        />
       </div>
     </div>
   );

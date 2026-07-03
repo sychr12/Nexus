@@ -1,56 +1,41 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, MapPin, RotateCcw, Search, UserRound, X } from "lucide-react";
 import { GeneratedDocumentPreview } from "@/app/_features/fluxo/DocumentPreviews";
 import { HistoricoResumo, ProcessoTimeline } from "@/app/_features/fluxo/ProcessoTimeline";
-import { AttachmentPreview, DetailInfoCard as InfoCard, SICPR_COLORS } from "@/app/_features/fluxo/SharedUi";
+import { AttachmentPreview, DetailInfoCard as InfoCard, DocumentPreviewViewer, SICPR_COLORS } from "@/app/_features/fluxo/SharedUi";
+import ConfirmActionDialog from "@/app/_components/ConfirmActionDialog";
 import Sidebar from "@/app/_components/layout/Sidebar";
+import StyledSelect from "@/app/_components/StyledSelect";
 import {
   SITUACAO_LABELS,
   STATUS_COLORS,
   TIPO_PROCESSO_LABELS,
-  decidirAnalise,
   formatDateTime,
   getDocumentosGerados,
   getOutrosDocumentos,
-  loadProcessos,
-  saveProcessos,
 } from "@/app/_features/fluxo/storage";
+import { fluxoApi } from "@/app/_features/fluxo/api";
 import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "@/app/_features/fluxo/types";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import { getMemorandoStatus } from "./helpers";
+import {
+  DETAIL_TABS,
+  MEMORANDO_STATUS_FILTERS,
+  PAGE_SIZE_OPTIONS,
+  buildMemorandosAnalise,
+  filtrarProcessosAnalise,
+} from "./memorando-flow";
+import type { DetailTab, MemorandoStatusFilter } from "./memorando-flow";
 
 const COLORS = SICPR_COLORS;
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100];
-
-type MemorandoAnaliseResumo = {
-  id: string;
-  numero: string;
-  criadoEm?: string;
-  gerente?: string;
-  unidadeLocal: string;
-  processos: ProcessoSicpr[];
-};
-
-type MemorandoStatusFilter = "todos" | "em_analise" | "concluido";
-type DetailTab = "dados" | "historico" | "documentos";
-
-const MEMORANDO_STATUS_FILTERS: { key: MemorandoStatusFilter; label: string }[] = [
-  { key: "todos", label: "Todos" },
-  { key: "em_analise", label: "Em análise" },
-  { key: "concluido", label: "Concluído" },
-];
-
-const DETAIL_TABS: { key: DetailTab; label: string }[] = [
-  { key: "dados", label: "Dados" },
-  { key: "historico", label: "Histórico" },
-  { key: "documentos", label: "Documentos" },
-];
-
 export default function AnalisesPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Analista" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Analista",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [search, setSearch] = useState("");
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
@@ -59,6 +44,8 @@ export default function AnalisesPage() {
   const [expandedMemoIds, setExpandedMemoIds] = useState<string[]>([]);
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoSicpr | null>(null);
   const [modalError, setModalError] = useState("");
+  const [pendingAction, setPendingAction] = useState<null | { type: "aprovar" | "devolver"; processo: ProcessoSicpr }>(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>("dados");
   const [statusFilter, setStatusFilter] = useState<MemorandoStatusFilter>("em_analise");
   const [page, setPage] = useState(1);
@@ -73,90 +60,71 @@ export default function AnalisesPage() {
   useEffect(() => {
     if (!ready) return;
     const timer = window.setTimeout(() => {
-      setProcessos(loadProcessos());
+      void fluxoApi.listarPendentesAnalise()
+        .then(setProcessos)
+        .catch((error) => {
+          setMessageType("error");
+          setMessage(error instanceof Error ? error.message : "Não foi possível carregar os processos em análise.");
+        });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [ready]);
 
-  const processosFiltrados = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return processos
-      .filter((processo) => ["em_analise", "aprovado_lancamento", "concluido"].includes(processo.situacao) && processo.memorandoNumero)
-      .filter((processo) =>
-        !term ||
-        processo.produtor.toLowerCase().includes(term) ||
-        processo.cpf.includes(term) ||
-        processo.unidadeLocal.toLowerCase().includes(term) ||
-        processo.tecnicoResponsavel.toLowerCase().includes(term) ||
-        (processo.gerenteResponsavel || "").toLowerCase().includes(term) ||
-        (processo.memorandoNumero || "").toLowerCase().includes(term),
-      );
-  }, [processos, search]);
+  const processosFiltrados = useMemo(
+    () => filtrarProcessosAnalise(processos, search),
+    [processos, search],
+  );
 
-  const memorandos = useMemo(() => {
-    const grupos = new Map<string, MemorandoAnaliseResumo>();
-
-    processosFiltrados.forEach((processo) => {
-      const key = processo.memorandoLoteId || processo.memorandoNumero || processo.id;
-      const grupo = grupos.get(key);
-
-      if (grupo) {
-        if (!grupo.processos.some((item) => item.id === processo.id)) grupo.processos.push(processo);
-        return;
-      }
-
-      grupos.set(key, {
-        id: key,
-        numero: processo.memorandoNumero || "-",
-        criadoEm: processo.memorandoCriadoEm || processo.enviadoAnaliseEm,
-        gerente: processo.gerenteResponsavel,
-        unidadeLocal: processo.unidadeLocal,
-        processos: [processo],
-      });
-    });
-
-    return Array.from(grupos.values())
-      .filter((memorando) => statusFilter === "todos" || getMemorandoStatus(memorando).key === statusFilter)
-      .sort((a, b) => new Date(b.criadoEm || "").getTime() - new Date(a.criadoEm || "").getTime());
-  }, [processosFiltrados, statusFilter]);
-
+  const memorandos = useMemo(
+    () => buildMemorandosAnalise(processosFiltrados, statusFilter),
+    [processosFiltrados, statusFilter],
+  );
   const totalPages = Math.max(1, Math.ceil(memorandos.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const memorandosPaginados = memorandos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  function persist(next: ProcessoSicpr[]) {
-    setProcessos(next);
-    saveProcessos(next);
-  }
-
-  function aprovar(id: string) {
+  async function aprovar(id: string) {
     if (!isAnaliseOperacional(id)) {
       setModalError("Este processo já saiu da etapa de Análise e está disponível apenas para consulta.");
       setActiveDetailTab("dados");
-      return;
+      return false;
     }
-    persist(decidirAnalise(processos, id, username, "aprovado_lancamento"));
-    setMessageType("success");
-    setMessage("Processo aprovado pela análise e encaminhado para Lançamentos.");
-    setTimeout(() => setMessage(""), 5000);
+    try {
+      const updated = await fluxoApi.aprovarAnalise(id);
+      setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+      setMessageType("success");
+      setMessage("Processo aprovado pela análise e encaminhado para Lançamentos.");
+      setTimeout(() => setMessage(""), 5000);
+      return true;
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : "Não foi possível aprovar o processo.");
+      return false;
+    }
   }
 
-  function devolver(id: string) {
+  async function devolver(id: string) {
     if (!isAnaliseOperacional(id)) {
       setModalError("Este processo já saiu da etapa de Análise. Devoluções posteriores devem ocorrer em Lançamentos.");
       setActiveDetailTab("dados");
-      return;
+      return false;
     }
     const justificativa = justificativas[id]?.trim();
     if (!justificativa) {
       setModalError("A justificativa é obrigatória para devolver o processo à Unidade Local.");
       setActiveDetailTab("dados");
-      return;
+      return false;
     }
-    persist(decidirAnalise(processos, id, username, "devolvido_analise", justificativa));
-    setMessageType("success");
-    setMessage("Processo devolvido ao técnico responsável da Unidade Local.");
-    setTimeout(() => setMessage(""), 5000);
+    try {
+      const updated = await fluxoApi.devolverAnalise(id, justificativa);
+      setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+      setMessageType("success");
+      setMessage("Processo devolvido ao técnico responsável da Unidade Local.");
+      setTimeout(() => setMessage(""), 5000);
+      return true;
+    } catch (error) {
+      setModalError(error instanceof Error ? error.message : "Não foi possível devolver o processo.");
+      return false;
+    }
   }
 
   function toggleMemo(id: string) {
@@ -167,16 +135,35 @@ export default function AnalisesPage() {
     return processos.find((processo) => processo.id === id)?.situacao === "em_analise";
   }
 
-  function approveSelectedProcesso(id: string) {
+  function requestApproveSelectedProcesso(processo: ProcessoSicpr) {
     setModalError("");
-    aprovar(id);
-    setSelectedProcesso(null);
+    setPendingAction({ type: "aprovar", processo });
   }
 
-  function devolverSelectedProcesso(id: string) {
-    const justificativa = justificativas[id]?.trim();
-    devolver(id);
-    if (justificativa) setSelectedProcesso(null);
+  function requestDevolverSelectedProcesso(processo: ProcessoSicpr) {
+    const id = processo.id;
+    if (!justificativas[id]?.trim()) {
+      setModalError("A justificativa é obrigatória para devolver o processo à Unidade Local.");
+      setActiveDetailTab("dados");
+      return false;
+    }
+    setPendingAction({ type: "devolver", processo });
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingAction) return;
+    setActionLoading(true);
+    let success = false;
+    if (pendingAction.type === "aprovar") {
+      success = await aprovar(pendingAction.processo.id);
+    } else {
+      success = await devolver(pendingAction.processo.id);
+    }
+    setActionLoading(false);
+    if (success) {
+      setSelectedProcesso(null);
+      setPendingAction(null);
+    }
   }
 
   if (!ready) {
@@ -192,6 +179,7 @@ export default function AnalisesPage() {
       <Sidebar 
         onLogout={logout} 
         username={username || "Analista"} 
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 
@@ -340,19 +328,17 @@ export default function AnalisesPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, color: COLORS.text }}>
                 <span>Página {currentPage} de {totalPages} | {memorandos.length} memorando(s)</span>
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={pageSize}
-                    onChange={(event) => {
-                      setPageSize(Number(event.target.value));
+                  <StyledSelect
+                    value={String(pageSize)}
+                    onChange={(value) => {
+                      setPageSize(Number(value));
                       setPage(1);
                     }}
-                    className="rounded-md border px-3 py-1.5 font-semibold outline-none focus:ring-1 focus:ring-green-500"
-                    style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}
-                  >
-                    {PAGE_SIZE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option} por página</option>
-                    ))}
-                  </select>
+                    size="compact"
+                    className="w-40"
+                    options={PAGE_SIZE_OPTIONS.map((option) => ({ value: String(option), label: `${option} por página` }))}
+                    colors={COLORS}
+                  />
                   <button 
                     type="button" 
                     disabled={currentPage === 1} 
@@ -467,7 +453,7 @@ export default function AnalisesPage() {
                       <div className="flex flex-wrap justify-end gap-2">
                         <button 
                           type="button" 
-                          onClick={() => approveSelectedProcesso(selectedProcesso.id)} 
+                          onClick={() => requestApproveSelectedProcesso(selectedProcesso)} 
                           className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90" 
                           style={{ backgroundColor: COLORS.accent }}
                         >
@@ -476,7 +462,7 @@ export default function AnalisesPage() {
                         </button>
                         <button 
                           type="button" 
-                          onClick={() => devolverSelectedProcesso(selectedProcesso.id)} 
+                          onClick={() => requestDevolverSelectedProcesso(selectedProcesso)} 
                           className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90" 
                           style={{ backgroundColor: COLORS.danger }}
                         >
@@ -557,7 +543,7 @@ export default function AnalisesPage() {
 
       {/* Modal de Preview de Documento */}
       {preview && (
-        <div className="fixed inset-0 z-80 flex items-center justify-center px-4 py-5">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 py-5">
           <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
           <section className="relative flex h-[90vh] w-[90vw] max-w-350 flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
             <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
@@ -575,15 +561,36 @@ export default function AnalisesPage() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
-              {preview.tipo === "gerado" ? (
-                <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
-              ) : (
-                <AttachmentPreview documento={preview.documento} />
-              )}
+            <div className="min-h-0 flex-1 p-5" style={{ backgroundColor: COLORS.background }}>
+              <DocumentPreviewViewer title={preview.tipo === "gerado" ? "Documento gerado" : "Anexo do processo"}>
+                {preview.tipo === "gerado" ? (
+                  <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
+                ) : (
+                  <AttachmentPreview documento={preview.documento} />
+                )}
+              </DocumentPreviewViewer>
             </div>
           </section>
         </div>
+      )}
+
+      {pendingAction && (
+        <ConfirmActionDialog
+          title={pendingAction.type === "aprovar" ? "Aprovar para lançamento" : "Devolver à Unidade Local"}
+          description={
+            pendingAction.type === "aprovar"
+              ? `Confirma o envio do processo de ${pendingAction.processo.produtor} para a etapa de Lançamentos?`
+              : `Confirma a devolução do processo de ${pendingAction.processo.produtor} à Unidade Local com a justificativa informada?`
+          }
+          confirmLabel={pendingAction.type === "aprovar" ? "Aprovar" : "Devolver"}
+          tone={pendingAction.type === "aprovar" ? "success" : "danger"}
+          loading={actionLoading}
+          colors={COLORS}
+          onConfirm={confirmPendingAction}
+          onClose={() => {
+            if (!actionLoading) setPendingAction(null);
+          }}
+        />
       )}
     </div>
   );

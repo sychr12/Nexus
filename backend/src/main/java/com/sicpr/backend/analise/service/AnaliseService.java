@@ -13,6 +13,7 @@ import com.sicpr.backend.analise.repository.AnaliseRepository;
 import com.sicpr.backend.analise.repository.EncaminhamentoAnaliseRepository;
 import com.sicpr.backend.analise.repository.ProcessoAnaliseRepository;
 import com.sicpr.backend.analise.validator.AnaliseValidator;
+import com.sicpr.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class AnaliseService {
     private final AnaliseRepository analiseRepository;
     private final ProcessoAnaliseRepository processoRepository;
     private final EncaminhamentoAnaliseRepository encaminhamentoRepository;
+    private final CurrentUserService currentUser;
 
     @Transactional
     public AnaliseResponse salvar(AnaliseRequest request) {
@@ -79,7 +81,7 @@ public class AnaliseService {
 
         if (analise.getAbertoEm() == null) {
             analise.setAbertoEm(LocalDateTime.now());
-            analise.setAbertoPor("admin");
+            analise.setAbertoPor(currentUser.requireUsername());
         }
 
         analise.setStatus("em_analise");
@@ -110,7 +112,7 @@ public class AnaliseService {
         processo.setEncaminhadoPara(request.getDestino());
         processo.setEncaminhadoEm(agora);
         processo.setDecisaoEm(agora);
-        processo.setDecisaoResponsavel("admin");
+        processo.setDecisaoResponsavel(currentUser.requireUsername());
 
         if (request.getObservacao() != null) {
             processo.setObservacao(request.getObservacao());

@@ -4,7 +4,9 @@ import com.sicpr.backend.carteira.dto.BatchResultDTO;
 import com.sicpr.backend.carteira.dto.BatchStatusDTO;
 import com.sicpr.backend.carteira.model.CarteiraDigital;
 import com.sicpr.backend.carteira.repository.CarteiraRepository;
-import com.sicpr.backend.config.UploadSecurityProperties;
+import com.sicpr.backend.carteira.support.InMemoryMultipartFile;
+import com.sicpr.backend.security.CryptoService;
+import com.sicpr.backend.security.SearchHashService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -13,11 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -34,7 +41,9 @@ public class BatchCarteiraService {
     private final CarteiraRepository carteiraRepository;
     private final SefazService sefazService;
     private final PdfGenerationService pdfGenerationService;
-    private final UploadSecurityProperties uploadSecurityProperties;
+    private final BatchUploadValidator uploadValidator;
+    private final CryptoService cryptoService;
+    private final SearchHashService searchHashService;
     
     private static final Pattern CPF_PATTERN = Pattern.compile("\\d{11}");
     private static final Path TEMP_DIR = Paths.get(System.getProperty("java.io.tmpdir"), "carteira_batch");
@@ -47,7 +56,7 @@ public class BatchCarteiraService {
      */
     @Transactional
     public BatchResultDTO processarBatch(List<MultipartFile> files, String usuario) throws IOException {
-        validarListaArquivos(files);
+        uploadValidator.validarListaArquivos(files);
 
         String batchId = UUID.randomUUID().toString();
         log.info("Iniciando processamento em lote: {} com {} arquivos", batchId, files.size());
@@ -70,7 +79,7 @@ public class BatchCarteiraService {
             }
             
             // Extrair CPF do nome do arquivo (baseado no código Python)
-            validarPdf(file);
+            uploadValidator.validarPdf(file);
             String cpf = extrairCpfDoNome(nomeArquivo);
             if (cpf == null) {
                 resultado.setIgnorados(resultado.getIgnorados() + 1);
@@ -103,7 +112,7 @@ public class BatchCarteiraService {
      */
     @Transactional
     public BatchResultDTO processarZip(MultipartFile zipFile, String usuario) throws IOException {
-        validarZip(zipFile);
+        uploadValidator.validarZip(zipFile);
 
         String batchId = UUID.randomUUID().toString();
         log.info("Iniciando processamento de ZIP: {}", batchId);
@@ -120,12 +129,15 @@ public class BatchCarteiraService {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 entradas++;
-                if (entradas > uploadSecurityProperties.getCarteiraBatchMaxZipEntries()) {
+                if (entradas > uploadValidator.maxZipEntries()) {
                     throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP excede o limite de entradas permitido.");
+                }
+                if (uploadValidator.isUnsafeZipEntry(entry.getName())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ZIP contem nome de arquivo invalido.");
                 }
 
                 if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".pdf")) {
-                    if (pdfFiles.size() >= uploadSecurityProperties.getCarteiraBatchMaxFiles()) {
+                    if (pdfFiles.size() >= uploadValidator.maxBatchFiles()) {
                         throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP contem mais PDFs que o limite permitido.");
                     }
 
@@ -134,7 +146,7 @@ public class BatchCarteiraService {
                     int len;
                     while ((len = zis.read(buffer)) > 0) {
                         baos.write(buffer, 0, len);
-                        if (baos.size() > uploadSecurityProperties.carteiraBatchPdfMaxBytes()) {
+                        if (baos.size() > uploadValidator.maxPdfBytes()) {
                             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "PDF dentro do ZIP excede o limite permitido.");
                         }
                     }
@@ -157,7 +169,7 @@ public class BatchCarteiraService {
         // Processar cada PDF
         for (MultipartFile file : pdfFiles) {
             String nomeArquivo = file.getOriginalFilename();
-            validarPdf(file);
+            uploadValidator.validarPdf(file);
             String cpf = extrairCpfDoNome(nomeArquivo);
             
             if (cpf == null) {
@@ -194,7 +206,7 @@ public class BatchCarteiraService {
         }
         
         // 2. Verificar se já existe uma carteira para este CPF (opcional - atualizar)
-        Optional<CarteiraDigital> existente = carteiraRepository.findByCpf(cpf);
+        Optional<CarteiraDigital> existente = carteiraRepository.findByCpfHash(searchHashService.cpfHash(cpf));
         
         CarteiraDigital carteira;
         if (existente.isPresent()) {
@@ -208,6 +220,7 @@ public class BatchCarteiraService {
         // 3. Preencher dados da carteira
         carteira.setRegistro(dadosSefaz.getRp());
         carteira.setCpf(dadosSefaz.getCpf());
+        carteira.setCpfHash(searchHashService.cpfHash(dadosSefaz.getCpf()));
         carteira.setNome(dadosSefaz.getNome());
         carteira.setPropriedade(dadosSefaz.getPropriedade());
         carteira.setUnloc(dadosSefaz.getUnloc());
@@ -228,6 +241,7 @@ public class BatchCarteiraService {
         // 4. Gerar PDF da carteira (baseado no template)
         byte[] pdfBytes = pdfGenerationService.gerarPdf(carteira);
         carteira.setPdfConteudo(pdfBytes);
+        carteira.setCpf(cryptoService.encrypt(searchHashService.normalizeCpf(dadosSefaz.getCpf())));
         
         // 5. Salvar no banco
         carteiraRepository.save(carteira);
@@ -259,44 +273,6 @@ public class BatchCarteiraService {
         return cpf.substring(0, 3) + ".***.***-" + cpf.substring(9);
     }
 
-    private void validarListaArquivos(List<MultipartFile> files) {
-        if (files == null || files.isEmpty()) {
-            throw new IllegalArgumentException("Envie ao menos um arquivo PDF.");
-        }
-        if (files.size() > uploadSecurityProperties.getCarteiraBatchMaxFiles()) {
-            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Quantidade de PDFs acima do limite permitido.");
-        }
-    }
-
-    private void validarPdf(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Arquivo PDF vazio.");
-        }
-        if (file.getSize() > uploadSecurityProperties.carteiraBatchPdfMaxBytes()) {
-            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "PDF excede o limite permitido.");
-        }
-
-        String nomeArquivo = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
-        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
-        if (!nomeArquivo.endsWith(".pdf") || (!contentType.isBlank() && !contentType.equals("application/pdf"))) {
-            throw new IllegalArgumentException("Apenas arquivos PDF sao permitidos.");
-        }
-    }
-
-    private void validarZip(MultipartFile zipFile) {
-        if (zipFile == null || zipFile.isEmpty()) {
-            throw new IllegalArgumentException("Arquivo ZIP vazio.");
-        }
-        if (zipFile.getSize() > uploadSecurityProperties.carteiraBatchZipMaxBytes()) {
-            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "ZIP excede o limite permitido.");
-        }
-
-        String nomeArquivo = zipFile.getOriginalFilename() == null ? "" : zipFile.getOriginalFilename().toLowerCase();
-        if (!nomeArquivo.endsWith(".zip")) {
-            throw new IllegalArgumentException("Apenas arquivos ZIP sao permitidos.");
-        }
-    }
-    
     private void addDetalhe(BatchResultDTO resultado, String arquivo, String cpf, boolean sucesso, String mensagem) {
         BatchResultDTO.BatchItemDTO detalhe = new BatchResultDTO.BatchItemDTO();
         detalhe.setArquivo(arquivo);
@@ -313,43 +289,4 @@ public class BatchCarteiraService {
     /**
      * Classe auxiliar para MultipartFile em memória
      */
-    private static class InMemoryMultipartFile implements MultipartFile {
-        private final String name;
-        private final String originalFilename;
-        private final String contentType;
-        private final byte[] content;
-        
-        public InMemoryMultipartFile(String name, String originalFilename, String contentType, byte[] content) {
-            this.name = name;
-            this.originalFilename = originalFilename;
-            this.contentType = contentType;
-            this.content = content;
-        }
-        
-        @Override
-        public String getName() { return name; }
-        
-        @Override
-        public String getOriginalFilename() { return originalFilename; }
-        
-        @Override
-        public String getContentType() { return contentType; }
-        
-        @Override
-        public boolean isEmpty() { return content.length == 0; }
-        
-        @Override
-        public long getSize() { return content.length; }
-        
-        @Override
-        public byte[] getBytes() throws IOException { return content; }
-        
-        @Override
-        public InputStream getInputStream() throws IOException { return new ByteArrayInputStream(content); }
-        
-        @Override
-        public void transferTo(File dest) throws IOException, IllegalStateException {
-            Files.write(dest.toPath(), content);
-        }
-    }
 }

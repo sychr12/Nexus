@@ -4,6 +4,7 @@
 import { CarteiraResponse } from "../types/carteira";
 import { baixarPdf, visualizarPdf } from "../services/carteiraService";
 import { Download, Eye } from "lucide-react";
+import { formatAnyDateToDateInput } from "@/app/_lib/dateInput";
 
 interface ListaCarteirasProps {
   carteiras: CarteiraResponse[];
@@ -18,7 +19,7 @@ export default function ListaCarteiras({ carteiras, isLoading = false }: ListaCa
 
   const formatarData = (data: string) => {
     if (!data) return "—";
-    return new Date(data).toLocaleDateString("pt-BR");
+    return formatAnyDateToDateInput(data);
   };
 
   if (isLoading) {

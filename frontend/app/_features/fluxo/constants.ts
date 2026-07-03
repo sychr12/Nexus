@@ -1,23 +1,20 @@
 import type { FacStatus, GerenteUnidadeStatus, SituacaoProcessoSicpr, TipoProcessoSicpr } from "./types";
-export const FLUXO_PROCESSOS_KEY = "sicpr-fluxo-processos";
-export const GERENTES_UNIDADE_KEY = "sicpr-gerentes-unidades";
-export const MEMORANDO_SEQUENCE_KEY = "sicpr-fluxo-memorando-sequencia";
 
 export const TIPO_PROCESSO_LABELS: Record<TipoProcessoSicpr, string> = {
-  inscricao: "Inscricao",
-  renovacao: "Renovacao",
-  alteracao: "Alteracao",
+  inscricao: "Inscrição",
+  renovacao: "Renovação",
+  alteracao: "Alteração",
 };
 
 export const SITUACAO_LABELS: Record<SituacaoProcessoSicpr, string> = {
-  em_elaboracao: "Em elaboracao",
+  em_elaboracao: "Em elaboração",
   encaminhado_gerente: "Encaminhado para gerente",
   devolvido_gerente: "Devolvido pelo gerente",
   aprovado_gerente: "Aprovado pelo gerente",
-  em_analise: "Em analise",
-  devolvido_analise: "Devolvido pela analise",
+  em_analise: "Em análise",
+  devolvido_analise: "Devolvido pela análise",
   aprovado_lancamento: "Aguardando lançamento",
-  concluido: "Concluido",
+  concluido: "Concluído",
 };
 
 export const STATUS_COLORS: Record<SituacaoProcessoSicpr, string> = {
@@ -43,4 +40,3 @@ export const FAC_STATUS_LABELS: Record<FacStatus, string> = {
   assinada_anexada: "Assinada e anexada",
   rejeitada: "Rejeitada",
 };
-

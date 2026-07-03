@@ -14,14 +14,16 @@ import {
   User,
   Menu,
   X,
-  Home,
   Search,
-  Key,
   Building2,
   UserCheck,
   ChevronLeft,
   MessageCircle,
+  ClipboardList,
+  IdCard,
 } from "lucide-react";
+import { getCurrentSession } from "@/app/_lib/auth";
+import { MENU_ACCESS, ROLE_LABELS, normalizeRole } from "@/app/_lib/access-control";
 
 // Paleta de cores
 const COLORS = {
@@ -35,7 +37,6 @@ const COLORS = {
 
 // LISTA COMPLETA DE ITENS DO MENU - TODAS AS ABAS
 const MENU_ITEMS = [
-  { id: "home", label: "Home", icon: Home, href: "/" },
   { id: "dashboard", label: "Dashboard / KPIs", icon: LayoutDashboard, href: "/dashboard" },
   { id: "relatorios", label: "Relatórios", icon: PieChart, href: "/relatorios" },
   { id: "unloc", label: "Unidade Local", icon: Building2, href: "/unloc" },
@@ -49,13 +50,16 @@ const MENU_ITEMS = [
   { id: "analises", label: "Análises", icon: BarChart3, href: "/analises" },
   { id: "lancamentos", label: "Lançamentos", icon: DollarSign, href: "/lancamentos" },
   { id: "mensagens", label: "Mensagens", icon: MessageCircle, href: "/mensagens" },
-  { id: "senha", label: "Senha", icon: Key, href: "/senha" },
   { id: "usuarios", label: "Gerenciamento de Usuários", icon: User, href: "/users" },
+  { id: "auditoria", label: "Auditoria", icon: ClipboardList, href: "/auditoria" },
 ];
+
+const PROFILE_MENU_ITEM = { id: "perfil", label: "Perfil", icon: IdCard, href: "/perfil" };
 
 interface SidebarProps {
   onLogout: () => void;
   username: string;
+  role?: string;
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
@@ -109,13 +113,15 @@ const animations = `
 }
 `;
 
-export default function Sidebar({ onLogout, username, onCollapsedChange }: SidebarProps) {
+export default function Sidebar({ onLogout, username, role: sessionRole, onCollapsedChange }: SidebarProps) {
   const [collapsed, setCollapsedState] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [resolvedSessionRole, setResolvedSessionRole] = useState<string | null>(null);
+  const role = normalizeRole(sessionRole || resolvedSessionRole);
   
   const pathname = usePathname();
   const router = useRouter();
@@ -129,7 +135,9 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
   }, []);
 
   useEffect(() => {
+    let active = true;
     const mountTimer = window.setTimeout(() => {
+      if (!active) return;
       setMounted(true);
       // Recuperar estado salvo do localStorage
       const saved = localStorage.getItem("sidebar-collapsed");
@@ -139,8 +147,19 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
       }
     }, 0);
 
-    return () => window.clearTimeout(mountTimer);
-  }, []);
+    if (!sessionRole) {
+      void getCurrentSession(username).then((session) => {
+        if (active) setResolvedSessionRole(session.role);
+      }).catch(() => {
+        if (active) setResolvedSessionRole("USUARIO");
+      });
+    }
+
+    return () => {
+      active = false;
+      window.clearTimeout(mountTimer);
+    };
+  }, [sessionRole, username]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -196,6 +215,12 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => !prev);
   }, [setCollapsed]);
+
+  const visibleMenuItems = [
+    ...MENU_ITEMS.filter((item) => MENU_ACCESS[item.id]?.includes(role)),
+    PROFILE_MENU_ITEM,
+  ];
+  const roleLabel = ROLE_LABELS[role] || "Usuário";
 
   // Renderizar placeholder durante SSR
   if (!mounted) {
@@ -309,7 +334,7 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">{username}</p>
-                <p className="text-xs" style={{ color: COLORS.light }}>Administrador</p>
+                <p className="text-xs" style={{ color: COLORS.light }}>{roleLabel}</p>
               </div>
             )}
           </div>
@@ -318,7 +343,7 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
         {/* Navigation - Scrollable */}
         <nav className="sicpr-sidebar-scroll flex-1 py-4 overflow-y-auto">
           <div className={`space-y-1 ${collapsed ? 'px-1' : 'px-3'}`}>
-            {MENU_ITEMS.map((item) => {
+            {visibleMenuItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
@@ -391,7 +416,7 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-white">{username}</p>
-                  <p className="text-xs text-white/60">Administrador</p>
+                  <p className="text-xs text-white/60">{roleLabel}</p>
                 </div>
                 <button 
                   onClick={handleLogout} 
@@ -407,7 +432,7 @@ export default function Sidebar({ onLogout, username, onCollapsedChange }: Sideb
               </div>
             </div>
             <nav className="p-4 space-y-1">
-              {MENU_ITEMS.map((item) => {
+              {visibleMenuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (

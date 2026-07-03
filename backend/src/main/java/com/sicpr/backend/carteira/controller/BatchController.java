@@ -4,11 +4,10 @@ package com.sicpr.backend.carteira.controller;
 import com.sicpr.backend.carteira.dto.BatchResultDTO;
 import com.sicpr.backend.carteira.dto.BatchStatusDTO;
 import com.sicpr.backend.carteira.service.BatchCarteiraService;
+import com.sicpr.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,29 +22,24 @@ import java.util.List;
 public class BatchController {
 
     private final BatchCarteiraService batchService;
+    private final CurrentUserService currentUser;
 
     @PostMapping("/batch/upload")
     public ResponseEntity<BatchResultDTO> processarBatch(
-            @RequestParam("files") List<MultipartFile> files,
-            @AuthenticationPrincipal UserDetails userDetails) throws IOException {
+            @RequestParam("files") List<MultipartFile> files) throws IOException {
         
         log.info("POST /api/carteira/batch/upload - Arquivos: {}", files.size());
-        String usuario = userDetails != null ? userDetails.getUsername() : "SISTEMA";
-        
-        BatchResultDTO resultado = batchService.processarBatch(files, usuario);
+        BatchResultDTO resultado = batchService.processarBatch(files, currentUser.requireUsername());
         
         return ResponseEntity.ok(resultado);
     }
 
     @PostMapping("/batch/zip")
     public ResponseEntity<BatchResultDTO> processarZip(
-            @RequestParam("file") MultipartFile zipFile,
-            @AuthenticationPrincipal UserDetails userDetails) throws IOException {
+            @RequestParam("file") MultipartFile zipFile) throws IOException {
         
         log.info("POST /api/carteira/batch/zip - Arquivo: {}", zipFile.getOriginalFilename());
-        String usuario = userDetails != null ? userDetails.getUsername() : "SISTEMA";
-        
-        BatchResultDTO resultado = batchService.processarZip(zipFile, usuario);
+        BatchResultDTO resultado = batchService.processarZip(zipFile, currentUser.requireUsername());
         
         return ResponseEntity.ok(resultado);
     }

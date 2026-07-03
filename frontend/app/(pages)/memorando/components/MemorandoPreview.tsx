@@ -37,112 +37,103 @@ export default function MemorandoPreview({
 
   return (
     <div className="space-y-6">
-      {/* Preview Documento */}
       <div
-        className="rounded-3xl border overflow-hidden"
+        className="overflow-hidden rounded-3xl border"
         style={{
           backgroundColor: COLORS.white,
           borderColor: COLORS.border,
           boxShadow: "0 4px 24px rgba(31,58,46,.08)",
         }}
       >
-        {/* Cabeçalho */}
-        <div className="px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ backgroundColor: COLORS.primary }}>
+        <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between" style={{ backgroundColor: COLORS.primary }}>
           <div>
             <p className="font-semibold text-white">Pré-visualização do Word</p>
-            <p className="text-xs mt-1 text-white/80">Veja como o memorando ficará no documento final.</p>
+            <p className="mt-1 text-xs text-white/80">Veja como o memorando ficará no documento final.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-white">
               Data {dataAtual}
             </span>
             <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-white">
-              Unidade Local {form.unloc || "—"}
+              Unidade Local {form.unloc || "-"}
             </span>
           </div>
         </div>
 
-        {/* Documento */}
-        <div
-          className="bg-white p-10"
-          style={{
-            minHeight: "720px",
-            lineHeight: 1.9,
-            color: COLORS.text,
-          }}
-        >
-          {/* Número */}
-          <p
+        <div className="bg-[#eef2ec] px-4 py-6 sm:px-6">
+          <div
+            className="relative mx-auto min-h-[960px] w-full max-w-[680px] overflow-hidden bg-white px-14 pb-44 pt-36 text-[13px] leading-6 text-black shadow-sm"
             style={{
-              fontWeight: 700,
-              fontSize: "16px",
+              backgroundImage: "url('/images/PapelTimbrado.png')",
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "100% 100%",
               color: COLORS.text,
             }}
           >
-            Memo Nº {form.numero || "(num)"}/2026 CPCPP/GABIN
-          </p>
-
-          <br />
-
-          {/* Data */}
-          <p style={{ color: COLORS.textLight }}>Manaus, {dataAtual}</p>
-
-          <br />
-          <br />
-
-          {/* Destinatários */}
-          <p style={{ color: COLORS.text }}>
-            <strong>DA:</strong> Coordenadoria do Programa Carteira do Produtor Primário
-          </p>
-
-          <p style={{ color: COLORS.text }}>
-            <strong>AO:</strong> Gerente da Unidade Local de{" "}
-            <strong>{form.unloc || "(muni)"}</strong>
-          </p>
-
-          <br />
-          <br />
-
-          {/* Texto */}
-          <p
-            style={{
-              textAlign: "justify",
-              color: COLORS.text,
-            }}
-          >
-            Ao cumprimentá-lo cordialmente, encaminho{" "}
-            <strong>{form.descricao || "(qtda)"}</strong> fichas de inscrição
-            do contribuinte para as providências necessárias.
-          </p>
-
-          <br />
-          <br />
-
-          <div className="rounded-3xl border p-5" style={{ backgroundColor: COLORS.lightGray, borderColor: COLORS.border }}>
-            <p className="text-sm font-semibold mb-2" style={{ color: COLORS.text }}>
-              Referente aos memorandos:
+            <p className="text-[16px] font-bold" style={{ color: COLORS.text }}>
+              Memo Nº {form.numero || "(num)"}/2026 CPCPP/GABIN
             </p>
-            <p className="text-sm" style={{ color: COLORS.textLight }}>
-              {form.memoEntrada || "(memos)"}
-            </p>
-          </div>
 
-          <div className="mt-10 text-sm" style={{ color: COLORS.text }}>
-            <p>Atenciosamente,</p>
-            <div className="mt-8 w-full max-w-xs">
-              <div style={{ borderTop: "1px solid #444", marginBottom: "10px" }} />
-              <p className="font-semibold" style={{ color: COLORS.text }}>
-                Aglei Duques Maciel
+            <br />
+
+            <p style={{ color: COLORS.textLight }}>Manaus, {dataAtual}</p>
+
+            <br />
+            <br />
+
+            <p style={{ color: COLORS.text }}>
+              <strong>DA:</strong> Coordenadoria do Programa Carteira do Produtor Primário
+            </p>
+
+            <p style={{ color: COLORS.text }}>
+              <strong>AO:</strong> Gerente da Unidade Local de{" "}
+              <strong>{form.unloc || "(muni)"}</strong>
+            </p>
+
+            <br />
+            <br />
+
+            <p
+              style={{
+                textAlign: "justify",
+                color: COLORS.text,
+              }}
+            >
+              Ao cumprimentá-lo cordialmente, encaminho{" "}
+              <strong>{form.descricao || "(qtda)"}</strong> fichas de inscrição
+              do contribuinte para as providências necessárias.
+            </p>
+
+            <br />
+            <br />
+
+            <div className="rounded border p-4" style={{ backgroundColor: "rgba(243,244,239,.78)", borderColor: COLORS.border }}>
+              <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.text }}>
+                Referente aos memorandos:
               </p>
               <p className="text-sm" style={{ color: COLORS.textLight }}>
-                Coordenação do CPCPP
+                {form.memoEntrada || "(memos)"}
               </p>
             </div>
+
+            <div className="mt-10 text-sm" style={{ color: COLORS.text }}>
+              <p>Atenciosamente,</p>
+              <div className="mt-8 w-full max-w-xs">
+                <div style={{ borderTop: "1px solid #444", marginBottom: "10px" }} />
+                <p className="font-semibold" style={{ color: COLORS.text }}>
+                  Aglei Duques Maciel
+                </p>
+                <p className="text-sm" style={{ color: COLORS.textLight }}>
+                  Coordenação do CPCPP
+                </p>
+              </div>
+            </div>
+
+            <MemorandoTimbradoFooter />
           </div>
         </div>
       </div>
 
-      {/* Filtros */}
       <MemorandoFilters
         search={search}
         setSearch={setSearch}
@@ -150,9 +141,8 @@ export default function MemorandoPreview({
         setSelectedUnloc={setSelectedUnloc}
       />
 
-      {/* Tabela */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <h3
             className="text-xl font-bold"
             style={{
@@ -163,7 +153,7 @@ export default function MemorandoPreview({
           </h3>
 
           <span
-            className="px-3 py-1 rounded-full text-xs font-semibold"
+            className="rounded-full px-3 py-1 text-xs font-semibold"
             style={{
               backgroundColor: `${COLORS.accent}18`,
               color: COLORS.accent,
@@ -182,5 +172,31 @@ export default function MemorandoPreview({
         />
       </div>
     </div>
+  );
+}
+
+function MemorandoTimbradoFooter() {
+  return (
+    <footer className="absolute bottom-8 left-12 right-12 grid grid-cols-[1fr_1.25fr_1fr] items-center gap-5 text-[11px] leading-4 text-[#7D8AA5]">
+      <div className="space-y-0.5">
+        <p>www.idam.am.gov.br</p>
+        <p>twitter.com/idam_govam</p>
+        <p>youtube.com/idam_govam</p>
+        <p>facebook.com/idam_govam</p>
+        <p>Instagram.com/@idam_govam</p>
+      </div>
+      <div className="border-x border-[#98A6A1] px-5">
+        <p>presidencia@idam.am.gov.br</p>
+        <p>Fone: (92) 98452-9911</p>
+        <p>Avenida Carlos Drummond de</p>
+        <p>Andrade, 1460, Bloco G - 2º Andar</p>
+        <p>Conj. Atílio Andreazza - Japiim</p>
+        <p>Manaus - AM - CEP: 69077-730</p>
+      </div>
+      <div className="flex justify-end">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/IDAM.png" alt="IDAM 30 anos" className="h-14 w-auto object-contain" />
+      </div>
+    </footer>
   );
 }

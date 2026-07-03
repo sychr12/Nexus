@@ -1,140 +1,77 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Eye, FileText, History, Link2, Paperclip, Search, X } from "lucide-react";
 import Sidebar from "@/app/_components/layout/Sidebar";
+import { useClientMounted } from "@/app/_hooks/useClientMounted";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import {
   SITUACAO_LABELS,
   STATUS_COLORS,
   formatDateTime,
-  getDocumentosGerados,
-  getFacAssinada,
-  getOutrosDocumentos,
-  loadProcessos,
 } from "@/app/_features/fluxo/storage";
-import type { MemorandoProcessoRegistro, ProcessoSicpr } from "@/app/_features/fluxo/types";
-
-const COLORS = {
-  primary: "#2D452F",
-  accent: "#6B9D4A",
-  background: "#F5F7F5",
-  card: "#FFFFFF",
-  text: "#1A2E1B",
-  textLight: "#6B7C6A",
-  border: "#E2E8E0",
-  danger: "#B42318",
-};
-
-const PAGE_SIZE = 50;
-
-type MemorandoCentralStatus =
-  | "todos"
-  | "em_elaboracao"
-  | "assinado"
-  | "em_analise"
-  | "devolvido"
-  | "reencaminhado"
-  | "aprovado"
-  | "lancado"
-  | "cancelado";
-
-const STATUS_FILTERS: Array<{ key: MemorandoCentralStatus; label: string }> = [
-  { key: "todos", label: "Todos" },
-  { key: "em_elaboracao", label: "Em elaboração" },
-  { key: "assinado", label: "Assinado" },
-  { key: "em_analise", label: "Em análise" },
-  { key: "devolvido", label: "Devolvido" },
-  { key: "reencaminhado", label: "Reencaminhado" },
-  { key: "aprovado", label: "Aprovado" },
-  { key: "lancado", label: "Lançado" },
-  { key: "cancelado", label: "Cancelado" },
-];
-
-const STATUS_META: Record<Exclude<MemorandoCentralStatus, "todos">, { label: string; className: string }> = {
-  em_elaboracao: { label: "Em elaboração", className: "bg-amber-50 text-amber-700 ring-amber-200" },
-  assinado: { label: "Assinado", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-  em_analise: { label: "Em análise", className: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
-  devolvido: { label: "Devolvido", className: "bg-red-50 text-red-700 ring-red-200" },
-  reencaminhado: { label: "Reencaminhado", className: "bg-orange-50 text-orange-700 ring-orange-200" },
-  aprovado: { label: "Aprovado", className: "bg-purple-50 text-purple-700 ring-purple-200" },
-  lancado: { label: "Lançado", className: "bg-slate-50 text-slate-700 ring-slate-200" },
-  cancelado: { label: "Cancelado", className: "bg-zinc-100 text-zinc-700 ring-zinc-200" },
-};
-
-type MemorandoResumo = MemorandoProcessoRegistro & {
-  processos: ProcessoSicpr[];
-  status: Exclude<MemorandoCentralStatus, "todos">;
-  ultimaMovimentacao: string;
-  tecnicos: string[];
-  relacionadoAnterior?: string;
-  sucessor?: string;
-  cadeiaSucessao: string[];
-};
+import type { ProcessoSicpr } from "@/app/_features/fluxo/types";
+import {
+  COLORS,
+  PAGE_SIZE,
+  STATUS_FILTERS,
+  STATUS_META,
+  getAuditDotClass,
+  getDevolucaoMotivo,
+  getDevolucoes,
+  getDocumentsByProducer,
+  getHistoricoGeral,
+} from "./memorandos-data";
+import type { MemorandoCentralPage, MemorandoCentralStatus, MemorandoResumo } from "./memorandos-data";
+import { centralMemorandosService } from "./services/central-memorandos.service";
 
 export default function MemorandosAssinadosPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Gerente de Unidade Local" });
-  const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Administrador",
+    allowedRoles: ["ADMIN", "GERENTE"],
+  });
+  const mounted = useClientMounted();
+  const [data, setData] = useState<MemorandoCentralPage | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemorandoCentralStatus>("todos");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<MemorandoResumo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!ready || !mounted) return;
+    let active = true;
     const timer = window.setTimeout(() => {
-      setProcessos(loadProcessos());
+      setLoading(true);
+      setError("");
+      void centralMemorandosService
+        .listar({ search, status: statusFilter, page, size: PAGE_SIZE })
+        .then((response) => {
+          if (!active) return;
+          setData(response);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setError(err instanceof Error ? err.message : "Não foi possível carregar a Central de Memorandos.");
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [ready, mounted]);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [ready, mounted, page, search, statusFilter]);
 
-  const memorandos = useMemo(() => buildMemorandos(processos), [processos]);
-  const statusCounts = useMemo(() => {
-    const counts = new Map<MemorandoCentralStatus, number>();
-    STATUS_FILTERS.forEach((filter) => counts.set(filter.key, 0));
-    counts.set("todos", memorandos.length);
-    memorandos.forEach((memorando) => counts.set(memorando.status, (counts.get(memorando.status) || 0) + 1));
-    return counts;
-  }, [memorandos]);
-
-  const filtered = useMemo(() => {
-    const term = normalize(search);
-    return memorandos.filter((memorando) => {
-      if (statusFilter !== "todos" && memorando.status !== statusFilter) return false;
-      if (!term) return true;
-
-      const searchable = [
-        memorando.numero,
-        memorando.unidadeLocal,
-        memorando.gerenteResponsavel,
-        memorando.tecnicos.join(" "),
-        memorando.relacionadoAnterior || "",
-        memorando.sucessor || "",
-        ...memorando.produtores.flatMap((produtor) => [produtor.produtor, produtor.cpf, produtor.tipoProcesso]),
-        ...memorando.processos.flatMap((processo) => [
-          processo.produtor,
-          processo.cpf,
-          processo.unidadeLocal,
-          processo.tecnicoResponsavel,
-          processo.gerenteResponsavel || "",
-          processo.documentosGerados?.fac?.municipio || "",
-          processo.documentosGerados?.fac?.comunidade || "",
-        ]),
-      ].join(" ");
-
-      return normalize(searchable).includes(term);
-    });
-  }, [memorandos, search, statusFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const statusCounts = data?.statusCounts || {};
+  const totalPages = data?.totalPages || 1;
+  const currentPage = data?.page || page;
+  const paged = data?.items || [];
+  const total = data?.total || 0;
 
   function applyStatusFilter(nextStatus: MemorandoCentralStatus) {
     setStatusFilter(nextStatus);
@@ -154,6 +91,7 @@ export default function MemorandosAssinadosPage() {
       <Sidebar
         onLogout={logout}
         username={username || "Gerente de Unidade Local"}
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 
@@ -199,10 +137,16 @@ export default function MemorandosAssinadosPage() {
                   }}
                 >
                   <span className="block text-xs font-semibold uppercase opacity-80">{filter.label}</span>
-                  <span className="mt-1 block text-xl font-bold">{statusCounts.get(filter.key) || 0}</span>
+                  <span className="mt-1 block text-xl font-bold">{statusCounts[filter.key] || 0}</span>
                 </button>
               ))}
             </div>
+
+            {error && (
+              <div className="rounded-lg border px-4 py-3 text-sm font-semibold" style={{ borderColor: "#FCA5A5", backgroundColor: "#FEF2F2", color: COLORS.danger }}>
+                {error}
+              </div>
+            )}
 
             <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
               <div className="overflow-x-auto p-4">
@@ -248,20 +192,25 @@ export default function MemorandosAssinadosPage() {
                     ))}
                   </tbody>
                 </table>
-                {paged.length === 0 && (
+                {loading && (
+                  <div className="py-8 text-center text-sm" style={{ color: COLORS.textLight }}>
+                    Carregando memorandos...
+                  </div>
+                )}
+                {!loading && paged.length === 0 && (
                   <div className="py-8 text-center text-sm" style={{ color: COLORS.textLight }}>
                     Nenhum memorando encontrado.
                   </div>
                 )}
               </div>
-              {filtered.length > PAGE_SIZE && (
+              {total > PAGE_SIZE && (
                 <div className="flex items-center justify-between border-t px-4 py-3 text-sm" style={{ borderTopColor: COLORS.border, color: COLORS.text }}>
-                  <span>Página {page} de {totalPages} | {filtered.length} memorando(s)</span>
+                  <span>Página {currentPage} de {totalPages} | {total} memorando(s)</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      disabled={page === 1}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      disabled={currentPage === 1}
+                      onClick={() => setPage(Math.max(1, currentPage - 1))}
                       className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors hover:bg-gray-100"
                       style={{ border: `1px solid ${COLORS.border}` }}
                     >
@@ -269,8 +218,8 @@ export default function MemorandosAssinadosPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={page === totalPages}
-                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                      disabled={currentPage === totalPages}
+                      onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
                       className="rounded-md px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors hover:bg-gray-100"
                       style={{ border: `1px solid ${COLORS.border}` }}
                     >
@@ -464,203 +413,6 @@ function MemorandoDetailModal({ memorando, onClose }: { memorando: MemorandoResu
 }
 
 // Funções auxiliares (permanecem iguais)
-function buildMemorandos(processos: ProcessoSicpr[]): MemorandoResumo[] {
-  const grupos = new Map<string, MemorandoResumo>();
-
-  processos.forEach((processo) => {
-    const memorandos = processo.memorandos?.length ? processo.memorandos : getLegacyMemorando(processo);
-    memorandos.forEach((memorando) => {
-      const current = grupos.get(memorando.loteId);
-      if (current) {
-        addProcessoToMemorando(current, processo, memorando);
-        return;
-      }
-
-      grupos.set(memorando.loteId, {
-        ...memorando,
-        produtores: [...memorando.produtores],
-        processos: [processo],
-        status: getCentralStatus([processo], memorando),
-        ultimaMovimentacao: getLastMovement([processo], memorando),
-        tecnicos: unique([processo.tecnicoResponsavel]),
-        cadeiaSucessao: [memorando.numero],
-      });
-    });
-  });
-
-  const memorandos = Array.from(grupos.values())
-    .map((memorando) => ({
-      ...memorando,
-      status: getCentralStatus(memorando.processos, memorando),
-      ultimaMovimentacao: getLastMovement(memorando.processos, memorando),
-      tecnicos: unique(memorando.processos.map((p) => p.tecnicoResponsavel)),
-    }))
-    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-
-  memorandos.forEach((memorando) => {
-    memorando.relacionadoAnterior = findRelatedPrevious(memorando, memorandos);
-    memorando.sucessor = findSuccessor(memorando, memorandos);
-    memorando.cadeiaSucessao = buildSuccessionChain(memorando, memorandos);
-  });
-
-  return memorandos;
-}
-
-function addProcessoToMemorando(target: MemorandoResumo, processo: ProcessoSicpr, memorando: MemorandoProcessoRegistro) {
-  if (!target.processos.some((item) => item.id === processo.id)) {
-    target.processos.push(processo);
-  }
-  memorando.produtores.forEach((produtor) => {
-    if (!target.produtores.some((item) => item.id === produtor.id)) {
-      target.produtores.push(produtor);
-    }
-  });
-}
-
-function getLegacyMemorando(processo: ProcessoSicpr): MemorandoProcessoRegistro[] {
-  if (!processo.memorandoNumero || !processo.memorandoLoteId) return [];
-
-  return [{
-    loteId: processo.memorandoLoteId,
-    numero: processo.memorandoNumero,
-    arquivo: processo.memorandoArquivo || `Memorando ${processo.memorandoNumero}.pdf`,
-    criadoEm: processo.memorandoCriadoEm || processo.gerenteAssinadoEm || processo.enviadoAnaliseEm || processo.criadoEm,
-    gerenteResponsavel: processo.gerenteResponsavel || "-",
-    unidadeLocal: processo.unidadeLocal,
-    quantidade: processo.memorandoQuantidade || 1,
-    produtores: processo.memorandoProdutores || [{ id: processo.id, produtor: processo.produtor, cpf: processo.cpf, tipoProcesso: processo.tipoProcesso }],
-    assinatura: processo.assinaturaEletronica,
-  }];
-}
-
-function getCentralStatus(processos: ProcessoSicpr[], memorando: MemorandoProcessoRegistro): Exclude<MemorandoCentralStatus, "todos"> {
-  const situacoes = processos.map((processo) => processo.situacao);
-  if (situacoes.some((situacao) => situacao === "concluido")) return "lancado";
-  if (situacoes.some((situacao) => situacao === "aprovado_lancamento")) return "aprovado";
-  if (situacoes.some((situacao) => situacao === "devolvido_analise" || situacao === "devolvido_gerente")) return "devolvido";
-  if (situacoes.some((situacao) => situacao === "em_analise")) return "em_analise";
-  if (memorando.assinatura || processos.some((processo) => processo.assinaturaEletronica)) return "assinado";
-  if (situacoes.some((situacao) => situacao === "encaminhado_gerente" || situacao === "aprovado_gerente")) return "em_elaboracao";
-  return "em_elaboracao";
-}
-
-function getLastMovement(processos: ProcessoSicpr[], memorando: MemorandoProcessoRegistro) {
-  const dates = [
-    memorando.criadoEm,
-    ...processos.flatMap((processo) => [
-      processo.encaminhadoGerenteEm,
-      processo.gerenteAssinadoEm,
-      processo.enviadoAnaliseEm,
-      processo.analisadoEm,
-      processo.lancadoEm,
-      ...processo.historico.map((item) => item.dataHora),
-    ]),
-  ].filter(Boolean) as string[];
-
-  return dates.sort((a, b) => b.localeCompare(a))[0] || memorando.criadoEm;
-}
-
-function findRelatedPrevious(memorando: MemorandoResumo, memorandos: MemorandoResumo[]) {
-  const producerIds = new Set(memorando.produtores.map((produtor) => produtor.id));
-  return memorandos.find((candidate) =>
-    candidate.criadoEm < memorando.criadoEm &&
-    candidate.loteId !== memorando.loteId &&
-    candidate.produtores.some((produtor) => producerIds.has(produtor.id))
-  )?.numero;
-}
-
-function findSuccessor(memorando: MemorandoResumo, memorandos: MemorandoResumo[]) {
-  const producerIds = new Set(memorando.produtores.map((produtor) => produtor.id));
-  return memorandos.find((candidate) =>
-    candidate.criadoEm > memorando.criadoEm &&
-    candidate.loteId !== memorando.loteId &&
-    candidate.produtores.some((produtor) => producerIds.has(produtor.id))
-  )?.numero;
-}
-
-function buildSuccessionChain(memorando: MemorandoResumo, memorandos: MemorandoResumo[]) {
-  const producerIds = new Set(memorando.produtores.map((produtor) => produtor.id));
-  return memorandos
-    .filter((candidate) =>
-      candidate.loteId === memorando.loteId ||
-      candidate.produtores.some((produtor) => producerIds.has(produtor.id))
-    )
-    .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))
-    .map((item) => item.numero);
-}
-
-function getAuditoria(memorando: MemorandoResumo) {
-  const events = memorando.processos.flatMap((processo) =>
-    processo.historico.map((item) => ({
-      ...item,
-      observacao: [processo.produtor, item.observacao].filter(Boolean).join(" | "),
-    }))
-  );
-
-  const baseEvents = [
-    {
-      id: `${memorando.loteId}-memorando`,
-      usuario: "Sistema",
-      acao: "Memorando gerado",
-      dataHora: memorando.criadoEm,
-      observacao: `${memorando.numero} | ${memorando.quantidade} processo(s)`,
-    },
-    ...(memorando.assinatura ? [{
-      id: `${memorando.loteId}-assinatura`,
-      usuario: memorando.assinatura.gerenteNome,
-      acao: "Assinado eletronicamente",
-      dataHora: memorando.assinatura.assinadaEm,
-      observacao: memorando.assinatura.codigoValidacao,
-    }] : []),
-  ];
-
-  return [...baseEvents, ...events].sort((a, b) => a.dataHora.localeCompare(b.dataHora));
-}
-
-function getHistoricoGeral(memorando: MemorandoResumo) {
-  const institutionalActions = [
-    "memorando gerado",
-    "assinado eletronicamente",
-    "encaminhado para analise",
-    "recebido pela analise",
-    "aprovado",
-    "encaminhado para lancamento",
-    "lancado",
-    "cancelado",
-  ];
-
-  return uniqueBy(
-    getAuditoria(memorando).filter((item) => {
-      const action = normalize(item.acao);
-      return institutionalActions.some((institutionalAction) => action.includes(institutionalAction));
-    }),
-    (item) => `${normalize(item.acao)}-${item.dataHora}`
-  );
-}
-
-function getDevolucoes(memorando: MemorandoResumo) {
-  return memorando.processos.flatMap((processo) =>
-    processo.historico
-      .filter((item) => normalize(item.acao).includes("devolvido"))
-      .map((evento) => ({ processo, evento }))
-  );
-}
-
-function getDocumentsByProducer(memorando: MemorandoResumo) {
-  return memorando.processos.map((processo) => {
-    const generated = getDocumentosGerados(processo).map((doc) => ({ label: doc.nome, detail: doc.arquivo }));
-    const attachments = [
-      ...(getFacAssinada(processo) ? [getFacAssinada(processo)!] : []),
-      ...getOutrosDocumentos(processo),
-    ].map((doc) => ({ label: doc.nome, detail: doc.arquivo }));
-
-    return {
-      processo,
-      items: uniqueBy([...generated, ...attachments], (item) => `${item.label}-${item.detail}`),
-    };
-  });
-}
-
 function StatusBadge({ status }: { status: Exclude<MemorandoCentralStatus, "todos"> }) {
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_META[status].className}`}>
@@ -731,35 +483,4 @@ function ProducerTimeline({ processo }: { processo: ProcessoSicpr }) {
       </div>
     </details>
   );
-}
-
-function getDevolucaoMotivo(observacao?: string) {
-  if (!observacao) return "-";
-  return observacao.split("|")[0]?.trim() || observacao;
-}
-
-function getAuditDotClass(acao: string) {
-  const value = normalize(acao);
-  if (value.includes("devolvido")) return "bg-red-500 ring-red-100";
-  if (value.includes("assinado") || value.includes("aprovado") || value.includes("lancado")) return "bg-emerald-500 ring-emerald-100";
-  if (value.includes("encaminhado")) return "bg-amber-500 ring-amber-100";
-  return "bg-slate-400 ring-slate-100";
-}
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
-function unique(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean)));
-}
-
-function uniqueBy<T>(values: T[], getKey: (value: T) => string) {
-  const seen = new Set<string>();
-  return values.filter((value) => {
-    const key = getKey(value);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }

@@ -16,10 +16,13 @@ import com.sicpr.backend.inscricao.repository.InscricaoRepository;
 import com.sicpr.backend.memorando.entity.Memorando;
 import com.sicpr.backend.memorando.repository.MemorandoRepository;
 import com.sicpr.backend.security.CryptoService;
+import com.sicpr.backend.security.CurrentUserService;
+import com.sicpr.backend.security.RoleUtils;
 import com.sicpr.backend.user.model.User;
 import com.sicpr.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -38,6 +41,7 @@ public class DashboardService {
     private static final DateTimeFormatter DIA_MES = DateTimeFormatter.ofPattern("dd/MM");
     private static final Set<String> STATUS_DEVOLVIDOS = Set.of("devolvido_gerente", "devolvido_analise");
     private static final Set<String> STATUS_EM_ELABORACAO = Set.of("em_elaboracao", "devolvido_gerente", "devolvido_analise");
+    private static final int LIMITE_ATIVIDADES_RECENTES = 100;
 
     private final UserRepository userRepository;
     private final InscricaoRepository inscricaoRepository;
@@ -45,24 +49,38 @@ public class DashboardService {
     private final CarteiraRepository carteiraRepository;
     private final ProcessoFluxoRepository processoFluxoRepository;
     private final CryptoService cryptoService;
+    private final CurrentUserService currentUserService;
+
+    @Transactional
+    public void registrarPresenca() {
+        registrarPresenca(currentUserService.requireUser(), LocalDateTime.now());
+    }
 
     public DashboardStatsDTO obterEstatisticas() {
+        User user = currentUserService.requireUser();
         LocalDateTime agora = LocalDateTime.now();
+        registrarPresenca(user, agora);
+        String unidadeLocal = scopedUnidadeLocal(user);
         LocalDateTime cincoMinutosAtras = agora.minusMinutes(5);
         LocalDateTime inicioHoje = LocalDate.now().atStartOfDay();
         LocalDateTime fimHoje = inicioHoje.plusDays(1);
 
-        long totalUsuarios = userRepository.count();
-        long usuariosOnline = userRepository.countByUltimoLoginAfter(cincoMinutosAtras);
+        long totalUsuarios = unidadeLocal == null ? userRepository.count() : userRepository.countByUnidadeLocalIgnoreCase(unidadeLocal);
+        long usuariosOnline = unidadeLocal == null
+                ? userRepository.countByUltimoLoginAfter(cincoMinutosAtras)
+                : userRepository.countByUltimoLoginAfterAndUnidadeLocalIgnoreCase(cincoMinutosAtras, unidadeLocal);
 
-        long processosEmElaboracao = processoFluxoRepository.countBySituacaoIn(STATUS_EM_ELABORACAO);
-        long processosGerente = processoFluxoRepository.countBySituacao("encaminhado_gerente");
-        long processosAnalise = processoFluxoRepository.countBySituacao("em_analise");
-        long processosLancamento = processoFluxoRepository.countBySituacao("aprovado_lancamento");
-        long processosConcluidos = processoFluxoRepository.countBySituacao("concluido");
-        long processosDevolvidos = processoFluxoRepository.countBySituacaoIn(STATUS_DEVOLVIDOS);
+        long processosEmElaboracao = countBySituacaoIn(STATUS_EM_ELABORACAO, unidadeLocal);
+        long processosGerente = countBySituacao("encaminhado_gerente", unidadeLocal);
+        long processosAnalise = countBySituacao("em_analise", unidadeLocal);
+        long processosLancamento = countBySituacao("aprovado_lancamento", unidadeLocal);
+        long processosConcluidos = countBySituacao("concluido", unidadeLocal);
+        long processosDevolvidos = countBySituacaoIn(STATUS_DEVOLVIDOS, unidadeLocal);
 
-        String ultimoAcesso = userRepository.findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc().stream()
+        List<User> usuariosComLogin = unidadeLocal == null
+                ? userRepository.findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc()
+                : userRepository.findTop5ByUnidadeLocalIgnoreCaseAndUltimoLoginIsNotNullOrderByUltimoLoginDesc(unidadeLocal);
+        String ultimoAcesso = usuariosComLogin.stream()
                 .findFirst()
                 .map(User::getUltimoLogin)
                 .map(data -> data.format(DATA_HORA))
@@ -72,16 +90,16 @@ public class DashboardService {
                 .usuariosOnline(toInt(usuariosOnline))
                 .usuariosOffline(toInt(Math.max(totalUsuarios - usuariosOnline, 0)))
                 .totalUsuarios(toInt(totalUsuarios))
-                .usuariosAtivos(toInt(userRepository.countByStatus("ATIVO")))
-                .usuariosBloqueados(toInt(userRepository.countByStatus("BLOQUEADO")))
-                .totalInscricoes(toInt(inscricaoRepository.count()))
-                .inscricoesHoje(toInt(inscricaoRepository.countByCriadoEmBetween(inicioHoje, fimHoje)))
+                .usuariosAtivos(toInt(countUsersByStatus("ATIVO", unidadeLocal)))
+                .usuariosBloqueados(toInt(countUsersByStatus("BLOQUEADO", unidadeLocal)))
+                .totalInscricoes(unidadeLocal == null ? toInt(inscricaoRepository.count()) : 0)
+                .inscricoesHoje(unidadeLocal == null ? toInt(inscricaoRepository.countByCriadoEmBetween(inicioHoje, fimHoje)) : 0)
                 .totalLancamentos(toInt(processosLancamento))
-                .totalMemorandos(toInt(memorandoRepository.count()))
-                .memorandosHoje(toInt(memorandoRepository.countByCriadoEmBetween(inicioHoje, fimHoje)))
-                .totalCartoes(toInt(carteiraRepository.count()))
-                .cartoesHoje(toInt(carteiraRepository.countByCriadoEmBetween(inicioHoje, fimHoje)))
-                .totalProcessosFluxo(toInt(processoFluxoRepository.count()))
+                .totalMemorandos(unidadeLocal == null ? toInt(memorandoRepository.count()) : 0)
+                .memorandosHoje(unidadeLocal == null ? toInt(memorandoRepository.countByCriadoEmBetween(inicioHoje, fimHoje)) : 0)
+                .totalCartoes(unidadeLocal == null ? toInt(carteiraRepository.count()) : 0)
+                .cartoesHoje(unidadeLocal == null ? toInt(carteiraRepository.countByCriadoEmBetween(inicioHoje, fimHoje)) : 0)
+                .totalProcessosFluxo(toInt(countProcessos(unidadeLocal)))
                 .processosEmElaboracao(toInt(processosEmElaboracao))
                 .processosGerente(toInt(processosGerente))
                 .processosAnalise(toInt(processosAnalise))
@@ -93,13 +111,14 @@ public class DashboardService {
     }
 
     public List<TopCategoriaDTO> obterTopCategorias() {
+        String unidadeLocal = scopedUnidadeLocal(currentUserService.requireUser());
         return List.of(
-                categoria("Em elaboracao", processoFluxoRepository.countBySituacao("em_elaboracao")),
-                categoria("Aguardando gerente", processoFluxoRepository.countBySituacao("encaminhado_gerente")),
-                categoria("Em analise", processoFluxoRepository.countBySituacao("em_analise")),
-                categoria("Aguardando lancamento", processoFluxoRepository.countBySituacao("aprovado_lancamento")),
-                categoria("Concluidos", processoFluxoRepository.countBySituacao("concluido")),
-                categoria("Devolvidos", processoFluxoRepository.countBySituacaoIn(STATUS_DEVOLVIDOS))
+                categoria("Em elaboracao", countBySituacao("em_elaboracao", unidadeLocal)),
+                categoria("Aguardando gerente", countBySituacao("encaminhado_gerente", unidadeLocal)),
+                categoria("Em analise", countBySituacao("em_analise", unidadeLocal)),
+                categoria("Aguardando lancamento", countBySituacao("aprovado_lancamento", unidadeLocal)),
+                categoria("Concluidos", countBySituacao("concluido", unidadeLocal)),
+                categoria("Devolvidos", countBySituacaoIn(STATUS_DEVOLVIDOS, unidadeLocal))
         );
     }
 
@@ -114,12 +133,13 @@ public class DashboardService {
     }
 
     public List<NotificacaoDTO> obterNotificacoes() {
+        String unidadeLocal = scopedUnidadeLocal(currentUserService.requireUser());
         List<NotificacaoDTO> notificacoes = new ArrayList<>();
-        long gerente = processoFluxoRepository.countBySituacao("encaminhado_gerente");
-        long analise = processoFluxoRepository.countBySituacao("em_analise");
-        long lancamento = processoFluxoRepository.countBySituacao("aprovado_lancamento");
-        long devolvidos = processoFluxoRepository.countBySituacaoIn(STATUS_DEVOLVIDOS);
-        long bloqueados = userRepository.countByStatus("BLOQUEADO");
+        long gerente = countBySituacao("encaminhado_gerente", unidadeLocal);
+        long analise = countBySituacao("em_analise", unidadeLocal);
+        long lancamento = countBySituacao("aprovado_lancamento", unidadeLocal);
+        long devolvidos = countBySituacaoIn(STATUS_DEVOLVIDOS, unidadeLocal);
+        long bloqueados = countUsersByStatus("BLOQUEADO", unidadeLocal);
 
         adicionarNotificacao(notificacoes, gerente, "Aguardando gerente", "processo(s) pendente(s) de aprovacao gerencial");
         adicionarNotificacao(notificacoes, analise, "Em analise", "processo(s) em analise tecnica");
@@ -131,18 +151,35 @@ public class DashboardService {
     }
 
     public List<UsuarioAtivoDTO> obterUsuariosAtivos() {
-        LocalDateTime cincoMinutosAtras = LocalDateTime.now().minusMinutes(5);
+        User currentUser = currentUserService.requireUser();
+        LocalDateTime agora = LocalDateTime.now();
+        registrarPresenca(currentUser, agora);
+        String unidadeLocal = scopedUnidadeLocal(currentUser);
+        LocalDateTime cincoMinutosAtras = agora.minusMinutes(5);
 
-        return userRepository.findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc().stream()
+        List<User> usuarios = unidadeLocal == null
+                ? userRepository.findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc()
+                : userRepository.findTop5ByUnidadeLocalIgnoreCaseAndUltimoLoginIsNotNullOrderByUltimoLoginDesc(unidadeLocal);
+
+        return usuarios.stream()
                 .filter(user -> user.getUltimoLogin() != null && user.getUltimoLogin().isAfter(cincoMinutosAtras))
                 .map(this::toUsuarioAtivo)
                 .toList();
     }
 
+    private void registrarPresenca(User user, LocalDateTime dataHora) {
+        user.setUltimoLogin(dataHora);
+        userRepository.save(user);
+    }
+
     public List<AtividadeRecenteDTO> obterAtividadesRecentes() {
+        String unidadeLocal = scopedUnidadeLocal(currentUserService.requireUser());
         List<AtividadeRecenteDTO> atividades = new ArrayList<>();
 
-        processoFluxoRepository.findTop8ByOrderByAtualizadoEmDesc().forEach(processo ->
+        List<ProcessoFluxo> processosRecentes = unidadeLocal == null
+                ? processoFluxoRepository.findTop100ByOrderByAtualizadoEmDesc()
+                : processoFluxoRepository.findTop100ByUnidadeLocalIgnoreCaseOrderByAtualizadoEmDesc(unidadeLocal);
+        processosRecentes.forEach(processo ->
                 atividades.add(AtividadeRecenteDTO.builder()
                         .tipo("PROCESSO")
                         .usuario(usuarioProcesso(processo))
@@ -152,37 +189,42 @@ public class DashboardService {
                         .build())
         );
 
-        carteiraRepository.findTop5ByOrderByCriadoEmDesc().forEach(carteira ->
-                atividades.add(AtividadeRecenteDTO.builder()
-                        .tipo("CARTEIRA")
-                        .usuario(valorOuPadrao(carteira.getUsuario(), "sistema"))
-                        .descricao("Carteira emitida para " + valorOuPadrao(carteira.getNome(), "produtor"))
-                        .dataHora(carteira.getCriadoEm())
-                        .icone("carteira")
-                        .build())
-        );
+        if (unidadeLocal == null) {
+            carteiraRepository.findTop25ByOrderByCriadoEmDesc().forEach(carteira ->
+                    atividades.add(AtividadeRecenteDTO.builder()
+                            .tipo("CARTEIRA")
+                            .usuario(valorOuPadrao(carteira.getUsuario(), "sistema"))
+                            .descricao("Carteira emitida para " + valorOuPadrao(carteira.getNome(), "produtor"))
+                            .dataHora(carteira.getCriadoEm())
+                            .icone("carteira")
+                            .build())
+            );
 
-        memorandoRepository.findTop5ByOrderByCriadoEmDesc().forEach(memorando ->
-                atividades.add(AtividadeRecenteDTO.builder()
-                        .tipo("MEMORANDO")
-                        .usuario(valorOuPadrao(memorando.getUsuario(), "sistema"))
-                        .descricao("Memorando " + valorOuPadrao(memorando.getNumero(), "sem numero") + " criado")
-                        .dataHora(memorando.getCriadoEm())
-                        .icone("memorando")
-                        .build())
-        );
+            memorandoRepository.findTop25ByOrderByCriadoEmDesc().forEach(memorando ->
+                    atividades.add(AtividadeRecenteDTO.builder()
+                            .tipo("MEMORANDO")
+                            .usuario(valorOuPadrao(memorando.getUsuario(), "sistema"))
+                            .descricao("Memorando " + valorOuPadrao(memorando.getNumero(), "sem numero") + " criado")
+                            .dataHora(memorando.getCriadoEm())
+                            .icone("memorando")
+                            .build())
+            );
 
-        inscricaoRepository.findTop5ByOrderByCriadoEmDesc().forEach(inscricao ->
-                atividades.add(AtividadeRecenteDTO.builder()
-                        .tipo("INSCRICAO")
-                        .usuario("publico")
-                        .descricao(descricaoInscricao(inscricao))
-                        .dataHora(inscricao.getCriadoEm())
-                        .icone("inscricao")
-                        .build())
-        );
+            inscricaoRepository.findTop25ByOrderByCriadoEmDesc().forEach(inscricao ->
+                    atividades.add(AtividadeRecenteDTO.builder()
+                            .tipo("INSCRICAO")
+                            .usuario("publico")
+                            .descricao(descricaoInscricao(inscricao))
+                            .dataHora(inscricao.getCriadoEm())
+                            .icone("inscricao")
+                            .build())
+            );
+        }
 
-        userRepository.findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc().forEach(user ->
+        List<User> usuariosRecentes = unidadeLocal == null
+                ? userRepository.findTop5ByUltimoLoginIsNotNullOrderByUltimoLoginDesc()
+                : userRepository.findTop5ByUnidadeLocalIgnoreCaseAndUltimoLoginIsNotNullOrderByUltimoLoginDesc(unidadeLocal);
+        usuariosRecentes.forEach(user ->
                 atividades.add(AtividadeRecenteDTO.builder()
                         .tipo("LOGIN")
                         .usuario(user.getUsername())
@@ -195,11 +237,12 @@ public class DashboardService {
         return atividades.stream()
                 .filter(atividade -> atividade.getDataHora() != null)
                 .sorted(Comparator.comparing(AtividadeRecenteDTO::getDataHora).reversed())
-                .limit(10)
+                .limit(LIMITE_ATIVIDADES_RECENTES)
                 .toList();
     }
 
     public ChartDataDTO obterGraficoMensal() {
+        String unidadeLocal = scopedUnidadeLocal(currentUserService.requireUser());
         List<String> dias = new ArrayList<>();
         List<Integer> valores = new ArrayList<>();
         LocalDate hoje = LocalDate.now();
@@ -208,16 +251,57 @@ public class DashboardService {
             LocalDate dia = hoje.minusDays(i);
             LocalDateTime inicio = dia.atStartOfDay();
             LocalDateTime fim = inicio.plusDays(1);
-            long totalDia = inscricaoRepository.countByCriadoEmBetween(inicio, fim)
-                    + carteiraRepository.countByCriadoEmBetween(inicio, fim)
-                    + memorandoRepository.countByCriadoEmBetween(inicio, fim)
-                    + processoFluxoRepository.countByCriadoEmBetween(inicio, fim);
+            long totalDia = unidadeLocal == null
+                    ? inscricaoRepository.countByCriadoEmBetween(inicio, fim)
+                        + carteiraRepository.countByCriadoEmBetween(inicio, fim)
+                        + memorandoRepository.countByCriadoEmBetween(inicio, fim)
+                        + processoFluxoRepository.countByCriadoEmBetween(inicio, fim)
+                    : processoFluxoRepository.countByCriadoEmBetweenAndUnidadeLocalIgnoreCase(inicio, fim, unidadeLocal);
 
             dias.add(dia.format(DIA_MES));
             valores.add(toInt(totalDia));
         }
 
         return ChartDataDTO.builder().dias(dias).valores(valores).build();
+    }
+
+    private String scopedUnidadeLocal(User user) {
+        String role = RoleUtils.normalizeRole(user.getPerfil());
+        if ("ADMIN".equals(role)) {
+            return null;
+        }
+        String unidadeLocal = user.getUnidadeLocal();
+        if (unidadeLocal == null || unidadeLocal.trim().isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "Usuario sem unidade local vinculada."
+            );
+        }
+        return unidadeLocal.trim();
+    }
+
+    private long countBySituacao(String situacao, String unidadeLocal) {
+        return unidadeLocal == null
+                ? processoFluxoRepository.countBySituacao(situacao)
+                : processoFluxoRepository.countBySituacaoAndUnidadeLocalIgnoreCase(situacao, unidadeLocal);
+    }
+
+    private long countBySituacaoIn(Set<String> situacoes, String unidadeLocal) {
+        return unidadeLocal == null
+                ? processoFluxoRepository.countBySituacaoIn(situacoes)
+                : processoFluxoRepository.countBySituacaoInAndUnidadeLocalIgnoreCase(situacoes, unidadeLocal);
+    }
+
+    private long countProcessos(String unidadeLocal) {
+        return unidadeLocal == null
+                ? processoFluxoRepository.count()
+                : processoFluxoRepository.countByUnidadeLocalIgnoreCase(unidadeLocal);
+    }
+
+    private long countUsersByStatus(String status, String unidadeLocal) {
+        return unidadeLocal == null
+                ? userRepository.countByStatus(status)
+                : userRepository.countByStatusAndUnidadeLocalIgnoreCase(status, unidadeLocal);
     }
 
     private TopCategoriaDTO categoria(String nome, long total) {

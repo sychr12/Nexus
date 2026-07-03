@@ -2,6 +2,7 @@ package com.sicpr.backend.memorando.repository;
 
 import com.sicpr.backend.memorando.entity.Memorando;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -9,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface MemorandoRepository
-        extends JpaRepository<Memorando, Long> {
+        extends JpaRepository<Memorando, Long>, JpaSpecificationExecutor<Memorando> {
     @Query("""
             SELECT m FROM Memorando m
             WHERE EXTRACT(YEAR FROM m.dataEmissao) = :ano
@@ -39,4 +40,6 @@ public interface MemorandoRepository
     long countByCriadoEmBetween(LocalDateTime inicio, LocalDateTime fim);
 
     List<Memorando> findTop5ByOrderByCriadoEmDesc();
+
+    List<Memorando> findTop25ByOrderByCriadoEmDesc();
 }

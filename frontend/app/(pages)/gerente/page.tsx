@@ -1,28 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Edit3, FileSignature, MapPin, RotateCcw, Save, Search, UserPlus, X } from "lucide-react";
-import { AttachmentPreview, DetailInfoCard, SICPR_COLORS, StatCard } from "@/app/_features/fluxo/SharedUi";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, FileSignature, MapPin, RotateCcw, Search } from "lucide-react";
+import { SICPR_COLORS, StatCard } from "@/app/_features/fluxo/SharedUi";
 import Sidebar from "@/app/_components/layout/Sidebar";
-import { UNLOC_OPTIONS } from "@/app/_lib/unlocs";
 import {
-  GERENTE_STATUS_LABELS,
   TIPO_PROCESSO_LABELS,
-  aprovarLoteGerente,
-  devolverPeloGerente,
   formatDateTime,
   getGerentesAssinantesDaUnidade,
-  inativarGerenteUnidade,
-  loadGerentesUnidade,
-  loadProcessos,
-  salvarGerenteUnidade,
-  saveGerentesUnidade,
-  saveProcessos,
 } from "@/app/_features/fluxo/storage";
-import type { DocumentoGeradoProcesso, DocumentoProcesso, GerenteUnidade, GerenteUnidadeStatus, ProcessoSicpr } from "@/app/_features/fluxo/types";
+import { fluxoApi } from "@/app/_features/fluxo/api";
+import type { DocumentoGeradoProcesso, DocumentoProcesso, GerenteUnidade, ProcessoSicpr } from "@/app/_features/fluxo/types";
+import { useClientMounted } from "@/app/_hooks/useClientMounted";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
-import { GeneratedDocumentPreview } from "./GerenteDocumentPreviews";
 import GerenteProcessDetailsModal from "./GerenteProcessDetailsModal";
+import { BatchReturnModal, GerentePreviewModal, SignatureModal } from "./GerenteWorkflowModals";
 import { getGerenteHistory, getGerenteHistoryStatusClass } from "./history";
 import type { DetailTab } from "./types";
 
@@ -30,21 +22,14 @@ const COLORS = SICPR_COLORS;
 
 const PAGE_SIZE = 50;
 
-const emptyGerenteForm = {
-  id: "",
-  nome: "",
-  unidadeLocal: "Manacapuru",
-  cargo: "Gerente da Unidade Local",
-  telefoneCorporativo: "",
-  telefonePessoal: "",
-  status: "ativo" as GerenteUnidadeStatus,
-};
-
 export default function GerentePage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Gerente de Unidade Local" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Gerente de Unidade Local",
+    allowedRoles: ["ADMIN", "GERENTE"],
+  });
+  const mounted = useClientMounted();
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [gerentes, setGerentes] = useState<GerenteUnidade[]>([]);
-  const [gerenteForm, setGerenteForm] = useState(emptyGerenteForm);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
@@ -71,17 +56,19 @@ export default function GerentePage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!ready || !mounted) return;
     const timer = window.setTimeout(() => {
-      setProcessos(loadProcessos());
-      setGerentes(loadGerentesUnidade());
+      void Promise.all([fluxoApi.listarProcessos(), fluxoApi.listarGerentes()])
+        .then(([processosData, gerentesData]) => {
+          setProcessos(processosData);
+          setGerentes(gerentesData);
+        })
+        .catch((error) => {
+          setMessageType("error");
+          setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar os dados do gerente.");
+        });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [ready, mounted]);
@@ -136,18 +123,8 @@ export default function GerentePage() {
     };
   }, [gerenteHistory, pendentes.length]);
 
-  function persist(next: ProcessoSicpr[]) {
-    setProcessos(next);
-    saveProcessos(next);
-  }
-
   function toggle(id: string) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  }
-
-  function persistGerentes(next: GerenteUnidade[]) {
-    setGerentes(next);
-    saveGerentesUnidade(next);
   }
 
   function toggleHistoryMemo(id: string) {
@@ -187,58 +164,20 @@ export default function GerentePage() {
     setSignatureOpen(true);
   }
 
-  function confirmSignature() {
+  async function confirmSignature() {
     if (!signatureGerente) return;
-    persist(aprovarLoteGerente(processos, selectedIds, signatureGerente));
-    setMessageType("success");
-    setMessage(`Lote aprovado, assinado e encaminhado para analise com ${selectedIds.length} processo(s).`);
-    setSelectedIds([]);
-    setSignatureOpen(false);
-    setSignatureGerente(null);
-  }
-
-  function saveGerenteForm() {
-    const nome = gerenteForm.nome.trim();
-    const unidadeLocal = gerenteForm.unidadeLocal.trim();
-    const cargo = gerenteForm.cargo.trim();
-
-    if (!nome || !unidadeLocal || !cargo) {
+    try {
+      const updated = await fluxoApi.aprovarLoteGerente(selectedIds, signatureGerente.id);
+      setProcessos((current) => current.map((processo) => updated.find((item) => item.id === processo.id) || processo));
+      setMessageType("success");
+      setMessage(`Lote aprovado, assinado e encaminhado para analise com ${selectedIds.length} processo(s).`);
+      setSelectedIds([]);
+      setSignatureOpen(false);
+      setSignatureGerente(null);
+    } catch (error) {
       setMessageType("error");
-      setMessage("Informe nome, Unidade Local e cargo do gerente.");
-      return;
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel aprovar o lote.");
     }
-
-    const next = salvarGerenteUnidade(gerentes, {
-      ...gerenteForm,
-      nome,
-      unidadeLocal,
-      cargo,
-      telefoneCorporativo: gerenteForm.telefoneCorporativo.trim(),
-      telefonePessoal: gerenteForm.telefonePessoal.trim(),
-      id: gerenteForm.id || undefined,
-    });
-    persistGerentes(next);
-    setGerenteForm(emptyGerenteForm);
-    setMessageType("success");
-    setMessage("Cadastro do gerente salvo. Registros antigos permanecem preservados.");
-  }
-
-  function editGerente(gerente: GerenteUnidade) {
-    setGerenteForm({
-      id: gerente.id,
-      nome: gerente.nome,
-      unidadeLocal: gerente.unidadeLocal,
-      cargo: gerente.cargo,
-      telefoneCorporativo: gerente.telefoneCorporativo,
-      telefonePessoal: gerente.telefonePessoal,
-      status: gerente.status,
-    });
-  }
-
-  function deactivateGerente(id: string) {
-    persistGerentes(inativarGerenteUnidade(gerentes, id));
-    setMessageType("success");
-    setMessage("Gerente inativado com data de encerramento registrada.");
   }
 
   function openBatchReturn() {
@@ -253,41 +192,48 @@ export default function GerentePage() {
     setBatchReturnOpen(true);
   }
 
-  function confirmBatchReturn() {
+  async function confirmBatchReturn() {
     const justificativa = batchJustificativa.trim();
     if (!justificativa) {
       setBatchError("Informe uma justificativa para devolução.");
       return;
     }
 
-    const next = selectedIds.reduce(
-      (current, id) => devolverPeloGerente(current, id, username, justificativa),
-      processos
-    );
-    persist(next);
-    setMessageType("success");
-    setMessage(`${selectedIds.length} processo(s) devolvido(s) com justificativa registrada.`);
-    setSelectedIds([]);
-    setBatchReturnOpen(false);
-    setBatchJustificativa("");
-    setBatchError("");
+    try {
+      const updated = await Promise.all(selectedIds.map((id) => fluxoApi.devolverPeloGerente(id, justificativa)));
+      setProcessos((current) => current.map((processo) => updated.find((item) => item.id === processo.id) || processo));
+      setMessageType("success");
+      setMessage(`${selectedIds.length} processo(s) devolvido(s) com justificativa registrada.`);
+      setSelectedIds([]);
+      setBatchReturnOpen(false);
+      setBatchJustificativa("");
+      setBatchError("");
+    } catch (error) {
+      setBatchError(error instanceof Error ? error.message : "Nao foi possivel devolver os processos.");
+    }
   }
 
-  function devolver(id: string) {
+  async function devolver(id: string) {
     const justificativa = justificativas[id]?.trim();
     if (!justificativa) {
       setMessageType("error");
       setMessage("Informe uma justificativa antes de devolver o processo.");
       return;
     }
-    persist(devolverPeloGerente(processos, id, username, justificativa));
-    setMessageType("success");
-    setMessage("Processo devolvido ao tecnico responsavel.");
+    try {
+      const updated = await fluxoApi.devolverPeloGerente(id, justificativa);
+      setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+      setMessageType("success");
+      setMessage("Processo devolvido ao tecnico responsavel.");
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel devolver o processo.");
+    }
   }
 
   function devolverSelected(id: string) {
     const justificativa = justificativas[id]?.trim();
-    devolver(id);
+    void devolver(id);
     if (justificativa) setSelectedProcesso(null);
   }
 
@@ -304,6 +250,7 @@ export default function GerentePage() {
       <Sidebar
         onLogout={logout}
         username={username || "Gerente de Unidade Local"}
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 
@@ -376,158 +323,6 @@ export default function GerentePage() {
               <StatCard label="Devolvidos hoje" value={stats.devolvidosHoje} />
               <StatCard label="Total analisado" value={stats.totalAnalisado} />
             </div>
-
-            {/* Gerentes Section */}
-            <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
-                <div>
-                  <h2 className="text-base font-semibold" style={{ color: COLORS.primary }}>Gerentes das Unidades Locais</h2>
-                  <p className="text-xs" style={{ color: COLORS.textLight }}>Cadastro administrativo usado para simular e validar a assinatura eletronica.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setGerenteForm(emptyGerenteForm)}
-                  className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
-                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
-                >
-                  <UserPlus size={15} />
-                  Novo gerente
-                </button>
-              </div>
-
-              <div className="grid gap-4 p-4 xl:grid-cols-[360px_1fr]">
-                {/* Form */}
-                <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <p className="font-semibold" style={{ color: COLORS.text }}>{gerenteForm.id ? "Editar gerente" : "Cadastrar gerente"}</p>
-                    {gerenteForm.id && (
-                      <button type="button" onClick={() => setGerenteForm(emptyGerenteForm)} className="text-xs font-semibold transition-colors hover:opacity-70" style={{ color: COLORS.textLight }}>
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid gap-3">
-                    <input
-                      value={gerenteForm.nome}
-                      onChange={(e) => setGerenteForm({ ...gerenteForm, nome: e.target.value })}
-                      placeholder="Nome completo"
-                      className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                      style={{ borderColor: COLORS.border }}
-                    />
-                    <select
-                      value={gerenteForm.unidadeLocal}
-                      onChange={(e) => setGerenteForm({ ...gerenteForm, unidadeLocal: e.target.value })}
-                      className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                      style={{ borderColor: COLORS.border }}
-                    >
-                      {UNLOC_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.municipio}>{option.label}</option>
-                      ))}
-                    </select>
-                    <input
-                      value={gerenteForm.cargo}
-                      onChange={(e) => setGerenteForm({ ...gerenteForm, cargo: e.target.value })}
-                      placeholder="Cargo"
-                      className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                      style={{ borderColor: COLORS.border }}
-                    />
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                      <input
-                        value={gerenteForm.telefoneCorporativo}
-                        onChange={(e) => setGerenteForm({ ...gerenteForm, telefoneCorporativo: e.target.value })}
-                        placeholder="Telefone corporativo"
-                        className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                        style={{ borderColor: COLORS.border }}
-                      />
-                      <input
-                        value={gerenteForm.telefonePessoal}
-                        onChange={(e) => setGerenteForm({ ...gerenteForm, telefonePessoal: e.target.value })}
-                        placeholder="Telefone pessoal"
-                        className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                        style={{ borderColor: COLORS.border }}
-                      />
-                    </div>
-                    <select
-                      value={gerenteForm.status}
-                      onChange={(e) => setGerenteForm({ ...gerenteForm, status: e.target.value as GerenteUnidadeStatus })}
-                      className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                      style={{ borderColor: COLORS.border }}
-                    >
-                      <option value="ativo">Ativo</option>
-                      <option value="respondendo">Respondendo</option>
-                      <option value="inativo">Inativo</option>
-                    </select>
-                    <button
-                      onClick={saveGerenteForm}
-                      className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
-                      style={{ backgroundColor: COLORS.primary }}
-                    >
-                      <Save size={15} />
-                      Salvar cadastro
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tabela */}
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs uppercase" style={{ borderBottomColor: COLORS.border, color: COLORS.textLight }}>
-                        <th className="px-3 py-2">Gerente</th>
-                        <th className="px-3 py-2">Unidade</th>
-                        <th className="px-3 py-2">Contato</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gerentes.map((gerente) => (
-                        <tr key={gerente.id} className="border-b" style={{ borderBottomColor: COLORS.border }}>
-                          <td className="px-3 py-3">
-                            <span className="block font-semibold" style={{ color: COLORS.text }}>{gerente.nome}</span>
-                            <span className="block text-xs" style={{ color: COLORS.textLight }}>{gerente.cargo}</span>
-                          </td>
-                          <td className="px-3 py-3" style={{ color: COLORS.text }}>{gerente.unidadeLocal}</td>
-                          <td className="px-3 py-3 text-xs" style={{ color: COLORS.textLight }}>
-                            <span className="block">{gerente.telefoneCorporativo || gerente.telefonePessoal || "-"}</span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className="rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset" style={{ backgroundColor: gerente.status === "inativo" ? "#F4F4F5" : "#ECFDF3", color: gerente.status === "inativo" ? COLORS.textLight : "#027A48" }}>
-                              {GERENTE_STATUS_LABELS[gerente.status]}
-                            </span>
-                            {gerente.encerradoEm && <span className="mt-1 block text-xs" style={{ color: COLORS.textLight }}>Encerrado em {formatDateTime(gerente.encerradoEm)}</span>}
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => editGerente(gerente)}
-                                className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-100"
-                                style={{ border: `1px solid ${COLORS.border}`, color: COLORS.primary }}
-                              >
-                                <Edit3 size={13} />
-                                Editar
-                              </button>
-                              {gerente.status !== "inativo" && (
-                                <button
-                                  type="button"
-                                  onClick={() => deactivateGerente(gerente.id)}
-                                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-red-50"
-                                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.danger }}
-                                >
-                                  <X size={13} />
-                                  Inativar
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
 
             {/* Processos Pendentes */}
             <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
@@ -732,108 +527,29 @@ export default function GerentePage() {
         </div>
       </main>
 
-      {/* Signature Modal */}
       {signatureOpen && signatureGerente && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setSignatureOpen(false)} />
-          <div className="relative w-full max-w-2xl rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Confirmar assinatura eletrônica</p>
-                <h2 className="mt-1 text-base font-semibold" style={{ color: COLORS.primary }}>Assinar lote de documentos oficiais</h2>
-              </div>
-              <button type="button" onClick={() => setSignatureOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="grid gap-4 px-5 py-4 sm:grid-cols-2">
-              <DetailInfoCard label="Gerente" value={signatureGerente.nome} />
-              <DetailInfoCard label="Unidade Local" value={signatureUnidade} />
-              <DetailInfoCard label="Memorando" value={signatureSummary.memorando} />
-              <DetailInfoCard label="Status do responsável" value={GERENTE_STATUS_LABELS[signatureGerente.status]} />
-              <DetailInfoCard label="Quantidade de processos" value={String(signatureSummary.quantidadeProcessos)} />
-              <DetailInfoCard label="Quantidade de produtores" value={String(signatureSummary.quantidadeProdutores)} />
-            </div>
-
-            <div className="px-5 pb-4">
-              <div className="rounded-md border p-4" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                <p className="mb-2 text-sm font-semibold" style={{ color: COLORS.text }}>Documentos que serão assinados</p>
-                <div className="flex flex-wrap gap-2">
-                  {signatureSummary.documentos.map((documento) => (
-                    <span key={documento} className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: COLORS.card, color: COLORS.primary, border: `1px solid ${COLORS.border}` }}>
-                      {documento}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
-              <button type="button" onClick={() => setSignatureOpen(false)} className="rounded-md px-3 py-2 text-sm font-semibold transition-colors hover:bg-gray-100" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}>
-                Cancelar
-              </button>
-              <button type="button" onClick={confirmSignature} className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90" style={{ backgroundColor: COLORS.primary }}>
-                <FileSignature size={15} />
-                Assinar documentos
-              </button>
-            </div>
-          </div>
-        </div>
+        <SignatureModal
+          gerente={signatureGerente}
+          unidade={signatureUnidade}
+          summary={signatureSummary}
+          onClose={() => setSignatureOpen(false)}
+          onConfirm={confirmSignature}
+        />
       )}
 
-      {/* Batch Return Modal */}
       {batchReturnOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setBatchReturnOpen(false)} />
-          <div className="relative w-full max-w-xl rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Devolução em lote</p>
-                <h2 className="mt-1 text-base font-semibold" style={{ color: COLORS.primary }}>Devolver processos selecionados</h2>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>{selectedIds.length} processo(s) selecionado(s)</p>
-              </div>
-              <button type="button" onClick={() => setBatchReturnOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3 px-5 py-4">
-              {batchError && (
-                <div className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#FEF3F2", borderColor: "#FCA5A5", color: COLORS.danger }}>
-                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                  <span>{batchError}</span>
-                </div>
-              )}
-              <label className="block text-sm font-semibold" style={{ color: COLORS.text }}>
-                Motivo da devolução
-                <textarea
-                  value={batchJustificativa}
-                  onChange={(e) => {
-                    setBatchJustificativa(e.target.value);
-                    if (batchError) setBatchError("");
-                  }}
-                  placeholder="Informe a justificativa obrigatória para devolver os processos selecionados."
-                  rows={4}
-                  className="mt-2 w-full rounded-md border px-3 py-2 text-sm font-normal outline-none focus:ring-1 focus:ring-green-500"
-                  style={{ borderColor: COLORS.border }}
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-wrap justify-end gap-2 border-t px-5 py-4" style={{ borderTopColor: COLORS.border }}>
-              <button type="button" onClick={() => setBatchReturnOpen(false)} className="rounded-md px-3 py-2 text-sm font-semibold transition-colors hover:bg-gray-100" style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}>
-                Cancelar
-              </button>
-              <button type="button" onClick={confirmBatchReturn} className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90" style={{ backgroundColor: COLORS.danger }}>
-                <RotateCcw size={15} />
-                Confirmar devolução
-              </button>
-            </div>
-          </div>
-        </div>
+        <BatchReturnModal
+          selectedCount={selectedIds.length}
+          error={batchError}
+          justificativa={batchJustificativa}
+          onChange={(value) => {
+            setBatchJustificativa(value);
+            if (batchError) setBatchError("");
+          }}
+          onClose={() => setBatchReturnOpen(false)}
+          onConfirm={confirmBatchReturn}
+        />
       )}
-
       {/* Process Details Modal */}
       {selectedProcesso && (
         <GerenteProcessDetailsModal
@@ -852,36 +568,7 @@ export default function GerentePage() {
         />
       )}
 
-      {/* Preview Modal */}
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
-          <div className="relative flex h-[90vh] w-[90vw] max-w-7xl flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>
-                  {preview.tipo === "gerado" ? "Modelo gerado automaticamente" : "Anexo enviado pela Unidade Local"}
-                </p>
-                <h2 className="mt-1 text-lg font-semibold" style={{ color: COLORS.primary }}>
-                  {preview.tipo === "gerado" ? preview.documento.nome : preview.documento.arquivo}
-                </h2>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>{preview.processo.produtor} | {preview.processo.unidadeLocal}</p>
-              </div>
-              <button type="button" onClick={() => setPreview(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
-              {preview.tipo === "gerado" ? (
-                <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
-              ) : (
-                <AttachmentPreview documento={preview.documento} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {preview && <GerentePreviewModal preview={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }

@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, LockKeyhole, LogIn, ShieldCheck, Sprout, UserRound } from "lucide-react";
-import { login as loginRequest, storeAuthSession } from "@/app/_lib/auth";
+import { login as loginRequest } from "@/app/_lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,8 +20,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const data = await loginRequest(username, password);
-      storeAuthSession(data, username);
+      await loginRequest(username, password);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao conectar com o servidor.");
@@ -151,7 +150,7 @@ export default function LoginPage() {
                 </label>
 
                 <div className="flex justify-end pb-3">
-                  <button type="button" className="text-base font-medium text-[#6B9D4A] transition-colors hover:text-[#A8C4A0]">
+                  <button type="button" onClick={() => router.push("/recuperar-senha")} className="text-base font-medium text-[#6B9D4A] transition-colors hover:text-[#A8C4A0]">
                     Esqueceu a senha?
                   </button>
                 </div>

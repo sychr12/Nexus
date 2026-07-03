@@ -19,8 +19,11 @@ public class CarteiraDigital {
     @Column(length = 50)
     private String registro;
     
-    @Column(nullable = false, length = 11)
+    @Column(nullable = false, length = 512)
     private String cpf;
+
+    @Column(name = "cpf_hash", length = 64)
+    private String cpfHash;
     
     @Column(nullable = false, length = 200)
     private String nome;
@@ -49,19 +52,15 @@ public class CarteiraDigital {
     @Column(columnDefinition = "TEXT")
     private String georef;
     
-    @Lob
     @Column(columnDefinition = "bytea")
     private byte[] pdfConteudo;
     
-    @Lob
     @Column(columnDefinition = "bytea")
     private byte[] foto1;
     
-    @Lob
     @Column(columnDefinition = "bytea")
     private byte[] foto2;
     
-    @Lob
     @Column(columnDefinition = "bytea")
     private byte[] foto3;
     

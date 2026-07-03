@@ -43,7 +43,6 @@ public class Memorando {
 
   
     @JsonIgnore
-    @Lob
-    @Column(name = "arquivo_word")
+    @Column(name = "arquivo_word", columnDefinition = "bytea")
     private byte[] arquivoWord;
 }

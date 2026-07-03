@@ -7,10 +7,12 @@ import com.sicpr.backend.fluxo.dto.JustificativaRequest;
 import com.sicpr.backend.fluxo.dto.ProcessoFluxoRequest;
 import com.sicpr.backend.fluxo.dto.ProcessoFluxoResponse;
 import com.sicpr.backend.fluxo.service.FluxoService;
+import com.sicpr.backend.fluxo.service.FluxoTransitionService;
+import com.sicpr.backend.fluxo.service.GerenteAprovacaoFluxoService;
+import com.sicpr.backend.fluxo.service.GerenteUnidadeFluxoService;
+import com.sicpr.backend.security.CurrentUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +30,10 @@ import java.util.List;
 public class FluxoController {
 
     private final FluxoService service;
+    private final FluxoTransitionService transitionService;
+    private final GerenteAprovacaoFluxoService gerenteAprovacaoService;
+    private final GerenteUnidadeFluxoService gerenteService;
+    private final CurrentUserService currentUser;
 
     @GetMapping("/processos")
     public List<ProcessoFluxoResponse> listarProcessos(
@@ -54,87 +60,92 @@ public class FluxoController {
 
     @PostMapping("/processos")
     public ProcessoFluxoResponse criarProcesso(
-            @Valid @RequestBody ProcessoFluxoRequest request,
-            @AuthenticationPrincipal UserDetails userDetails
+            @Valid @RequestBody ProcessoFluxoRequest request
     ) {
-        return service.criarProcesso(request, username(userDetails));
+        return service.criarProcesso(request, currentUser.requireUsername());
     }
 
     @PutMapping("/processos/{id}")
     public ProcessoFluxoResponse atualizarProcesso(
             @PathVariable String id,
-            @Valid @RequestBody ProcessoFluxoRequest request,
-            @AuthenticationPrincipal UserDetails userDetails
+            @Valid @RequestBody ProcessoFluxoRequest request
     ) {
-        return service.atualizarProcesso(id, request, username(userDetails));
+        return service.atualizarProcesso(id, request, currentUser.requireUsername());
     }
 
     @PostMapping("/processos/{id}/encaminhar-gerente")
     public ProcessoFluxoResponse encaminharGerente(
-            @PathVariable String id,
-            @AuthenticationPrincipal UserDetails userDetails
+            @PathVariable String id
     ) {
-        return service.encaminharGerente(id, username(userDetails));
+        return transitionService.encaminharGerente(id, currentUser.requireUsername());
     }
 
     @PostMapping("/gerente/aprovar-lote")
     public List<ProcessoFluxoResponse> aprovarLoteGerente(
-            @Valid @RequestBody AprovarLoteRequest request,
-            @AuthenticationPrincipal UserDetails userDetails
+            @Valid @RequestBody AprovarLoteRequest request
     ) {
-        return service.aprovarLoteGerente(request, username(userDetails));
+        return gerenteAprovacaoService.aprovarLote(request, currentUser.requireUsername());
     }
 
     @PostMapping("/processos/{id}/devolver-gerente")
     public ProcessoFluxoResponse devolverPeloGerente(
             @PathVariable String id,
-            @Valid @RequestBody JustificativaRequest request,
-            @AuthenticationPrincipal UserDetails userDetails
+            @Valid @RequestBody JustificativaRequest request
     ) {
-        return service.devolverPeloGerente(id, request.getJustificativa(), username(userDetails));
+        return transitionService.devolverPeloGerente(id, request.getJustificativa(), currentUser.requireUsername());
     }
 
     @PostMapping("/processos/{id}/analise/aprovar")
     public ProcessoFluxoResponse aprovarAnalise(
-            @PathVariable String id,
-            @AuthenticationPrincipal UserDetails userDetails
+            @PathVariable String id
     ) {
-        return service.aprovarAnalise(id, username(userDetails));
+        return transitionService.aprovarAnalise(id, currentUser.requireUsername());
     }
 
     @PostMapping("/processos/{id}/analise/devolver")
     public ProcessoFluxoResponse devolverAnalise(
             @PathVariable String id,
-            @Valid @RequestBody JustificativaRequest request,
-            @AuthenticationPrincipal UserDetails userDetails
+            @Valid @RequestBody JustificativaRequest request
     ) {
-        return service.devolverAnalise(id, request.getJustificativa(), username(userDetails));
+        return transitionService.devolverAnalise(id, request.getJustificativa(), currentUser.requireUsername());
     }
 
     @PostMapping("/processos/{id}/lancamento/concluir")
     public ProcessoFluxoResponse concluirLancamento(
-            @PathVariable String id,
-            @AuthenticationPrincipal UserDetails userDetails
+            @PathVariable String id
     ) {
-        return service.concluirLancamento(id, username(userDetails));
+        return transitionService.concluirLancamento(id, currentUser.requireUsername());
+    }
+
+    @PostMapping("/processos/{id}/lancamento/devolver")
+    public ProcessoFluxoResponse devolverLancamento(
+            @PathVariable String id,
+            @Valid @RequestBody JustificativaRequest request
+    ) {
+        return transitionService.devolverLancamento(id, request.getJustificativa(), currentUser.requireUsername());
     }
 
     @GetMapping("/gerentes")
     public List<GerenteUnidadeResponse> listarGerentes() {
-        return service.listarGerentes();
+        return gerenteService.listarGerentes();
     }
 
     @PostMapping("/gerentes")
     public GerenteUnidadeResponse salvarGerente(@Valid @RequestBody GerenteUnidadeRequest request) {
-        return service.salvarGerente(request);
+        return gerenteService.salvarGerente(request);
+    }
+
+    @PutMapping("/gerentes/{id}")
+    public GerenteUnidadeResponse atualizarGerente(
+            @PathVariable String id,
+            @Valid @RequestBody GerenteUnidadeRequest request
+    ) {
+        return gerenteService.atualizarGerente(id, request);
     }
 
     @PostMapping("/gerentes/{id}/inativar")
     public GerenteUnidadeResponse inativarGerente(@PathVariable String id) {
-        return service.inativarGerente(id);
+        return gerenteService.inativarGerente(id);
     }
 
-    private String username(UserDetails userDetails) {
-        return userDetails != null ? userDetails.getUsername() : "Sistema";
-    }
 }

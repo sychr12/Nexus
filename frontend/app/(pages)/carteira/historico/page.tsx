@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import { listarCarteiras } from "../services/carteiraService";
 import { CarteiraResponse } from "../types/carteira";
 
 export default function HistoricoCarteiraPage() {
+  const { ready } = useAuthSession({
+    defaultUsername: "Usuario",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
   const [historico, setHistorico] = useState<CarteiraResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!ready) return;
+
     async function carregarHistorico() {
       try {
         setIsLoading(true);
@@ -23,7 +30,7 @@ export default function HistoricoCarteiraPage() {
       }
     }
     carregarHistorico();
-  }, []);
+  }, [ready]);
 
   const formatarData = (data: string) => {
     if (!data) return "—";

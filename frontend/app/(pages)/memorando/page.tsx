@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MemorandoForm from "./components/MemorandoForm";
 import MemorandoPreview from "./components/MemorandoPreview";
 import Sidebar from "@/app/_components/layout/Sidebar";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
+import { useClientMounted } from "@/app/_hooks/useClientMounted";
 import {
   MemorandoForm as MemorandoFormType,
   Memorando,
@@ -49,13 +50,16 @@ const initialForm: MemorandoFormType = {
 };
 
 export default function MemorandoPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Usuario" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Usuario",
+    allowedRoles: ["ADMIN"],
+  });
+  const mounted = useClientMounted();
 
   const [form, setForm] = useState<MemorandoFormType>(initialForm);
   const [memorandos, setMemorandos] = useState<Memorando[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -65,12 +69,9 @@ export default function MemorandoPage() {
       s.textContent = KEYFRAMES;
       document.head.appendChild(s);
     }
-
-    const frame = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(frame);
   }, []);
 
-  const carregarMemorandos = async () => {
+  const carregarMemorandos = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -81,12 +82,16 @@ export default function MemorandoPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
-    carregarMemorandos();
-  }, [ready]);
+    const timer = window.setTimeout(() => {
+      void carregarMemorandos();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [carregarMemorandos, ready]);
 
   if (!ready) {
     return (
@@ -108,6 +113,7 @@ export default function MemorandoPage() {
       <Sidebar
         onLogout={logout}
         username={username || "Usuário"}
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 

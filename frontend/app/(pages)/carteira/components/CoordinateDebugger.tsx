@@ -6,7 +6,6 @@ import Image from "next/image";
 
 export default function CoordinateDebugger() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [selectedField, setSelectedField] = useState<string | null>(null);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();

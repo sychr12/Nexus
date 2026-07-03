@@ -42,11 +42,21 @@ export const userService = {
   },
 
   async changePassword(id: number, oldPassword: string, newPassword: string): Promise<void> {
-    const params = new URLSearchParams({ oldPassword, newPassword });
     await apiJson<void>(
-      `/users/${id}/password?${params.toString()}`,
-      { method: "PATCH" },
+      `/users/${id}/password`,
+      {
+        method: "PATCH",
+        body: { oldPassword, newPassword },
+      },
       "Erro ao alterar senha",
+    );
+  },
+
+  async issuePasswordResetToken(id: number): Promise<{ token: string; expiresAt: string }> {
+    return apiJson<{ token: string; expiresAt: string }>(
+      `/users/${id}/password-reset-token`,
+      { method: "POST" },
+      "Erro ao gerar codigo temporario",
     );
   },
 

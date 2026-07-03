@@ -10,4 +10,5 @@ public class AuthResponse {
     private String username;
     private String perfil;
     private String role;
+    private String unidadeLocal;
 }

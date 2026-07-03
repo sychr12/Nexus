@@ -1,6 +1,6 @@
 // app/mensagens/services/mensagem.service.ts
 import { validateMessageAttachment } from "@/app/_lib/uploadLimits";
-import type { Mensagem } from "../types/mensagem";
+import type { Mensagem, MensagemUser } from "../types/mensagem";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -12,6 +12,26 @@ function authHeaders(): HeadersInit {
 }
 
 export const mensagemService = {
+  async listarUsuarios(): Promise<MensagemUser[]> {
+    try {
+      const response = await fetch(`${API_URL}/api/mensagens/usuarios`, {
+        method: "GET",
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Erro ${response.status} ao carregar contatos`);
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error("[mensagemService.listarUsuarios]", error);
+      throw error;
+    }
+  },
+
   async listar(): Promise<Mensagem[]> {
     try {
       const response = await fetch(`${API_URL}/api/mensagens`, {

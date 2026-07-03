@@ -30,7 +30,7 @@ type Props = {
   onTabChange: (tab: DetailTab) => void;
   onClose: () => void;
   onEdit: (processo: ProcessoSicpr) => void;
-  onEncaminhar: (id: string) => boolean;
+  onEncaminhar: (id: string) => Promise<boolean>;
   onPreview: (preview: PreviewTarget) => void;
 };
 
@@ -49,8 +49,8 @@ export default function UnlocProcessDetailsModal({
     onClose();
   }
 
-  function encaminharAndClose() {
-    if (onEncaminhar(processo.id)) onClose();
+  async function encaminharAndClose() {
+    if (await onEncaminhar(processo.id)) onClose();
   }
 
   return (

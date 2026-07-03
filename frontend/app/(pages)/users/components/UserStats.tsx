@@ -49,8 +49,8 @@ export default function UserStats({ stats }: UserStatsProps) {
             border: `1px solid ${COLORS.border}`,
           }}
         >
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex min-h-16 items-center justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-xs font-medium" style={{ color: COLORS.textLight }}>
                 {card.label}
               </p>
@@ -58,7 +58,7 @@ export default function UserStats({ stats }: UserStatsProps) {
                 {card.value}
               </p>
             </div>
-            <div className="p-2 rounded-full" style={{ backgroundColor: card.bg }}>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: card.bg }}>
               <card.icon size={20} style={{ color: card.color }} />
             </div>
           </div>

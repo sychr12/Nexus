@@ -2,21 +2,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
+import { useAuthSession } from "@/app/_hooks/useAuthSession";
 import { buscarCarteiraPorId, baixarPdf, visualizarPdf } from "../../services/carteiraService";
 import { CarteiraResponse } from "../../types/carteira";
 import { Download, Eye, ArrowLeft, Calendar, MapPin, User, Building2, FileText } from "lucide-react";
+import { formatAnyDateToDateInput } from "@/app/_lib/dateInput";
 
 export default function VisualizarCarteiraPage() {
   const params = useParams();
   const router = useRouter();
+  const { ready } = useAuthSession({
+    defaultUsername: "Usuario",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
   const id = params?.id as string;
   const [carteira, setCarteira] = useState<CarteiraResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
+    if (!ready || !id) return;
 
     async function carregar() {
       try {
@@ -32,7 +39,7 @@ export default function VisualizarCarteiraPage() {
     }
 
     carregar();
-  }, [id]);
+  }, [id, ready]);
 
   const formatarCpf = (cpf: string) => {
     if (!cpf) return "—";
@@ -41,11 +48,7 @@ export default function VisualizarCarteiraPage() {
 
   const formatarData = (data: string) => {
     if (!data) return "—";
-    return new Date(data).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    return formatAnyDateToDateInput(data);
   };
 
   if (isLoading) {
@@ -220,9 +223,12 @@ export default function VisualizarCarteiraPage() {
                 <div className="grid gap-4 sm:grid-cols-3">
                   {carteira.fotosBase64.map((foto, index) => (
                     <div key={index} className="overflow-hidden rounded-lg border border-gray-200">
-                      <img
+                      <Image
                         src={`data:image/jpeg;base64,${foto}`}
                         alt={`Foto ${index + 1}`}
+                        width={360}
+                        height={192}
+                        unoptimized
                         className="h-48 w-full object-cover"
                       />
                     </div>

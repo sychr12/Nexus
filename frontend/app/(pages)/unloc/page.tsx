@@ -1,40 +1,169 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Eye, FileText, Paperclip, Plus, RotateCcw, Save, Search, Send, Trash2, UploadCloud, X } from "lucide-react";
-import UnlocSelect from "@/app/_components/UnlocSelect";
-import { GeneratedDocumentPreview } from "@/app/_features/fluxo/DocumentPreviews";
-import { AttachmentPreview, FilterStatCard as StatCard, SICPR_COLORS } from "@/app/_features/fluxo/SharedUi";
+import { AlertTriangle, CheckCircle2, Search } from "lucide-react";
+import { FilterStatCard as StatCard, SICPR_COLORS } from "@/app/_features/fluxo/SharedUi";
 import Sidebar from "@/app/_components/layout/Sidebar";
 import {
   SITUACAO_LABELS,
   STATUS_COLORS,
   TIPO_PROCESSO_LABELS,
-  addProcesso,
-  atualizarProcessoUnloc,
-  encaminharGerente,
   formatDateTime,
   getFacAssinada,
-  getDocumentosGerados,
   getOutrosDocumentos,
-  loadProcessos,
   podeEncaminharGerente,
-  saveProcessos,
 } from "@/app/_features/fluxo/storage";
-import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr, TipoProcessoSicpr } from "@/app/_features/fluxo/types";
+import { fluxoApi } from "@/app/_features/fluxo/api";
+import type { DocumentoGeradoProcesso, ProcessoSicpr } from "@/app/_features/fluxo/types";
+import { useClientMounted } from "@/app/_hooks/useClientMounted";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
-import { DOCUMENT_MODELS, DETAIL_TABS, PAGE_SIZE, PROCESS_FILTERS, initialForm } from "./config";
+import { DOCUMENT_MODELS, PAGE_SIZE, PROCESS_FILTERS, initialForm } from "./config";
 import type { AnexoUpload, DetailTab, GeneratedDocKey, ProcessoFilter } from "./config";
-import { normalizeCoordinate, validateLatitude, validateLongitude } from "./coordinate-utils";
-import { fileToAnexo, formatCpf, formatFileSize, onlyDigits } from "./file-utils";
-import { FacStatusBadge } from "./UnlocUi";
+import { normalizeDocumentDraft, printActiveDocument, validateDocumentDraft } from "./document-workflow";
+import { fileToAnexo, formatCpf, onlyDigits } from "./file-utils";
 import UnlocDocumentModal from "./UnlocDocumentModal";
+import UnlocProcessForm from "./UnlocProcessForm";
 import UnlocProcessDetailsModal from "./UnlocProcessDetailsModal";
+import UnlocPreviewModal from "./UnlocPreviewModal";
+import type { UnlocPreviewTarget } from "./UnlocPreviewModal";
 
 const COLORS = SICPR_COLORS;
 
+function generateTechnicianSignatureCode() {
+  const year = new Date().getFullYear();
+  const suffix = Math.random().toString(36).replace(/[^a-z0-9]/gi, "").slice(2, 8).toUpperCase().padEnd(6, "0");
+  return `IDAM-TEC-${year}-${suffix}`;
+}
+
+function getFacNaturezaPedido(tipoProcesso: typeof initialForm.tipoProcesso) {
+  if (tipoProcesso === "inscricao") return "Inscrição";
+  if (tipoProcesso === "alteracao") return "Alteração";
+  return "2a via";
+}
+
+type ProcessoFormState = typeof initialForm;
+
+function getAutoDocumentDraft(tipo: GeneratedDocKey, formState: ProcessoFormState): Record<string, string> {
+  if (tipo === "fac") {
+    return {
+      naturezaPedido: getFacNaturezaPedido(formState.tipoProcesso),
+      municipio: formState.unidadeLocal,
+      municipioPropriedade: formState.unidadeLocal,
+      local: formState.unidadeLocal ? `${formState.unidadeLocal} - AM` : "",
+      uf: "AM",
+    };
+  }
+
+  return {
+    finalidade: TIPO_PROCESSO_LABELS[formState.tipoProcesso],
+    local: formState.unidadeLocal,
+    municipio: formState.unidadeLocal,
+  };
+}
+
+function syncAutomaticDocumentFields(
+  currentDocuments: Partial<Record<GeneratedDocKey, Record<string, string>>>,
+  previousForm: ProcessoFormState,
+  nextForm: ProcessoFormState,
+) {
+  const nextDocuments = { ...currentDocuments };
+
+  (["fac", "declaracao_produtor"] as GeneratedDocKey[]).forEach((tipo) => {
+    const current = currentDocuments[tipo];
+    if (!current) return;
+
+    const previousAuto = getAutoDocumentDraft(tipo, previousForm);
+    const nextAuto = getAutoDocumentDraft(tipo, nextForm);
+    const synced = { ...current };
+
+    Object.entries(nextAuto).forEach(([key, nextValue]) => {
+      const currentValue = synced[key] || "";
+      const previousValue = previousAuto[key] || "";
+
+      if (!currentValue || currentValue === previousValue) {
+        synced[key] = nextValue;
+      }
+    });
+
+    nextDocuments[tipo] = synced;
+  });
+
+  return nextDocuments;
+}
+
+function declarationFieldsFromFac(fac: Record<string, string>): Record<string, string> {
+  return {
+    rg: fac.rg || "",
+    propriedade: fac.propriedade || "",
+    endereco: fac.endereco || "",
+    municipio: fac.municipioPropriedade || fac.municipio || "",
+    latitude: fac.latitude || "",
+    longitude: fac.longitude || "",
+    atividadePrincipal: fac.atividadeTipo || "",
+    area: fac.areaCultivada || fac.areaExplorada || fac.areaTotal || "",
+    incluindo: fac.producoes || "",
+  };
+}
+
+function facFieldsFromDeclaration(declaracao: Record<string, string>): Record<string, string> {
+  return {
+    rg: declaracao.rg || "",
+    propriedade: declaracao.propriedade || "",
+    endereco: declaracao.endereco || "",
+    municipioPropriedade: declaracao.municipio || "",
+    latitude: declaracao.latitude || "",
+    longitude: declaracao.longitude || "",
+  };
+}
+
+function linkedFieldsForDocument(
+  tipo: GeneratedDocKey,
+  documents: Partial<Record<GeneratedDocKey, Record<string, string>>>,
+) {
+  if (tipo === "declaracao_produtor" && documents.fac) {
+    return declarationFieldsFromFac(documents.fac);
+  }
+
+  if (tipo === "fac" && documents.declaracao_produtor) {
+    return facFieldsFromDeclaration(documents.declaracao_produtor);
+  }
+
+  return {};
+}
+
+function syncLinkedDocumentFieldsOnSave(
+  activeDocument: GeneratedDocKey,
+  savedDocument: Record<string, string>,
+  currentDocuments: Partial<Record<GeneratedDocKey, Record<string, string>>>,
+) {
+  const nextDocuments = {
+    ...currentDocuments,
+    [activeDocument]: savedDocument,
+  };
+
+  if (activeDocument === "fac" && currentDocuments.declaracao_produtor) {
+    nextDocuments.declaracao_produtor = {
+      ...currentDocuments.declaracao_produtor,
+      ...declarationFieldsFromFac(savedDocument),
+    };
+  }
+
+  if (activeDocument === "declaracao_produtor" && currentDocuments.fac) {
+    nextDocuments.fac = {
+      ...currentDocuments.fac,
+      ...facFieldsFromDeclaration(savedDocument),
+    };
+  }
+
+  return nextDocuments;
+}
+
 export default function UnlocPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Tecnico da Unidade Local" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Tecnico da Unidade Local",
+    allowedRoles: ["ADMIN", "TECNICO", "USUARIO"],
+  });
+  const mounted = useClientMounted();
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [form, setForm] = useState(initialForm);
   const [editingProcessId, setEditingProcessId] = useState<string | null>(null);
@@ -52,22 +181,18 @@ export default function UnlocPage() {
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoSicpr | null>(null);
   const [selectedProcessoMessage, setSelectedProcessoMessage] = useState("");
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>("dados");
-  const [preview, setPreview] = useState<
-    | { tipo: "gerado"; processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }
-    | { tipo: "anexo"; processo: ProcessoSicpr; documento: DocumentoProcesso }
-    | null
-  >(null);
+  const [preview, setPreview] = useState<UnlocPreviewTarget | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!ready || !mounted) return;
     const timer = window.setTimeout(() => {
-      setProcessos(loadProcessos());
+      void fluxoApi.listarProcessos()
+        .then(setProcessos)
+        .catch((error) => {
+          setMessageType("error");
+          setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar os processos.");
+        });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [ready, mounted]);
@@ -110,54 +235,112 @@ export default function UnlocPage() {
   const totalPages = Math.max(1, Math.ceil(filteredProcessos.length / PAGE_SIZE));
   const pagedProcessos = filteredProcessos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function persist(next: ProcessoSicpr[]) {
-    setProcessos(next);
-    saveProcessos(next);
-  }
-
   function applyProcessFilter(filter: ProcessoFilter) {
     setProcessFilter(filter);
     setPage(1);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function updateForm(nextForm: ProcessoFormState) {
+    setForm((currentForm) => {
+      setDocumentosGerados((currentDocuments) => syncAutomaticDocumentFields(currentDocuments, currentForm, nextForm));
+
+      if (activeDocument) {
+        const previousAuto = getAutoDocumentDraft(activeDocument, currentForm);
+        const nextAuto = getAutoDocumentDraft(activeDocument, nextForm);
+
+        setDocumentDraft((currentDraft) => {
+          const syncedDraft = { ...currentDraft };
+          Object.entries(nextAuto).forEach(([key, nextValue]) => {
+            const currentValue = syncedDraft[key] || "";
+            const previousValue = previousAuto[key] || "";
+
+            if (!currentValue || currentValue === previousValue) {
+              syncedDraft[key] = nextValue;
+            }
+          });
+
+          return syncedDraft;
+        });
+      }
+
+      return nextForm;
+    });
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cpfDigits = onlyDigits(form.cpf);
-    if (!form.produtor.trim() || !form.cpf.trim() || !form.unidadeLocal.trim()) {
+    const missingBasicFields = [
+      !form.produtor.trim() ? "nome do produtor" : "",
+      !form.cpf.trim() ? "CPF" : "",
+      !form.unidadeLocal.trim() ? "Unidade Local" : "",
+    ].filter(Boolean);
+
+    if (missingBasicFields.length > 0) {
       setMessageType("error");
-      setMessage("Preencha produtor, CPF e Unidade Local.");
+      setMessage(`Preencha ${missingBasicFields.join(", ")} antes de criar o processo.`);
       return;
     }
+
     if (cpfDigits.length !== 11) {
       setMessageType("error");
       setMessage("Informe um CPF valido com 11 digitos.");
       return;
     }
+
+    if (!documentosGerados.fac || !documentosGerados.declaracao_produtor) {
+      const missingDocuments = [
+        !documentosGerados.fac ? "FAC" : "",
+        !documentosGerados.declaracao_produtor ? "Declaração" : "",
+      ].filter(Boolean);
+
+      setMessageType("error");
+      setMessage(`Gere ${missingDocuments.join(" e ")} antes de criar o processo.`);
+      return;
+    }
+
     if (!facAssinada) {
       setMessageType("error");
       setMessage("Anexe a FAC assinada pelo produtor antes de criar ou salvar o processo.");
       return;
     }
 
-    if (editingProcessId) {
-      persist(atualizarProcessoUnloc(processos, editingProcessId, username, { ...form, cpf: formatCpf(form.cpf), documentosGerados, outrosDocumentos: getDocumentosParaSalvar() }));
-      setEditingProcessId(null);
+    try {
+      if (editingProcessId) {
+        const updated = await fluxoApi.atualizarProcesso(editingProcessId, {
+          ...form,
+          cpf: formatCpf(form.cpf),
+          documentosGerados,
+          documentos: getDocumentosParaSalvar(),
+        });
+        setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+        setEditingProcessId(null);
+        setForm(initialForm);
+        setDocumentosGerados({});
+        setFacAssinada(null);
+        setOutrosAnexos([]);
+        setMessageType("success");
+        setMessage("Correcao salva. Revise o card do processo e reenvie ao gerente quando estiver pronto.");
+        return;
+      }
+
+      const created = await fluxoApi.criarProcesso({
+        ...form,
+        cpf: formatCpf(form.cpf),
+        documentosGerados,
+        documentos: getDocumentosParaSalvar(),
+      });
+      setProcessos((current) => [created, ...current]);
       setForm(initialForm);
       setDocumentosGerados({});
       setFacAssinada(null);
       setOutrosAnexos([]);
       setMessageType("success");
-      setMessage("Correcao salva. Revise o card do processo e reenvie ao gerente quando estiver pronto.");
-      return;
+      setMessage("Processo criado em elaboracao.");
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar o processo.");
     }
-
-    persist(addProcesso(processos, { ...form, cpf: formatCpf(form.cpf), tecnicoResponsavel: username, documentosGerados, outrosDocumentos: getDocumentosParaSalvar() }));
-    setForm(initialForm);
-    setDocumentosGerados({});
-    setFacAssinada(null);
-    setOutrosAnexos([]);
-    setMessageType("success");
-    setMessage("Processo criado em elaboracao.");
   }
 
   async function handleFileChange(files: FileList | null) {
@@ -245,7 +428,10 @@ export default function UnlocPage() {
 
   function openDocumentModal(tipo: GeneratedDocKey) {
     setActiveDocument(tipo);
-    setDocumentDraft(documentosGerados[tipo] || {});
+    setDocumentDraft(documentosGerados[tipo] || {
+      ...getAutoDocumentDraft(tipo, form),
+      ...linkedFieldsForDocument(tipo, documentosGerados),
+    });
     setDocumentModalMessage("");
   }
 
@@ -271,161 +457,31 @@ export default function UnlocPage() {
       return;
     }
 
-    setDocumentosGerados((current) => ({
-      ...current,
-      [activeDocument]: normalizedDraft,
-    }));
-    setDocumentDraft(normalizedDraft);
+    const documentToSave = activeDocument === "declaracao_produtor"
+      ? {
+          ...normalizedDraft,
+          tecnicoAssinadaEm: new Date().toISOString(),
+          tecnicoNome: username || "Tecnico da Unidade Local",
+          tecnicoCargo: "Tecnico Responsavel",
+          tecnicoUnidadeLocal: form.unidadeLocal || normalizedDraft.local || "",
+          tecnicoCodigoValidacao: generateTechnicianSignatureCode(),
+        }
+      : normalizedDraft;
+
+    setDocumentosGerados((current) => syncLinkedDocumentFieldsOnSave(activeDocument, documentToSave, current));
+    setDocumentDraft(documentToSave);
     setActiveDocument(null);
     setDocumentDraft({});
     setDocumentModalMessage("");
     setMessageType("success");
-    setMessage(activeDocument === "fac" ? "FAC gerada. Imprima, colete a assinatura fisica do produtor e anexe a versão assinada." : "Documento preenchido e pronto para geracao automatica.");
+    setMessage(
+      activeDocument === "fac"
+        ? "FAC gerada. Imprima, colete a assinatura física do produtor e anexe a versão assinada."
+        : "Declaração gerada e assinada eletronicamente pelo técnico.",
+    );
   }
 
-  function normalizeDocumentDraft(document: GeneratedDocKey, draft: Record<string, string>) {
-    if (document !== "fac" && document !== "declaracao_produtor") {
-      return draft;
-    }
-
-    return {
-      ...draft,
-      latitude: normalizeCoordinate(draft.latitude || ""),
-      longitude: normalizeCoordinate(draft.longitude || ""),
-    };
-  }
-
-  function validateDocumentDraft(document: GeneratedDocKey, draft: Record<string, string>) {
-    if (document !== "fac") {
-      const latitude = draft.latitude?.trim();
-      const longitude = draft.longitude?.trim();
-
-      if (latitude) {
-        const latitudeError = validateLatitude(latitude);
-        if (latitudeError) return latitudeError;
-      }
-
-      if (longitude) {
-        const longitudeError = validateLongitude(longitude);
-        if (longitudeError) return longitudeError;
-      }
-
-      return "";
-    }
-
-    const latitudeError = validateLatitude(draft.latitude || "");
-    if (latitudeError) return latitudeError;
-
-    return validateLongitude(draft.longitude || "");
-  }
-
-  function printActiveDocument() {
-    if (!activeDocument) return;
-    const source = document.querySelector(".sicpr-print-area .sicpr-print-document");
-    if (!source) return;
-
-    const styles = Array.from(document.querySelectorAll<HTMLLinkElement | HTMLStyleElement>("link[rel='stylesheet'], style"))
-      .map((node) => node.outerHTML)
-      .join("\n");
-
-    const printFrame = document.createElement("iframe");
-    printFrame.title = "FAC - Impressão";
-    printFrame.style.position = "fixed";
-    printFrame.style.right = "0";
-    printFrame.style.bottom = "0";
-    printFrame.style.width = "0";
-    printFrame.style.height = "0";
-    printFrame.style.border = "0";
-    document.body.appendChild(printFrame);
-
-    const printDocument = printFrame.contentDocument || printFrame.contentWindow?.document;
-    if (!printDocument) {
-      printFrame.remove();
-      window.print();
-      return;
-    }
-
-    printDocument.open();
-    printDocument.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>FAC - Impressão</title>
-          ${styles}
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 5mm;
-            }
-
-            html,
-            body {
-              width: 210mm;
-              height: 297mm;
-              margin: 0;
-              padding: 0;
-              background: #ffffff;
-            }
-
-            body {
-              display: flex;
-              justify-content: center;
-              align-items: flex-start;
-              box-sizing: border-box;
-              overflow: hidden;
-            }
-
-            .sicpr-print-document {
-              box-sizing: border-box !important;
-              width: 188mm !important;
-              max-width: 188mm !important;
-              margin: 0 auto !important;
-              background: #ffffff !important;
-              box-shadow: none !important;
-            }
-
-            .sicpr-fac-document {
-              min-height: 0 !important;
-              padding: 2mm !important;
-              transform-origin: top center;
-              zoom: 0.9;
-              break-after: avoid;
-              break-before: avoid;
-              break-inside: avoid;
-              page-break-after: avoid;
-              page-break-before: avoid;
-              page-break-inside: avoid;
-            }
-
-            * {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          </style>
-        </head>
-        <body>
-          ${source.outerHTML}
-          <script>
-            window.addEventListener("load", function () {
-              setTimeout(function () {
-                window.focus();
-                window.print();
-              }, 120);
-            });
-          </script>
-        </body>
-      </html>
-    `);
-    printDocument.close();
-
-    const removeFrame = () => {
-      setTimeout(() => printFrame.remove(), 300);
-    };
-    printFrame.contentWindow?.addEventListener("afterprint", removeFrame, { once: true });
-  }
-
-  function handleEncaminhar(id: string) {
+  async function handleEncaminhar(id: string) {
     const processo = processos.find((item) => item.id === id);
     const facAssinadaAnexada = processo ? Boolean(getFacAssinada(processo)) : false;
 
@@ -440,12 +496,14 @@ export default function UnlocPage() {
       return false;
     }
 
-    const next = encaminharGerente(processos, id, username);
-    const updated = next.find((item) => item.id === id);
-
-    if (updated?.situacao !== "encaminhado_gerente") {
-      persist(next);
-      const warning = "A FAC assinada pelo produtor ainda não foi anexada ao processo.";
+    try {
+      const updated = await fluxoApi.encaminharGerente(id);
+      setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+      setMessageType("success");
+      setMessage("Processo encaminhado ao gerente com tecnico, unidade, data, hora e tipo registrados.");
+      return true;
+    } catch (error) {
+      const warning = error instanceof Error ? error.message : "Nao foi possivel encaminhar o processo.";
       if (selectedProcesso?.id === id) {
         setSelectedProcessoMessage(warning);
       } else {
@@ -454,11 +512,6 @@ export default function UnlocPage() {
       }
       return false;
     }
-
-    persist(next);
-    setMessageType("success");
-    setMessage("Processo encaminhado ao gerente com tecnico, unidade, data, hora e tipo registrados.");
-    return true;
   }
 
   const activeModel = activeDocument
@@ -498,6 +551,7 @@ export default function UnlocPage() {
       <Sidebar
         onLogout={logout}
         username={username || "Tecnico da Unidade Local"}
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 
@@ -529,182 +583,21 @@ export default function UnlocPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="rounded-lg border p-5 shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-              <div className="mb-4 flex items-center gap-2">
-                {editingProcessId ? <RotateCcw size={18} style={{ color: COLORS.primary }} /> : <Plus size={18} style={{ color: COLORS.primary }} />}
-                <div>
-                  <h2 className="font-semibold" style={{ color: COLORS.text }}>{editingProcessId ? "Corrigir processo" : "Novo processo"}</h2>
-                  {editingProcessId && <p className="text-xs" style={{ color: COLORS.textLight }}>Salve a correcao e depois use Reenviar ao gerente no card.</p>}
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <input className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500" placeholder="Nome do produtor" value={form.produtor} onChange={(e) => setForm({ ...form, produtor: e.target.value })} style={{ borderColor: COLORS.border }} />
-                <input
-                  className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
-                  placeholder="CPF"
-                  value={form.cpf}
-                  inputMode="numeric"
-                  maxLength={14}
-                  onChange={(e) => setForm({ ...form, cpf: formatCpf(e.target.value) })}
-                  style={{ borderColor: COLORS.border }}
-                />
-                <select className="rounded-md border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500" value={form.tipoProcesso} onChange={(e) => setForm({ ...form, tipoProcesso: e.target.value as TipoProcessoSicpr })} style={{ borderColor: COLORS.border }}>
-                  {Object.entries(TIPO_PROCESSO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <UnlocSelect
-                  value={form.unidadeLocal}
-                  valueMode="municipio"
-                  onChange={(value) => setForm({ ...form, unidadeLocal: value })}
-                  placeholder="Selecione a Unidade Local"
-                  searchPlaceholder="Buscar Unidade Local..."
-                  size="compact"
-                  colors={COLORS}
-                />
-              </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.6fr]">
-                <div className="rounded-md border p-3" style={{ borderColor: COLORS.border, backgroundColor: COLORS.background }}>
-                  <p className="mb-2 text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos gerados pelo sistema</p>
-                  <div className="grid gap-2">
-                    {[...DOCUMENT_MODELS].sort((a) => (a.tipo === "fac" ? -1 : 1)).map((documento) => {
-                      const isFilled = Boolean(documentosGerados[documento.tipo]);
-                      return (
-                        <button
-                          key={documento.tipo}
-                          type="button"
-                          onClick={() => openDocumentModal(documento.tipo)}
-                          className="group flex items-start justify-between gap-3 rounded-md border bg-white px-3 py-2 text-left text-sm shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                          style={{ borderColor: isFilled ? COLORS.accent : COLORS.border }}
-                        >
-                          <span className="min-w-0">
-                            <span className="block font-semibold" style={{ color: COLORS.text }}>{documento.nome}</span>
-                            <span className="mt-0.5 block text-xs" style={{ color: COLORS.textLight }}>{documento.descricao}</span>
-                          </span>
-                          <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
-                            style={{
-                              backgroundColor: isFilled ? `${COLORS.accent}18` : "#F3F4F6",
-                              color: isFilled ? COLORS.primary : COLORS.textLight,
-                            }}
-                          >
-                            {isFilled && <CheckCircle2 size={12} />}
-                            {documento.tipo === "fac" ? (isFilled ? "Gerada" : "Não gerada") : (isFilled ? "Preenchido" : "Preencher")}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos obrigatórios assinados</span>
-                  <div className="mb-4 rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]" style={{ borderColor: facAssinada ? COLORS.accent : COLORS.border, color: COLORS.textLight }}>
-                    <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
-                      <UploadCloud size={26} style={{ color: COLORS.primary }} />
-                      <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Anexar FAC assinada pelo produtor</span>
-                      <span className="mt-1 text-xs">Envie a FAC impressa, assinada fisicamente e digitalizada.</span>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*,.pdf"
-                        onChange={(event) => {
-                          void handleFacAssinadaChange(event.target.files);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-
-                    <div className="mt-3 rounded-md border bg-white px-3 py-2 text-sm" style={{ borderColor: COLORS.border }}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0">
-                          <span className="block font-semibold" style={{ color: COLORS.text }}>FAC assinada pelo produtor</span>
-                          <span className="block text-xs" style={{ color: facAssinada ? COLORS.primary : COLORS.danger }}>
-                            {facAssinada ? "Assinada e anexada" : "Assinatura pendente"}
-                          </span>
-                        </span>
-                        {facAssinada && (
-                          <button type="button" onClick={removeFacAssinada} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-red-50" style={{ color: COLORS.danger }}>
-                            <Trash2 size={15} />
-                          </button>
-                        )}
-                      </div>
-                      {facAssinada && <p className="mt-2 truncate text-xs" style={{ color: COLORS.textLight }}>{facAssinada.arquivo} · {formatFileSize(facAssinada.tamanho)}</p>}
-                    </div>
-                  </div>
-
-                  <span className="mb-1 block text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>Documentos complementares</span>
-                  <div
-                    className="rounded-md border border-dashed p-3 transition-colors hover:bg-[#F5F7F5]"
-                    style={{ borderColor: COLORS.border, color: COLORS.textLight }}
-                  >
-                    <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-md px-4 py-4 text-center">
-                      <UploadCloud size={26} style={{ color: COLORS.primary }} />
-                      <span className="mt-2 text-sm font-semibold" style={{ color: COLORS.text }}>Selecionar arquivos</span>
-                      <span className="mt-1 text-xs">Fotos, PDF, comprovantes ou documentos complementares.</span>
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                        onChange={(event) => {
-                          void handleFileChange(event.target.files);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-
-                    {outrosAnexos.length > 0 && (
-                      <div className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2" style={{ borderTopColor: COLORS.border }}>
-                        {outrosAnexos.map((anexo, index) => (
-                          <div
-                            key={`${anexo.arquivo}-${index}`}
-                            className="group flex min-w-0 items-center justify-between gap-2 rounded-md border bg-white px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                            style={{ borderColor: COLORS.border }}
-                          >
-                            <span className="flex min-w-0 items-center gap-2">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: `${COLORS.accent}18`, color: COLORS.primary }}>
-                                <Paperclip size={15} />
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block truncate font-semibold" style={{ color: COLORS.text }}>{anexo.arquivo}</span>
-                                <span className="text-xs" style={{ color: COLORS.textLight }}>{formatFileSize(anexo.tamanho)}</span>
-                              </span>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeAnexo(index)}
-                              title={`Remover ${anexo.arquivo}`}
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md opacity-85 transition-colors hover:bg-red-50 group-hover:opacity-100"
-                              style={{ color: COLORS.danger }}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
-                {editingProcessId && (
-                  <button
-                    type="button"
-                    onClick={cancelEditing}
-                    className="rounded-md px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-100"
-                    style={{ color: COLORS.textLight }}
-                  >
-                    Cancelar correcao
-                  </button>
-                )}
-                <button className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90" style={{ backgroundColor: COLORS.primary }}>
-                  {editingProcessId ? <Save size={16} /> : <FileText size={16} />}
-                  {editingProcessId ? "Salvar correcao" : "Criar processo"}
-                </button>
-              </div>
-            </form>
-
+            <UnlocProcessForm
+              editingProcessId={editingProcessId}
+              form={form}
+              documentosGerados={documentosGerados}
+              facAssinada={facAssinada}
+              outrosAnexos={outrosAnexos}
+              onSubmit={handleSubmit}
+              onFormChange={updateForm}
+              onOpenDocument={openDocumentModal}
+              onFacAssinadaChange={(files) => void handleFacAssinadaChange(files)}
+              onFileChange={(files) => void handleFileChange(files)}
+              onRemoveFacAssinada={removeFacAssinada}
+              onRemoveAnexo={removeAnexo}
+              onCancelEditing={cancelEditing}
+            />
             <section className="rounded-lg border shadow-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
               <div className="border-b px-4 py-3" style={{ borderBottomColor: COLORS.border }}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -841,38 +734,7 @@ export default function UnlocPage() {
         />
       )}
 
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
-          <div className="relative flex h-[90vh] w-[90vw] max-w-7xl flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>{preview.tipo === "gerado" ? "Documento gerado pelo sistema" : "Anexo do processo"}</p>
-                <h2 className="mt-1 text-lg font-semibold" style={{ color: COLORS.primary }}>
-                  {preview.tipo === "gerado" ? preview.documento.nome : preview.documento.arquivo}
-                </h2>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>{preview.processo.produtor} | {preview.processo.unidadeLocal}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100"
-                style={{ color: COLORS.textLight }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
-              {preview.tipo === "gerado" ? (
-                <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
-              ) : (
-                <AttachmentPreview documento={preview.documento} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {preview && <UnlocPreviewModal preview={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }

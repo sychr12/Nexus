@@ -16,7 +16,10 @@ const COLORS = {
 };
 
 export default function AdicionarCarteiraPage() {
-  const { username, logout } = useAuthSession({ defaultUsername: "Usuario" });
+  const { username, role, logout } = useAuthSession({
+    defaultUsername: "Usuario",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -40,7 +43,7 @@ export default function AdicionarCarteiraPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.background }}>
-      <TopBar onLogout={logout} username={username} />
+      <TopBar onLogout={logout} username={username} role={role} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">

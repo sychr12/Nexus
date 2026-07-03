@@ -7,14 +7,13 @@ import com.sicpr.backend.carteira.dto.FiltroBuscaDTO;
 import com.sicpr.backend.carteira.dto.SefazDadosDTO;
 import com.sicpr.backend.carteira.service.CarteiraService;
 import com.sicpr.backend.carteira.service.SefazService;
+import com.sicpr.backend.security.CurrentUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -29,13 +28,12 @@ public class CarteiraController {
     
     private final CarteiraService carteiraService;
     private final SefazService sefazService;
+    private final CurrentUserService currentUser;
     
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CarteiraResponseDTO> salvar(
-            @Valid @ModelAttribute CarteiraRequestDTO request,
-            @AuthenticationPrincipal UserDetails userDetails) throws IOException {
-        String usuario = userDetails != null ? userDetails.getUsername() : "SISTEMA";
-        CarteiraResponseDTO response = carteiraService.salvar(request, usuario);
+            @Valid @ModelAttribute CarteiraRequestDTO request) throws IOException {
+        CarteiraResponseDTO response = carteiraService.salvar(request, currentUser.requireUsername());
         return ResponseEntity.ok(response);
     }
     
@@ -103,15 +101,5 @@ public class CarteiraController {
     @GetMapping("/total")
     public ResponseEntity<Long> contarTotal() {
         return ResponseEntity.ok(carteiraService.contarTotal());
-    }
-    
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException e) {
-        return ResponseEntity.badRequest().body(e.getMessage());
-    }
-    
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<String> handleRuntimeException(RuntimeException e) {
-        return ResponseEntity.status(404).body(e.getMessage());
     }
 }

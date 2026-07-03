@@ -9,5 +9,7 @@ public interface GerenteUnidadeFluxoRepository extends JpaRepository<GerenteUnid
 
     List<GerenteUnidadeFluxo> findAllByOrderByUnidadeLocalAscNomeAsc();
 
+    List<GerenteUnidadeFluxo> findByUnidadeLocalIgnoreCaseOrderByNomeAsc(String unidadeLocal);
+
     List<GerenteUnidadeFluxo> findByUnidadeLocalIgnoreCaseAndStatusInOrderByNomeAsc(String unidadeLocal, List<String> status);
 }

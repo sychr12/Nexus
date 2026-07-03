@@ -3,6 +3,9 @@
 
 import { useState } from 'react';
 import { X, User as UserIcon, Phone, Key, Briefcase, Shield, Wrench, User, Building2 } from 'lucide-react';
+import StyledSelect from '@/app/_components/StyledSelect';
+import { logger } from '@/app/_lib/logger';
+import type { User as SicprUser, UserRequest } from '../types/user';
 
 const COLORS = {
   primary: "#1F3A2E",
@@ -16,9 +19,18 @@ const COLORS = {
 };
 
 interface UserFormProps {
-  user?: any;
+  user?: SicprUser | null;
   onClose: () => void;
-  onSubmit: (id: number | null, data: any) => Promise<void>;
+  onSubmit: (id: number | null, data: Partial<UserRequest>) => Promise<void>;
+}
+
+type UserPerfil = SicprUser["perfil"];
+type UserStatus = SicprUser["status"];
+type LegacyUserPerfil = UserPerfil | "CHEFE";
+
+function normalizePerfil(perfil?: LegacyUserPerfil): UserPerfil {
+  if (perfil === "CHEFE") return "GERENTE";
+  return perfil || "USUARIO";
 }
 
 export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
@@ -26,9 +38,10 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
     username: user?.username || '',
     nomeCompleto: user?.nomeCompleto || '',
     telefone: user?.telefone || '',
+    unidadeLocal: user?.unidadeLocal || '',
     password: '',
     confirmPassword: '',
-    perfil: user?.perfil === 'CHEFE' ? 'GERENTE' : user?.perfil || 'USUARIO',
+    perfil: normalizePerfil(user?.perfil as LegacyUserPerfil | undefined),
     status: user?.status || 'ATIVO',
     cargo: user?.cargo || '',
     funcao: user?.funcao || '',
@@ -36,19 +49,32 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const selectColors = {
+    accent: COLORS.accent,
+    card: COLORS.card,
+    border: COLORS.border,
+    inputBg: COLORS.rowAlt,
+    text: COLORS.primary,
+    textLight: COLORS.textLight,
+    hoverBg: "#F0F4EE",
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.username) newErrors.username = 'Usuário é obrigatório';
     if (!formData.nomeCompleto) newErrors.nomeCompleto = 'Nome completo é obrigatório';
+    if (["GERENTE", "TECNICO"].includes(formData.perfil) && !formData.unidadeLocal.trim()) {
+      newErrors.unidadeLocal = 'Unidade local e obrigatoria para gerente e tecnico';
+    }
+
     if (!user) {
       if (!formData.password) newErrors.password = 'Senha é obrigatória';
       if (formData.password !== formData.confirmPassword) {
         newErrors.confirmPassword = 'Senhas não conferem';
       }
-      if (formData.password && formData.password.length < 6) {
-        newErrors.password = 'Senha deve ter no mínimo 6 caracteres';
+      if (formData.password && formData.password.length < 8) {
+        newErrors.password = 'Senha deve ter no minimo 8 caracteres';
       }
     }
 
@@ -67,6 +93,7 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
             username: formData.username,
             nomeCompleto: formData.nomeCompleto,
             telefone: formData.telefone,
+            unidadeLocal: formData.unidadeLocal,
             perfil: formData.perfil,
             status: formData.status,
             cargo: formData.cargo,
@@ -76,6 +103,7 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
             username: formData.username,
             nomeCompleto: formData.nomeCompleto,
             telefone: formData.telefone,
+            unidadeLocal: formData.unidadeLocal,
             password: formData.password,
             perfil: formData.perfil,
             status: formData.status,
@@ -86,7 +114,7 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
       await onSubmit(user?.id || null, submitData);
       onClose();
     } catch (error) {
-      console.error('Erro ao salvar:', error);
+      logger.error('Erro ao salvar usuario', error);
     } finally {
       setIsLoading(false);
     }
@@ -247,45 +275,55 @@ export default function UserForm({ user, onClose, onSubmit }: UserFormProps) {
               <label className="block text-sm font-medium mb-1" style={{ color: COLORS.primary }}>
                 Perfil *
               </label>
+              <StyledSelect
+                value={formData.perfil}
+                onChange={(value) => setFormData({ ...formData, perfil: value as UserPerfil })}
+                icon={getPerfilIcon(formData.perfil)}
+                options={[
+                  { value: "USUARIO", label: "Usuário" },
+                  { value: "TECNICO", label: "Técnico da Unidade Local" },
+                  { value: "GERENTE", label: "Gerente da Unidade Local" },
+                  { value: "ADMIN", label: "Administrador" },
+                ]}
+                colors={selectColors}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: COLORS.primary }}>
+                Unidade Local
+              </label>
               <div className="relative">
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                  {getPerfilIcon(formData.perfil)}
-                </div>
-                <select
-                  value={formData.perfil}
-                  onChange={(e) => setFormData({ ...formData, perfil: e.target.value })}
+                <Building2 size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: COLORS.textLight }} />
+                <input
+                  type="text"
+                  value={formData.unidadeLocal}
+                  onChange={(e) => setFormData({ ...formData, unidadeLocal: e.target.value })}
                   className="w-full pl-10 pr-4 py-2 rounded-xl border focus:outline-none focus:ring-2"
-                  style={{ 
+                  style={{
                     backgroundColor: COLORS.rowAlt,
-                    borderColor: COLORS.border,
+                    borderColor: errors.unidadeLocal ? COLORS.danger : COLORS.border,
                     color: COLORS.primary,
                   }}
-                >
-                  <option value="USUARIO">Usuario Padrao</option>
-                  <option value="TECNICO">Tecnico</option>
-                  <option value="GERENTE">Gerente</option>
-                  <option value="ADMIN">Administrador</option>
-                </select>
+                  placeholder="Ex: Manacapuru"
+                />
               </div>
+              {errors.unidadeLocal && <p className="text-xs mt-1" style={{ color: COLORS.danger }}>{errors.unidadeLocal}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: COLORS.primary }}>
                 Status
               </label>
-              <select
+              <StyledSelect
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2"
-                style={{ 
-                  backgroundColor: COLORS.rowAlt,
-                  borderColor: COLORS.border,
-                  color: COLORS.primary,
-                }}
-              >
-                <option value="ATIVO">Ativo</option>
-                <option value="INATIVO">Inativo</option>
-              </select>
+                onChange={(value) => setFormData({ ...formData, status: value as UserStatus })}
+                options={[
+                  { value: "ATIVO", label: "Ativo" },
+                  { value: "INATIVO", label: "Inativo" },
+                ]}
+                colors={selectColors}
+              />
             </div>
 
             <div>

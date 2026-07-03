@@ -1,49 +1,34 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, History, Info, MapPin, RotateCcw, Search, Send, X } from "lucide-react";
-import { GeneratedDocumentPreview } from "@/app/_features/fluxo/DocumentPreviews";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Eye, FileText, History, Info, MapPin, RotateCcw, Search, Send } from "lucide-react";
 import { ProcessoTimeline } from "@/app/_features/fluxo/ProcessoTimeline";
+import ConfirmActionDialog from "@/app/_components/ConfirmActionDialog";
 import Sidebar from "@/app/_components/layout/Sidebar";
+import StyledSelect from "@/app/_components/StyledSelect";
 import {
   SITUACAO_LABELS,
   STATUS_COLORS,
   TIPO_PROCESSO_LABELS,
-  concluirLancamento,
-  devolverLancamentoParaAnalise,
   formatDateTime,
   getDocumentosGerados,
   getOutrosDocumentos,
-  loadProcessos,
-  saveProcessos,
 } from "@/app/_features/fluxo/storage";
-import type { DocumentoGeradoProcesso, DocumentoProcesso, ProcessoSicpr } from "@/app/_features/fluxo/types";
+import { fluxoApi } from "@/app/_features/fluxo/api";
+import type { ProcessoSicpr } from "@/app/_features/fluxo/types";
+import { useClientMounted } from "@/app/_hooks/useClientMounted";
 import { useAuthSession } from "@/app/_hooks/useAuthSession";
-
-const COLORS = {
-  primary: "#2D452F",
-  accent: "#6B9D4A",
-  background: "#F5F7F5",
-  card: "#FFFFFF",
-  text: "#1A2E1B",
-  textLight: "#6B7C6A",
-  border: "#E2E8E0",
-  danger: "#B42318",
-};
-
-const PAGE_SIZE_OPTIONS = [50, 100];
-
-type LancamentoFilter = "todos" | "aguardando" | "concluidos";
-type ExpandedTab = "dados" | "historico" | "documentos";
-
-const FILTERS: { id: LancamentoFilter; label: string }[] = [
-  { id: "todos", label: "Todos" },
-  { id: "aguardando", label: "Aguardando lançamento" },
-  { id: "concluidos", label: "Concluídos" },
-];
+import { COLORS, FILTERS, PAGE_SIZE_OPTIONS } from "./config";
+import type { ExpandedTab, LancamentoFilter } from "./config";
+import LancamentoPreviewModal from "./LancamentoPreviewModal";
+import type { LancamentoPreviewTarget } from "./LancamentoPreviewModal";
 
 export default function LancamentosPage() {
-  const { username, logout, ready } = useAuthSession({ defaultUsername: "Lancamento" });
+  const { username, role, logout, ready } = useAuthSession({
+    defaultUsername: "Lancamento",
+    allowedRoles: ["ADMIN", "USUARIO"],
+  });
+  const mounted = useClientMounted();
   const [processos, setProcessos] = useState<ProcessoSicpr[]>([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
@@ -55,22 +40,20 @@ export default function LancamentosPage() {
   const [expandedTab, setExpandedTab] = useState<ExpandedTab>("dados");
   const [justificativas, setJustificativas] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [preview, setPreview] = useState<
-    | { tipo: "gerado"; processo: ProcessoSicpr; documento: DocumentoGeradoProcesso }
-    | { tipo: "anexo"; processo: ProcessoSicpr; documento: DocumentoProcesso }
-    | null
-  >(null);
+  const [pendingAction, setPendingAction] = useState<null | { type: "concluir" | "devolver"; processo: ProcessoSicpr }>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [preview, setPreview] = useState<LancamentoPreviewTarget | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!ready || !mounted) return;
     const timer = window.setTimeout(() => {
-      setProcessos(loadProcessos());
+      void fluxoApi.listarPendentesAnalise()
+        .then(setProcessos)
+        .catch((error) => {
+          setMessageType("error");
+          setMessage(error instanceof Error ? error.message : "Não foi possível carregar os processos de lançamento.");
+        });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [ready, mounted]);
@@ -118,37 +101,74 @@ export default function LancamentosPage() {
   const currentPage = Math.min(page, totalPages);
   const pageItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  function persist(next: ProcessoSicpr[]) {
-    setProcessos(next);
-    saveProcessos(next);
-  }
-
   function applyFilter(next: LancamentoFilter) {
     setFilter(next);
     setPage(1);
   }
 
-  function concluir(id: string) {
-    persist(concluirLancamento(processos, id, username));
-    setMessageType("success");
-    setMessage("Lançamento concluído e histórico preservado.");
-    setTimeout(() => setMessage(""), 5000);
-    setExpandedId(null);
+  async function concluir(id: string) {
+    try {
+      const updated = await fluxoApi.concluirLancamento(id);
+      setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+      setMessageType("success");
+      setMessage("Lançamento concluído e histórico preservado.");
+      setTimeout(() => setMessage(""), 5000);
+      setExpandedId(null);
+      return true;
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Não foi possível concluir o lançamento.");
+      return false;
+    }
   }
 
-  function devolverParaAnalise(id: string) {
+  async function devolverParaAnalise(id: string) {
     const justificativa = justificativas[id]?.trim();
     if (!justificativa) {
       setErrors((current) => ({ ...current, [id]: "A justificativa é obrigatória para devolver o processo à Análise." }));
       setExpandedTab("dados");
-      return;
+      return false;
     }
 
-    persist(devolverLancamentoParaAnalise(processos, id, username, justificativa));
-    setMessageType("success");
-    setMessage("Processo devolvido para Análise com justificativa registrada.");
-    setTimeout(() => setMessage(""), 5000);
-    setExpandedId(null);
+    try {
+      const updated = await fluxoApi.devolverLancamento(id, justificativa);
+      setProcessos((current) => fluxoApi.replaceProcesso(current, updated));
+      setMessageType("success");
+      setMessage("Processo devolvido para Análise com justificativa registrada.");
+      setTimeout(() => setMessage(""), 5000);
+      setExpandedId(null);
+      return true;
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        [id]: error instanceof Error ? error.message : "Não foi possível devolver o processo.",
+      }));
+      return false;
+    }
+  }
+
+  function requestConcluir(processo: ProcessoSicpr) {
+    setErrors((current) => ({ ...current, [processo.id]: "" }));
+    setPendingAction({ type: "concluir", processo });
+  }
+
+  function requestDevolver(processo: ProcessoSicpr) {
+    if (!justificativas[processo.id]?.trim()) {
+      setErrors((current) => ({ ...current, [processo.id]: "A justificativa é obrigatória para devolver o processo à Análise." }));
+      setExpandedTab("dados");
+      return;
+    }
+    setPendingAction({ type: "devolver", processo });
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingAction) return;
+    setActionLoading(true);
+    const success = pendingAction.type === "concluir"
+      ? await concluir(pendingAction.processo.id)
+      : await devolverParaAnalise(pendingAction.processo.id);
+    setActionLoading(false);
+    if (success) setPendingAction(null);
   }
 
   function toggleExpanded(id: string) {
@@ -169,6 +189,7 @@ export default function LancamentosPage() {
       <Sidebar
         onLogout={logout}
         username={username || "Lançamento"}
+        role={role}
         onCollapsedChange={setSidebarCollapsed}
       />
 
@@ -344,7 +365,7 @@ export default function LancamentosPage() {
                                 <div className="flex flex-wrap justify-end gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => devolverParaAnalise(processo.id)}
+                                    onClick={() => requestDevolver(processo)}
                                     className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
                                     style={{ backgroundColor: COLORS.danger }}
                                   >
@@ -352,7 +373,7 @@ export default function LancamentosPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => concluir(processo.id)}
+                                    onClick={() => requestConcluir(processo)}
                                     className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
                                     style={{ backgroundColor: COLORS.primary }}
                                   >
@@ -425,14 +446,14 @@ export default function LancamentosPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, color: COLORS.text }}>
                 <span>Página {currentPage} de {totalPages} | {filtered.length} processo(s)</span>
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={pageSize}
-                    onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}
-                    className="rounded-md border px-3 py-1.5 font-semibold outline-none focus:ring-1 focus:ring-green-500"
-                    style={{ borderColor: COLORS.border, backgroundColor: COLORS.card }}
-                  >
-                    {PAGE_SIZE_OPTIONS.map((option) => <option key={option} value={option}>{option} por página</option>)}
-                  </select>
+                  <StyledSelect
+                    value={String(pageSize)}
+                    onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
+                    size="compact"
+                    className="w-40"
+                    options={PAGE_SIZE_OPTIONS.map((option) => ({ value: String(option), label: `${option} por página` }))}
+                    colors={COLORS}
+                  />
                   <button
                     type="button"
                     disabled={currentPage === 1}
@@ -464,63 +485,31 @@ export default function LancamentosPage() {
         </div>
       </main>
 
-      {/* Preview Modal */}
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-5">
-          <div className="absolute inset-0 bg-black/45" onClick={() => setPreview(null)} />
-          <div className="relative flex h-[90vh] w-[90vw] max-w-7xl flex-col overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-            <div className="flex items-start justify-between gap-4 border-b px-5 py-4" style={{ borderBottomColor: COLORS.border }}>
-              <div>
-                <p className="text-xs font-semibold uppercase" style={{ color: COLORS.textLight }}>
-                  {preview.tipo === "gerado" ? "Documento gerado pelo sistema" : "Anexo enviado pela Unidade Local"}
-                </p>
-                <h2 className="mt-1 text-base font-semibold" style={{ color: COLORS.primary }}>
-                  {preview.tipo === "gerado" ? preview.documento.nome : preview.documento.arquivo}
-                </h2>
-                <p className="text-sm" style={{ color: COLORS.textLight }}>{preview.processo.produtor} | {preview.processo.unidadeLocal}</p>
-              </div>
-              <button type="button" onClick={() => setPreview(null)} className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-gray-100" style={{ color: COLORS.textLight }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-auto p-5" style={{ backgroundColor: COLORS.background }}>
-              {preview.tipo === "gerado" ? (
-                <GeneratedDocumentPreview processo={preview.processo} documento={preview.documento} />
-              ) : (
-                <AttachmentPreview documento={preview.documento} />
-              )}
-            </div>
-          </div>
-        </div>
+      {preview && <LancamentoPreviewModal preview={preview} onClose={() => setPreview(null)} />}
+
+      {pendingAction && (
+        <ConfirmActionDialog
+          title={pendingAction.type === "concluir" ? "Concluir lançamento" : "Devolver para Análise"}
+          description={
+            pendingAction.type === "concluir"
+              ? `Confirma a conclusão do lançamento de ${pendingAction.processo.produtor}? Após concluir, o processo será enviado para consulta e publicação correspondente.`
+              : `Confirma a devolução do processo de ${pendingAction.processo.produtor} para Análise com a justificativa informada?`
+          }
+          confirmLabel={pendingAction.type === "concluir" ? "Concluir" : "Devolver"}
+          tone={pendingAction.type === "concluir" ? "success" : "danger"}
+          loading={actionLoading}
+          colors={COLORS}
+          onConfirm={confirmPendingAction}
+          onClose={() => {
+            if (!actionLoading) setPendingAction(null);
+          }}
+        />
       )}
     </div>
   );
 }
 
 // Componentes auxiliares
-function AttachmentPreview({ documento }: { documento: DocumentoProcesso }) {
-  if (documento.conteudo && documento.mimeType?.startsWith("image/")) {
-    return (
-      <div className="flex justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={documento.conteudo} alt={documento.arquivo} className="max-h-[72vh] max-w-full rounded-md border bg-white object-contain" />
-      </div>
-    );
-  }
-
-  if (documento.conteudo && documento.mimeType === "application/pdf") {
-    return <iframe title={documento.arquivo} src={documento.conteudo} className="h-[72vh] w-full rounded-md border bg-white" />;
-  }
-
-  return (
-    <div className="flex min-h-90 flex-col items-center justify-center rounded-md border border-dashed bg-white text-center">
-      <FileText size={48} />
-      <p className="mt-3 font-semibold">{documento.arquivo}</p>
-      <p className="mt-1 text-sm text-gray-500">Arquivo anexado. Pré-visualização disponível para imagens e PDF.</p>
-    </div>
-  );
-}
-
 function StatCard({ label, value, active, onClick }: { label: string; value: number; active: boolean; onClick: () => void }) {
   return (
     <button

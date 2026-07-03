@@ -4,6 +4,7 @@ export interface User {
   username: string;
   nomeCompleto: string;
   telefone: string;
+  unidadeLocal?: string | null;
   perfil: 'ADMIN' | 'GERENTE' | 'TECNICO' | 'USUARIO';
   status: 'ATIVO' | 'INATIVO' | 'BLOQUEADO';
   cargo?: string;
@@ -21,6 +22,7 @@ export interface UserRequest {
   password: string;
   nomeCompleto: string;
   telefone: string;
+  unidadeLocal?: string | null;
   perfil: string;
   status: string;
   cargo?: string;

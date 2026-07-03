@@ -1,5 +1,6 @@
 // frontend/app/carteira/services/carteiraService.ts
-import { apiFetch, getAuthHeaders, getAuthToken, throwIfNotOk } from "@/app/_lib/http";
+import { apiFetch, getAuthHeaders, throwIfNotOk } from "@/app/_lib/http";
+import { dateInputToIso } from "@/app/_lib/dateInput";
 import { validateBatchPdfs, validateBatchZip, validateCarteiraPhoto } from "@/app/_lib/uploadLimits";
 import {
   CarteiraResponse,
@@ -26,8 +27,8 @@ export async function cadastrarCarteira(data: CarteiraRequest): Promise<Carteira
   formData.append("nome", data.nome);
   formData.append("propriedade", data.propriedade);
   formData.append("unloc", data.unloc);
-  formData.append("inicio", data.inicio);
-  formData.append("validade", data.validade);
+  formData.append("inicio", dateInputToIso(data.inicio) || data.inicio);
+  formData.append("validade", dateInputToIso(data.validade) || data.validade);
   formData.append("endereco", data.endereco);
   formData.append("atividade1", data.atividade1);
   formData.append("atividade2", data.atividade2);
@@ -103,12 +104,8 @@ export async function buscarPorCpf(cpf: string): Promise<CarteiraResponse> {
 }
 
 export async function baixarPdf(id: number, nome: string): Promise<void> {
-  const token = getAuthToken();
   const response = await apiFetch(`/carteira/pdf/${id}`, {
     method: "GET",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
   });
 
   if (!response.ok) {
@@ -127,12 +124,8 @@ export async function baixarPdf(id: number, nome: string): Promise<void> {
 }
 
 export async function visualizarPdf(id: number): Promise<void> {
-  const token = getAuthToken();
   const response = await apiFetch(`/carteira/visualizar/${id}`, {
     method: "GET",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
   });
 
   if (!response.ok) {
@@ -263,8 +256,8 @@ export async function cadastrarCarteiraLegado(payload: CarteiraForm): Promise<Ca
     nome: payload.descricao,
     propriedade: payload.descricao,
     unloc: "MAO",
-    inicio: new Date().toISOString(),
-    validade: new Date().toISOString(),
+    inicio: new Date().toISOString().slice(0, 10),
+    validade: new Date().toISOString().slice(0, 10),
     endereco: "",
     atividade1: "",
     atividade2: "",

@@ -9,9 +9,9 @@ import type {
   ProcessoSicpr,
   TipoProcessoSicpr,
 } from "./types";
-import { MEMORANDO_SEQUENCE_KEY, TIPO_PROCESSO_LABELS } from "./constants";
+import { TIPO_PROCESSO_LABELS } from "./constants";
 import { historico } from "./history";
-import { getFacAssinada, getFacStatus } from "./selectors";
+import { getFacStatus } from "./selectors";
 import { nowIso, uid } from "./utils";
 export function addProcesso(
   processos: ProcessoSicpr[],
@@ -289,9 +289,7 @@ export function devolverLancamentoParaAnalise(processos: ProcessoSicpr[], id: st
 function gerarNumeroMemorando() {
   const currentYear = new Date().getFullYear();
   const suffix = String(currentYear).slice(-2);
-  const key = `${MEMORANDO_SEQUENCE_KEY}-${suffix}`;
-  const next = Number(localStorage.getItem(key) || "0") + 1;
-  localStorage.setItem(key, String(next));
+  const next = Date.now() % 10000;
   return `${String(next).padStart(4, "0")}/${suffix}`;
 }
 

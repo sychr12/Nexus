@@ -25,6 +25,9 @@ public class User {
     private String nomeCompleto;
     
     private String telefone;
+
+    @Column(name = "unidade_local", length = 120)
+    private String unidadeLocal;
     
     private Integer tentativasFalhas;
     
@@ -41,6 +44,12 @@ public class User {
     private LocalDateTime atualizadoEm;
     
     private LocalDateTime senhaAlteradaEm;
+
+    @Column(name = "password_reset_token_hash", length = 128)
+    private String passwordResetTokenHash;
+
+    @Column(name = "password_reset_expires_at")
+    private LocalDateTime passwordResetExpiresAt;
 
     @PrePersist
     protected void onCreate() {

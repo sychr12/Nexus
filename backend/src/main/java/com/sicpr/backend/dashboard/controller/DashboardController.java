@@ -3,6 +3,7 @@ package com.sicpr.backend.dashboard.controller;
 import com.sicpr.backend.dashboard.dto.*;
 import com.sicpr.backend.dashboard.service.DashboardService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -21,6 +22,12 @@ public class DashboardController {
     @GetMapping("/usuarios-ativos")
     public List<UsuarioAtivoDTO> getUsuariosAtivos() {
         return dashboardService.obterUsuariosAtivos();
+    }
+
+    @PostMapping("/presenca")
+    public ResponseEntity<Void> registrarPresenca() {
+        dashboardService.registrarPresenca();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/atividades")

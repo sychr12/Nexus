@@ -1,7 +1,7 @@
 'use client';
 
 import type { User } from '../types/user';
-import { Edit, Trash2, ToggleLeft, ToggleRight, Shield, Briefcase, Wrench, User as UserIcon, Phone } from 'lucide-react';
+import { Edit, KeyRound, Loader2, Trash2, Shield, Briefcase, Wrench, User as UserIcon, Phone } from 'lucide-react';
 
 const COLORS = {
   primary: "#1F3A2E",
@@ -17,12 +17,15 @@ const COLORS = {
 interface UserTableProps {
   users: User[];
   isLoading: boolean;
+  currentUsername: string;
+  statusUpdatingId?: number | null;
   onEdit: (user: User) => void;
-  onDelete: (id: number) => void;
-  onToggleStatus: (id: number, currentStatus: string) => void;
+  onDelete: (user: User) => void;
+  onToggleStatus: (user: User) => void;
+  onIssueResetToken: (user: User) => void;
 }
 
-export default function UserTable({ users, isLoading, onEdit, onDelete, onToggleStatus }: UserTableProps) {
+export default function UserTable({ users, isLoading, currentUsername, statusUpdatingId, onEdit, onDelete, onToggleStatus, onIssueResetToken }: UserTableProps) {
   const getPerfilIcon = (perfil: string) => {
     switch (perfil) {
       case 'ADMIN': return <Shield size={16} />;
@@ -134,6 +137,9 @@ export default function UserTable({ users, isLoading, onEdit, onDelete, onToggle
                     <div>
                       <p className="font-medium" style={{ color: COLORS.primary }}>{user.nomeCompleto}</p>
                       <p className="text-xs" style={{ color: COLORS.textLight }}>@{user.username}</p>
+                      {user.unidadeLocal && (
+                        <p className="text-xs" style={{ color: COLORS.textLight }}>Unidade: {user.unidadeLocal}</p>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -167,29 +173,52 @@ export default function UserTable({ users, isLoading, onEdit, onDelete, onToggle
                   {formatDate(user.criadoEm)}
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-1.5">
                     <button
-                      onClick={() => onToggleStatus(user.id, user.status)}
-                      className="p-2 rounded-lg transition-colors hover:bg-gray-100"
-                      title={user.status === 'ATIVO' ? 'Inativar' : 'Ativar'}
+                      type="button"
+                      onClick={() => onToggleStatus(user)}
+                      disabled={user.username.toLowerCase() === currentUsername.toLowerCase() || statusUpdatingId === user.id}
+                      className="relative inline-flex h-8 w-14 shrink-0 items-center rounded-full border px-1 transition-all disabled:cursor-not-allowed disabled:opacity-55"
+                      style={{
+                        borderColor: user.status === 'ATIVO' ? COLORS.success : COLORS.border,
+                        backgroundColor: user.status === 'ATIVO' ? `${COLORS.success}22` : '#EEF1EE',
+                      }}
+                      title={user.username.toLowerCase() === currentUsername.toLowerCase() ? 'Voce nao pode inativar seu proprio usuario' : user.status === 'ATIVO' ? 'Inativar usuario' : 'Ativar usuario'}
                     >
-                      {user.status === 'ATIVO' ? (
-                        <ToggleRight size={20} style={{ color: COLORS.success }} />
+                      {statusUpdatingId === user.id ? (
+                        <Loader2 size={15} className="mx-auto animate-spin" style={{ color: COLORS.primary }} />
                       ) : (
-                        <ToggleLeft size={20} style={{ color: COLORS.danger }} />
+                        <span
+                          className="h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                          style={{
+                            transform: user.status === 'ATIVO' ? 'translateX(26px)' : 'translateX(0)',
+                            border: `1px solid ${user.status === 'ATIVO' ? COLORS.success : COLORS.border}`,
+                          }}
+                        />
                       )}
                     </button>
                     <button
+                      type="button"
                       onClick={() => onEdit(user)}
-                      className="p-2 rounded-lg transition-colors hover:bg-gray-100"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-gray-100"
                       title="Editar"
                     >
                       <Edit size={18} style={{ color: COLORS.accent }} />
                     </button>
                     <button
-                      onClick={() => onDelete(user.id)}
-                      className="p-2 rounded-lg transition-colors hover:bg-gray-100"
-                      title="Excluir"
+                      type="button"
+                      onClick={() => onIssueResetToken(user)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-gray-100"
+                      title="Gerar codigo temporario de senha"
+                    >
+                      <KeyRound size={18} style={{ color: COLORS.primary }} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(user)}
+                      disabled={user.username.toLowerCase() === currentUsername.toLowerCase()}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-45"
+                      title={user.username.toLowerCase() === currentUsername.toLowerCase() ? 'Voce nao pode inativar seu proprio usuario' : 'Inativar usuario'}
                     >
                       <Trash2 size={18} style={{ color: COLORS.danger }} />
                     </button>

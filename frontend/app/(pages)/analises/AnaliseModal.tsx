@@ -11,6 +11,8 @@ import {
   Send,
   X,
 } from "lucide-react";
+import StyledSelect from "@/app/_components/StyledSelect";
+import { dateInputToIso, formatDateInput, isValidDateInput, isoToDateInput } from "@/app/_lib/dateInput";
 import {
   COLORS,
   HOVER_LIFT,
@@ -204,14 +206,14 @@ export default function AnaliseModal({
                   {selectedMemorando.memorandoDecisao === "incorreto" && (
                     <div className="rounded-md border p-4" style={{ borderColor: "#FECDCA", backgroundColor: "#FEF3F2" }}>
                       <label className="text-xs font-semibold uppercase" style={{ color: COLORS.danger }}>Motivo padrao</label>
-                      <select
+                      <StyledSelect
                         value={memoMotivo}
-                        onChange={(event) => setMemoMotivo(event.target.value as MotivoMemorandoDevolucao)}
-                        className="mt-2 w-full rounded-md px-2 py-2 text-sm outline-none"
-                        style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text, backgroundColor: COLORS.card }}
-                      >
-                        {MEMORANDO_DEVOLUCAO_MOTIVOS.map((motivo) => <option key={motivo} value={motivo}>{motivo}</option>)}
-                      </select>
+                        onChange={(value) => setMemoMotivo(value as MotivoMemorandoDevolucao)}
+                        className="mt-2"
+                        size="compact"
+                        options={MEMORANDO_DEVOLUCAO_MOTIVOS.map((motivo) => ({ value: motivo, label: motivo }))}
+                        colors={COLORS}
+                      />
                       <textarea
                         value={memoObs}
                         onChange={(event) => setMemoObs(event.target.value.slice(0, 500))}
@@ -382,6 +384,8 @@ function ProcessoPanel({
   onUpdateDeclarationDate: (value: string) => void;
 }) {
   const declaration = getDeclarationInfo(selectedProcesso);
+  const declarationDateValue = isoToDateInput(selectedProcesso.dataDeclaracao);
+  const declarationDateError = declarationDateValue.length === 10 && !isValidDateInput(declarationDateValue);
 
   return (
     <div className="space-y-4">
@@ -407,13 +411,25 @@ function ProcessoPanel({
             <div className="rounded-md border p-4" style={{ borderColor: COLORS.border }}>
               <p className="text-sm font-semibold" style={{ color: COLORS.text }}>Declaracao</p>
               <input
-                type="date"
-                value={selectedProcesso.dataDeclaracao}
-                onChange={(event) => onUpdateDeclarationDate(event.target.value)}
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="dd/mm/aaaa"
+                value={declarationDateValue}
+                onChange={(event) => {
+                  const masked = formatDateInput(event.target.value);
+                  onUpdateDeclarationDate(isValidDateInput(masked) ? dateInputToIso(masked) : masked);
+                }}
+                aria-invalid={declarationDateError || undefined}
                 disabled={selectedProcessoLocked}
                 className="mt-2 w-full rounded-md px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text }}
+                style={{ border: `1px solid ${declarationDateError ? COLORS.danger : COLORS.border}`, color: COLORS.text }}
               />
+              {declarationDateError && (
+                <p className="mt-2 text-xs font-semibold" style={{ color: COLORS.danger }}>
+                  Use uma data valida no formato dia/mes/ano.
+                </p>
+              )}
               <div
                 className="mt-3 rounded-md border px-3 py-2 text-sm"
                 style={{
@@ -508,14 +524,13 @@ function DecisionPanel({
             </div>
             {pendingDecision === "devolucao" && (
               <div className="mt-3">
-                <select
+                <StyledSelect
                   value={processoMotivo}
-                  onChange={(event) => onSetMotivo(event.target.value as MotivoProcessoDevolucao)}
-                  className="w-full rounded-md px-2 py-2 text-sm outline-none"
-                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.text, backgroundColor: COLORS.card }}
-                >
-                  {PROCESSO_DEVOLUCAO_MOTIVOS.map((motivo) => <option key={motivo} value={motivo}>{motivo}</option>)}
-                </select>
+                  onChange={(value) => onSetMotivo(value as MotivoProcessoDevolucao)}
+                  size="compact"
+                  options={PROCESSO_DEVOLUCAO_MOTIVOS.map((motivo) => ({ value: motivo, label: motivo }))}
+                  colors={COLORS}
+                />
                 <textarea
                   value={processoObs}
                   onChange={(event) => onUpdateObservation(event.target.value.slice(0, 500))}

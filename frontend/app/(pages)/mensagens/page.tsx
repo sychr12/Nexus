@@ -17,8 +17,9 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "@/app/_components/layout/Sidebar";
+import { getCurrentSession } from "@/app/_lib/auth";
+import { canAccessRole } from "@/app/_lib/access-control";
 import { formatBytes, UPLOAD_LIMITS, validateMessageAttachment } from "@/app/_lib/uploadLimits";
-import { userService } from "../users/services/user.service";
 import { mensagemService } from "./services/mensagem.service";
 import type { Mensagem, MensagemUser } from "./types/mensagem";
 
@@ -91,7 +92,7 @@ export default function MensagensPage() {
 
       const effectiveUsername = storedUsername || localStorage.getItem("username") || "Usuario";
       const [usersData, mensagensData] = await Promise.all([
-        userService.getAllUsers() as Promise<MensagemUser[]>,
+        mensagemService.listarUsuarios(),
         mensagemService.listar(),
       ]);
 
@@ -114,16 +115,28 @@ export default function MensagensPage() {
     if (!mounted) return;
     
     const timer = window.setTimeout(() => {
-      const token = localStorage.getItem("token");
-      const storedUsername = localStorage.getItem("username") || "Usuario";
-      setUsername(storedUsername);
+      void (async () => {
+        const token = localStorage.getItem("token");
+        const storedUsername = localStorage.getItem("username") || "Usuario";
+        setUsername(storedUsername);
 
-      if (!token) {
-        router.push("/login");
-        return;
-      }
+        if (!token) {
+          router.push("/login");
+          return;
+        }
 
-      loadData(storedUsername);
+        try {
+          const session = await getCurrentSession(storedUsername);
+          if (!canAccessRole(session.role, ["ADMIN", "TECNICO", "USUARIO"])) {
+            router.replace("/perfil?acesso=negado");
+            return;
+          }
+
+          await loadData(storedUsername);
+        } catch {
+          router.push("/login");
+        }
+      })();
     }, 0);
 
     return () => window.clearTimeout(timer);

@@ -1,48 +1,31 @@
-import { apiJson, getAuthToken } from "./http";
+import { apiJson } from "./http";
 
 export type StoredAuthUser = {
   username: string;
   role: string;
+  unidadeLocal?: string | null;
 };
 
 export type LoginResponse = {
-  token: string;
+  token?: string | null;
   username?: string;
   perfil?: string;
   role?: string;
+  unidadeLocal?: string | null;
 };
 
 export function isAdminUser(username: string, role?: string | null) {
   return username.trim().toLowerCase() === "admin" || (role || "").toUpperCase().includes("ADMIN");
 }
 
-export function hasAuthToken() {
-  return Boolean(getAuthToken());
-}
-
-export function getStoredUsername(defaultUsername = "Usuario") {
-  if (typeof window === "undefined") return defaultUsername;
-  return localStorage.getItem("username") || defaultUsername;
-}
-
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
+  // Remove chaves antigas que existiam antes da sessao por cookie HttpOnly.
   localStorage.removeItem("token");
   localStorage.removeItem("username");
   localStorage.removeItem("user");
   localStorage.removeItem("perfil");
   localStorage.removeItem("role");
-}
-
-export function storeAuthSession(data: LoginResponse, fallbackUsername: string) {
-  localStorage.setItem("token", data.token);
-  localStorage.setItem("username", data.username || fallbackUsername);
-
-  const role = data.role || data.perfil;
-  if (role) {
-    localStorage.setItem("perfil", role);
-    localStorage.setItem("role", role);
-  }
 }
 
 export async function login(username: string, password: string): Promise<LoginResponse> {
@@ -57,25 +40,27 @@ export async function login(username: string, password: string): Promise<LoginRe
   );
 }
 
-export async function resolveStoredAuthUser(defaultUsername = "Usuario"): Promise<StoredAuthUser> {
-  const token = getAuthToken() || "";
-  const username = localStorage.getItem("username") || defaultUsername;
-  let role = localStorage.getItem("role") || localStorage.getItem("perfil") || "";
+export async function getCurrentSession(defaultUsername = "Usuario"): Promise<StoredAuthUser> {
+  const data = await apiJson<LoginResponse>("/auth/session", undefined, "Sessao expirada");
+  const username = data.username || defaultUsername;
+  const role = data.role || data.perfil || (isAdminUser(username) ? "ADMIN" : "USUARIO");
 
-  if (!role && token && username) {
-    try {
-      const data = await apiJson<{ perfil?: string; role?: string }>(`/users/username/${encodeURIComponent(username)}`);
-      role = data.perfil || data.role || "";
-      if (role) {
-        localStorage.setItem("perfil", role);
-        localStorage.setItem("role", role);
-      }
-    } catch {
-      role = "";
-    }
+  return { username, role, unidadeLocal: data.unidadeLocal || null };
+}
+
+export async function logout() {
+  try {
+    await apiJson<void>("/auth/logout", { method: "POST" });
+  } finally {
+    clearAuthSession();
   }
+}
 
-  if (!role) role = isAdminUser(username) ? "ADMIN" : "USUARIO";
-
-  return { username, role };
+export async function resolveStoredAuthUser(defaultUsername = "Usuario"): Promise<StoredAuthUser> {
+  try {
+    return await getCurrentSession(defaultUsername);
+  } catch {
+    clearAuthSession();
+    throw new Error("Sessao expirada");
+  }
 }

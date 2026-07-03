@@ -5,7 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
@@ -20,8 +19,6 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-
 @Entity
 @Table(name = "fluxo_processos")
 @Getter
@@ -38,8 +35,11 @@ public class ProcessoFluxo {
     @Column(nullable = false, length = 180)
     private String produtor;
 
-    @Column(nullable = false, length = 14)
+    @Column(nullable = false, length = 512)
     private String cpf;
+
+    @Column(name = "cpf_hash", length = 64)
+    private String cpfHash;
 
     @Column(nullable = false, length = 30)
     private String tipoProcesso;
@@ -58,7 +58,6 @@ public class ProcessoFluxo {
     private String declaracaoProdutor;
     private String declaracoes;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String documentosGeradosJson;
 
@@ -71,17 +70,14 @@ public class ProcessoFluxo {
     private LocalDateTime facAssinadaAnexadaEm;
     private String facAssinadaAnexadaPor;
     private String facAssinadaDocumentoId;
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String facRejeitadaMotivo;
 
     private String memorandoArquivo;
     private LocalDateTime memorandoCriadoEm;
     private Integer memorandoQuantidade;
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String memorandoProdutoresJson;
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String memorandosJson;
     private String memorandoNumero;
@@ -89,7 +85,6 @@ public class ProcessoFluxo {
 
     private String gerenteResponsavel;
     private LocalDateTime gerenteAssinadoEm;
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String assinaturaEletronicaJson;
 
@@ -100,7 +95,6 @@ public class ProcessoFluxo {
     private String lancadoPor;
     private LocalDateTime lancadoEm;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String ultimaJustificativa;
 
@@ -120,7 +114,7 @@ public class ProcessoFluxo {
     @PrePersist
     void onCreate() {
         if (id == null || id.isBlank()) {
-            id = "proc-" + UUID.randomUUID();
+            id = FluxoIdGenerator.generate("proc");
         }
         if (situacao == null) {
             situacao = "em_elaboracao";
