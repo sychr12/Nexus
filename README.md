@@ -117,8 +117,7 @@ Authorization: Bearer token_aqui
 - Token JWT válido por 24 horas
 - Frontend faz chamadas para o backend via serviços em `app/services/`
 
-## 👨‍💻 Autor
+## 👨‍💻 Autores
 
-Luiz
+Luiz  
 Beatriz
-```
